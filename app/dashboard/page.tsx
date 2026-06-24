@@ -1,68 +1,54 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-export default function DashboardPage() {
-  const [profile, setProfile] = useState<any>(null);
+export default function HomePage() {
+  const router = useRouter();
 
   useEffect(() => {
-    async function loadProfile() {
+    async function checkUser() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) return;
-
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      setProfile(data);
+      if (user) {
+        router.push("/dashboard");
+      }
     }
 
-    loadProfile();
-  }, []);
+    checkUser();
+  }, [router]);
 
   return (
-    <>
-      <h1 className="text-5xl font-bold mb-4">
-        Dashboard
-      </h1>
+    <main className="min-h-screen bg-black text-white flex items-center justify-center px-6">
+      <div className="text-center max-w-2xl">
+        <h1 className="text-6xl font-bold mb-6">
+          Sparx Plug Ecosystem
+        </h1>
 
-      <p className="text-gray-400 mb-8">
-        Welcome back.
-      </p>
+        <p className="text-xl text-gray-400 mb-12">
+          Connect. Build. Grow.
+        </p>
 
-      <div className="border border-zinc-800 rounded-xl p-6 max-w-xl">
-        <h2 className="text-3xl font-bold mb-4">
-          Your Profile
-        </h2>
+        <div className="flex gap-4 justify-center">
+          <Link
+            href="/login"
+            className="bg-white text-black px-8 py-4 rounded-lg font-semibold hover:bg-gray-200 transition"
+          >
+            Login
+          </Link>
 
-        <div className="space-y-2">
-          <p>
-            <strong>Name:</strong>{" "}
-            {profile?.full_name || "Not set"}
-          </p>
-
-          <p>
-            <strong>Username:</strong>{" "}
-            {profile?.username || "Not set"}
-          </p>
-
-          <p>
-            <strong>Trade:</strong>{" "}
-            {profile?.trade || "Not set"}
-          </p>
-
-          <p>
-            <strong>Bio:</strong>{" "}
-            {profile?.bio || "Not set"}
-          </p>
+          <Link
+            href="/signup"
+            className="border border-white px-8 py-4 rounded-lg font-semibold hover:bg-white hover:text-black transition"
+          >
+            Create Account
+          </Link>
         </div>
       </div>
-    </>
+    </main>
   );
 }
