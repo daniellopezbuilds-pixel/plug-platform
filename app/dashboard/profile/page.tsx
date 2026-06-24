@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
 
+  const [profileNumber, setProfileNumber] = useState("");
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [trade, setTrade] = useState("");
@@ -24,11 +25,12 @@ export default function ProfilePage() {
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data: profile, error: profileError } =
+        await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
 
       console.log("PROFILE FOUND:", profile);
       console.log("PROFILE ERROR:", profileError);
@@ -48,6 +50,7 @@ export default function ProfilePage() {
         return;
       }
 
+      setProfileNumber(profile.profile_number || "");
       setFullName(profile.full_name || "");
       setUsername(profile.username || "");
       setTrade(profile.trade || "");
@@ -101,6 +104,16 @@ export default function ProfilePage() {
       </h1>
 
       <div className="space-y-5">
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">
+            Profile Number
+          </label>
+
+          <div className="w-full p-4 rounded bg-zinc-800 border border-zinc-700 text-yellow-400 font-semibold">
+            {profileNumber}
+          </div>
+        </div>
+
         <input
           type="text"
           placeholder="Full Name"
