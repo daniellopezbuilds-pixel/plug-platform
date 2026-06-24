@@ -36,8 +36,11 @@ export default function DashboardLayout({
   return (
     <main className="min-h-screen bg-black text-white flex">
       <aside className="w-64 border-r border-gray-800 p-6">
-        <h1 className="text-3xl font-bold mb-10">
-          Plug Platform
+        <h1 className="text-3xl font-bold mb-10 leading-tight">
+          Sparx Plug
+          <span className="block text-lg text-yellow-400">
+            Ecosystem
+          </span>
         </h1>
 
         <nav className="space-y-5">
@@ -75,7 +78,7 @@ export default function DashboardLayout({
                 href="/dashboard/marketplace"
                 className="block hover:text-yellow-400"
               >
-                Marketplace
+                My Local Network
               </Link>
             </>
           )}
@@ -94,6 +97,13 @@ export default function DashboardLayout({
                 className="block hover:text-yellow-400"
               >
                 Applicants
+              </Link>
+
+              <Link
+                href="/dashboard/marketplace"
+                className="block hover:text-yellow-400"
+              >
+                My Local Network
               </Link>
             </>
           )}
