@@ -4,11 +4,23 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export default function SignupPage() {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("worker");
 
   async function handleSignup() {
+    if (!firstName.trim() || !lastName.trim()) {
+      alert("Please enter your first and last name.");
+      return;
+    }
+
+    if (!email.trim() || !password) {
+      alert("Please enter your email and password.");
+      return;
+    }
+
     const { data, error } =
       await supabase.auth.signUp({
         email,
@@ -30,10 +42,13 @@ export default function SignupPage() {
               100000 + Math.random() * 900000
             )}`;
 
+      const fullName = `${firstName.trim()} ${lastName.trim()}`;
+
       await supabase.from("profiles").insert([
         {
           id: data.user.id,
           email,
+          full_name: fullName,
           role,
           xp: 0,
           profile_number: profileNumber,
@@ -59,6 +74,28 @@ export default function SignupPage() {
         </div>
 
         <div className="space-y-4">
+          <div className="flex gap-3">
+            <input
+              type="text"
+              placeholder="First Name"
+              className="w-1/2 p-3 rounded bg-gray-900 border border-gray-700"
+              value={firstName}
+              onChange={(e) =>
+                setFirstName(e.target.value)
+              }
+            />
+
+            <input
+              type="text"
+              placeholder="Last Name"
+              className="w-1/2 p-3 rounded bg-gray-900 border border-gray-700"
+              value={lastName}
+              onChange={(e) =>
+                setLastName(e.target.value)
+              }
+            />
+          </div>
+
           <input
             type="email"
             placeholder="Email"
