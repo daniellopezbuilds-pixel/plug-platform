@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 import { useConversations } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
 import { useEligibleContacts } from "@/hooks/useEligibleContacts";
@@ -14,7 +15,33 @@ export default function MessagesPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showNewPanel, setShowNewPanel] = useState(false);
 
+  const [myRole, setMyRole] = useState<string | null>(null);
+  const [subscribed, setSubscribed] = useState(false);
+
   const { messages, loading: msgLoading, sending, sendMessage } = useMessages(activeId);
+
+  useEffect(() => {
+    async function loadMyProfile() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, messaging_subscribed")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile) {
+        setMyRole(profile.role);
+        setSubscribed(profile.messaging_subscribed || false);
+      }
+    }
+
+    loadMyProfile();
+  }, []);
 
   async function handleStart(participantIds: string[], title?: string) {
     const { error, conversationId } = await startConversation(participantIds, title);
@@ -30,6 +57,16 @@ export default function MessagesPage() {
     const { error } = await sendMessage(content);
     if (error) alert(error);
   }
+
+  const activeConversation = conversations.find((c) => c.id === activeId);
+
+  const isLocked =
+    myRole === "worker" &&
+    !subscribed &&
+    !!activeConversation &&
+    !activeConversation.is_group &&
+    activeConversation.participants.length === 1 &&
+    activeConversation.participants[0].role === "employer";
 
   return (
     <div className="relative h-[calc(100vh-8rem)]">
@@ -72,6 +109,7 @@ export default function MessagesPage() {
               currentUserId={userId}
               sending={sending}
               onSend={handleSend}
+              locked={isLocked}
             />
           )}
         </div>

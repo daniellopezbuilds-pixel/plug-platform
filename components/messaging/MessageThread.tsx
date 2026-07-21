@@ -2,17 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Message } from "@/hooks/useMessages";
+import { SubscribeButton } from "@/components/messaging/SubscribeButton";
 
 export function MessageThread({
   messages,
   currentUserId,
   sending,
   onSend,
+  locked = false,
 }: {
   messages: Message[];
   currentUserId: string | null;
   sending: boolean;
   onSend: (content: string) => void;
+  locked?: boolean;
 }) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -47,24 +50,33 @@ export function MessageThread({
         <div ref={bottomRef} />
       </div>
 
-      <div className="flex gap-2 p-4 border-t border-zinc-800">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Type a message..."
-          disabled={sending}
-          className="flex-1 p-3 rounded-lg bg-zinc-900 border border-zinc-800 text-white disabled:opacity-50"
-        />
-        <button
-          onClick={handleSend}
-          disabled={sending || !input.trim()}
-          className="bg-white text-black px-5 py-3 rounded-lg font-semibold disabled:opacity-50"
-        >
-          Send
-        </button>
-      </div>
+      {locked ? (
+        <div className="p-4 border-t border-zinc-800 flex items-center justify-between gap-4 bg-zinc-900">
+          <p className="text-gray-400 text-sm">
+            Subscribe to message this employer directly.
+          </p>
+          <SubscribeButton />
+        </div>
+      ) : (
+        <div className="flex gap-2 p-4 border-t border-zinc-800">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            placeholder="Type a message..."
+            disabled={sending}
+            className="flex-1 p-3 rounded-lg bg-zinc-900 border border-zinc-800 text-white disabled:opacity-50"
+          />
+          <button
+            onClick={handleSend}
+            disabled={sending || !input.trim()}
+            className="bg-white text-black px-5 py-3 rounded-lg font-semibold disabled:opacity-50"
+          >
+            Send
+          </button>
+        </div>
+      )}
     </div>
   );
 }

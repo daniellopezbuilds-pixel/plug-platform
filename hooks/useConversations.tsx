@@ -7,7 +7,7 @@ export type ConversationSummary = {
   id: string;
   title: string | null;
   is_group: boolean;
-  participants: { id: string; full_name: string | null }[];
+  participants: { id: string; full_name: string | null; role: string | null }[];
   lastMessage: { content: string; created_at: string; sender_id: string } | null;
   isUnread: boolean;
 };
@@ -58,7 +58,7 @@ export function useConversations() {
         id,
         title,
         is_group,
-        conversation_participants ( user_id, profiles ( id, full_name ) )
+        conversation_participants ( user_id, profiles ( id, full_name, role ) )
       `
       )
       .in("id", convIds);
