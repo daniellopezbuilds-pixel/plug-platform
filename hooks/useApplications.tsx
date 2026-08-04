@@ -14,6 +14,11 @@ export type ApplicationWithJob = {
     pay: string | null;
     description: string | null;
     user_id: string;
+    profiles: {
+      full_name: string | null;
+      company_logo_path: string | null;
+      employer_verified: boolean | null;
+    } | null;
   } | null;
 };
 
@@ -51,7 +56,12 @@ export function useApplications() {
           location,
           pay,
           description,
-          user_id
+          user_id,
+          profiles (
+            full_name,
+            company_logo_path,
+            employer_verified
+          )
         )
       `
       )

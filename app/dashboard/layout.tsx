@@ -32,8 +32,8 @@ export default function DashboardLayout({
   }
 
   return (
-    <main className="min-h-screen bg-black text-white flex">
-      <Sidebar
+    <main className="min-h-screen bg-black text-white flex ">
+      <Sidebar 
         activeRole={profile.active_role}
         fullName={profile.full_name || ""}
         profileNumber={profile.profile_number || ""}

@@ -8,9 +8,17 @@ import { useEligibleContacts } from "@/hooks/useEligibleContacts";
 import { ConversationList } from "@/components/messaging/ConversationList";
 import { MessageThread } from "@/components/messaging/MessageThread";
 import { NewConversationPanel } from "@/components/messaging/NewConversationPanel";
+import { useConversationParticipants } from "@/hooks/useConversationParticipants";
 
 export default function MessagesPage() {
-  const { conversations, loading: convLoading, userId, startConversation } = useConversations();
+  const {
+    conversations,
+    loading: convLoading,
+    userId,
+    startConversation,
+    deleteConversation,
+    refresh,
+  } = useConversations();
   const { contacts } = useEligibleContacts();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showNewPanel, setShowNewPanel] = useState(false);
@@ -18,7 +26,8 @@ export default function MessagesPage() {
   const [myRole, setMyRole] = useState<string | null>(null);
   const [subscribed, setSubscribed] = useState(false);
 
-  const { messages, loading: msgLoading, sending, sendMessage } = useMessages(activeId);
+  const { messages, loading: msgLoading, sending, sendMessage, deleteMessage } = useMessages(activeId);
+  const activeParticipantInfo = useConversationParticipants(activeId);
 
   useEffect(() => {
     async function loadMyProfile() {
@@ -55,18 +64,25 @@ export default function MessagesPage() {
 
   async function handleSend(content: string) {
     const { error } = await sendMessage(content);
-    if (error) alert(error);
+    if (error) {
+      alert(error);
+      return;
+    }
+    refresh();
   }
 
-  const activeConversation = conversations.find((c) => c.id === activeId);
+  function handleDeleteConversation(id: string) {
+    if (activeId === id) setActiveId(null);
+    deleteConversation(id);
+  }
 
   const isLocked =
     myRole === "worker" &&
     !subscribed &&
-    !!activeConversation &&
-    !activeConversation.is_group &&
-    activeConversation.participants.length === 1 &&
-    activeConversation.participants[0].role === "employer";
+    !!activeParticipantInfo &&
+    !activeParticipantInfo.is_group &&
+    activeParticipantInfo.participants.length === 1 &&
+    activeParticipantInfo.participants[0].role === "employer";
 
   return (
     <div className="relative h-[calc(100vh-8rem)]">
@@ -89,6 +105,7 @@ export default function MessagesPage() {
                 conversations={conversations}
                 activeId={activeId}
                 onSelect={setActiveId}
+                onDelete={handleDeleteConversation}
               />
             )}
           </div>
@@ -109,6 +126,7 @@ export default function MessagesPage() {
               currentUserId={userId}
               sending={sending}
               onSend={handleSend}
+              onDelete={deleteMessage}
               locked={isLocked}
             />
           )}

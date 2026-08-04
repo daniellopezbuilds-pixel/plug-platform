@@ -2,10 +2,13 @@
 
 import { useDirectory } from "@/hooks/useDirectory";
 import { useConnections } from "@/hooks/useConnections";
-import { useActiveAd } from "@/hooks/useActiveAd";
+import { usePublicAds } from "@/hooks/usePublicAds";
 import { ProfileCard } from "@/components/marketplace/ProfileCard";
 import { ConnectionRequestCard } from "@/components/marketplace/ConnectionRequestCard";
 import { AdBanner } from "@/components/jobs/AdBanner";
+import { FeedAdCard } from "@/components/ads/FeedAdCard";
+
+const FEED_AD_INTERVAL = 5;
 
 export default function MarketplacePage() {
   const {
@@ -28,7 +31,7 @@ export default function MarketplacePage() {
     respondToRequest,
   } = useConnections();
 
-  const { ad } = useActiveAd("marketplace");
+  const { ads } = usePublicAds("marketplace");
 
   async function handleConnect(recipientId: string) {
     const { error } = await sendRequest(recipientId);
@@ -46,11 +49,14 @@ export default function MarketplacePage() {
 
   const loading = profilesLoading || connectionsLoading;
 
+  const topBannerAd = ads[0] || null;
+  const bottomBannerAd = ads.length > 1 ? ads[ads.length - 1] : ads[0] || null;
+
   return (
     <div>
       <h1 className="text-5xl font-bold text-white mb-8">My Local Network</h1>
 
-      {ad && <AdBanner ad={ad} />}
+      {topBannerAd && <AdBanner ad={topBannerAd} />}
 
       {incomingRequests.length > 0 && (
         <div className="mb-10">
@@ -104,15 +110,39 @@ export default function MarketplacePage() {
         <p className="text-gray-400">No profiles match these filters.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {profiles.map((profile) => (
-            <ProfileCard
-              key={profile.id}
-              profile={profile}
-              connection={connectionMap.get(profile.id)}
-              isActing={actingId === profile.id}
-              onConnect={handleConnect}
-            />
-          ))}
+          {profiles.map((profile, index) => {
+            const showAdAfterThis =
+              ads.length > 0 &&
+              (index + 1) % FEED_AD_INTERVAL === 0 &&
+              index !== profiles.length - 1;
+
+            const feedAd = showAdAfterThis
+              ? ads[Math.floor(index / FEED_AD_INTERVAL) % ads.length]
+              : null;
+
+            return (
+              <>
+                <ProfileCard
+                  key={profile.id}
+                  profile={profile}
+                  connection={connectionMap.get(profile.id)}
+                  isActing={actingId === profile.id}
+                  onConnect={handleConnect}
+                />
+                {feedAd && (
+                  <div key={`ad-${profile.id}`}>
+                    <FeedAdCard ad={feedAd} />
+                  </div>
+                )}
+              </>
+            );
+          })}
+        </div>
+      )}
+
+      {bottomBannerAd && (
+        <div className="mt-8">
+          <AdBanner ad={bottomBannerAd} />
         </div>
       )}
     </div>

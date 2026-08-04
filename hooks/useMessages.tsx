@@ -9,6 +9,7 @@ export type Message = {
   sender_id: string;
   content: string;
   created_at: string;
+  deleted_at: string | null;
 };
 
 export function useMessages(conversationId: string | null) {
@@ -38,7 +39,7 @@ export function useMessages(conversationId: string | null) {
       if (isMounted && data) setMessages(data as Message[]);
       if (isMounted) setLoading(false);
 
-      // Mark this conversation as read now that it's open
+      // Mark this conversation as read now that it's open, and unhide it for this user
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -46,7 +47,7 @@ export function useMessages(conversationId: string | null) {
       if (user) {
         await supabase
           .from("conversation_participants")
-          .update({ last_read_at: new Date().toISOString() })
+          .update({ last_read_at: new Date().toISOString(), hidden_at: null })
           .eq("conversation_id", conversationId)
           .eq("user_id", user.id);
       }
@@ -69,6 +70,23 @@ export function useMessages(conversationId: string | null) {
           (payload) => {
             if (isMounted) {
               setMessages((prev) => [...prev, payload.new as Message]);
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "messages",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            if (isMounted) {
+              const updated = payload.new as Message;
+              setMessages((prev) =>
+                prev.map((m) => (m.id === updated.id ? updated : m))
+              );
             }
           }
         )
@@ -115,5 +133,23 @@ export function useMessages(conversationId: string | null) {
     return { error: error?.message || null };
   }
 
-  return { messages, loading, sending, sendMessage };
+  async function deleteMessage(messageId: string) {
+    const { error } = await supabase
+      .from("messages")
+      .update({ content: "", deleted_at: new Date().toISOString() })
+      .eq("id", messageId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, content: "", deleted_at: new Date().toISOString() } : m
+      )
+    );
+  }
+
+  return { messages, loading, sending, sendMessage, deleteMessage };
 }

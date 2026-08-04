@@ -35,6 +35,9 @@ export function Sidebar({
           <Link href="/dashboard" className="block hover:text-yellow-400 transition">
             Dashboard
           </Link>
+          <Link href="/dashboard/feed" className="block hover:text-yellow-400 transition">
+            Feed
+          </Link>
           <Link href="/dashboard/profile" className="block hover:text-yellow-400 transition">
             Profile
           </Link>
@@ -48,6 +51,9 @@ export function Sidebar({
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
+          </Link>
+          <Link href="/dashboard/requests" className="block hover:text-yellow-400 transition">
+            Requests
           </Link>
 
           {activeRole === "worker" && (

@@ -9,7 +9,7 @@ export async function uploadAdImage(file: File) {
   const path = `ad-${Date.now()}.${extensionFromFile(file)}`;
 
   const { error } = await supabase.storage
-    .from("ads")
+    .from("sponsored-listings")
     .upload(path, file, { contentType: file.type });
 
   if (error) return { error: error.message, path: null };
@@ -18,6 +18,6 @@ export async function uploadAdImage(file: File) {
 }
 
 export function getAdPublicUrl(path: string) {
-  const { data } = supabase.storage.from("ads").getPublicUrl(path);
+  const { data } = supabase.storage.from("sponsored-listings").getPublicUrl(path);
   return data.publicUrl;
 }

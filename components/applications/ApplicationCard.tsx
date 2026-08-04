@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "./StatusBadge";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
+import { getBrandingPublicUrl } from "@/lib/branding";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
 
 export function ApplicationCard({
@@ -17,11 +18,31 @@ export function ApplicationCard({
 }) {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const job = application.jobs;
+  const employer = job?.profiles;
 
   return (
     <Card>
       <div className="flex items-start justify-between mb-2">
-        <h2 className="text-2xl font-bold text-white">{job?.title || "Job unavailable"}</h2>
+        <div className="flex items-center gap-3">
+          {employer?.company_logo_path && (
+            <img
+              src={getBrandingPublicUrl(employer.company_logo_path)}
+              alt={employer.full_name || "Company logo"}
+              className="w-12 h-12 rounded-full object-cover border border-zinc-700 shrink-0"
+            />
+          )}
+          <div>
+            <h2 className="text-2xl font-bold text-white">{job?.title || "Job unavailable"}</h2>
+            {employer?.full_name && (
+              <p className="text-gray-400 text-sm flex items-center gap-1.5">
+                {employer.full_name}
+                {employer.employer_verified && (
+                  <span className="text-green-400 text-xs font-semibold">✓ Verified</span>
+                )}
+              </p>
+            )}
+          </div>
+        </div>
         <StatusBadge status={application.status} />
       </div>
 

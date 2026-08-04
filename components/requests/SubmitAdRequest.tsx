@@ -1,28 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { uploadAdImage } from "@/lib/ads";
+import { useSubmitAdRequest } from "@/hooks/useSubmitAdRequest";
 
-export function AdForm({
-  onCreate,
-}: {
-  onCreate: (input: {
-    title: string;
-    image_path: string;
-    link_url: string;
-    placement: "jobs_board" | "marketplace" | "feed";
-    start_date?: string | null;
-    end_date?: string | null;
-    is_paid_ad?: boolean;
-    payment_status?: string;
-    amount_charged?: number | null;
-  }) => Promise<{ error: string | null }>;
-}) {
+export function SubmitAdRequest({ onSubmitted }: { onSubmitted?: () => void }) {
+  const { submit, submitting } = useSubmitAdRequest();
+
   const [title, setTitle] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [placement, setPlacement] = useState<"jobs_board" | "marketplace" | "feed">("jobs_board");
   const [file, setFile] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
   const defaultEnd = new Date();
@@ -30,9 +17,6 @@ export function AdForm({
 
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(defaultEnd.toISOString().split("T")[0]);
-  const [isPaidAd, setIsPaidAd] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState("unpaid");
-  const [amountCharged, setAmountCharged] = useState("");
 
   async function handleSubmit() {
     if (!title || !file) {
@@ -40,29 +24,19 @@ export function AdForm({
       return;
     }
 
-    setSubmitting(true);
-
-    const { error: uploadError, path } = await uploadAdImage(file);
-
-    if (uploadError || !path) {
-      alert(uploadError || "Image upload failed.");
-      setSubmitting(false);
+    if (!startDate || !endDate) {
+      alert("Start and end dates are required.");
       return;
     }
 
-    const { error } = await onCreate({
+    const { error } = await submit({
       title,
-      image_path: path,
       link_url: linkUrl,
       placement,
-      start_date: startDate || null,
-      end_date: endDate || null,
-      is_paid_ad: isPaidAd,
-      payment_status: isPaidAd ? paymentStatus : "n/a",
-      amount_charged: isPaidAd && amountCharged ? parseFloat(amountCharged) : null,
+      start_date: startDate,
+      end_date: endDate,
+      file,
     });
-
-    setSubmitting(false);
 
     if (error) {
       alert(error);
@@ -71,18 +45,18 @@ export function AdForm({
 
     setTitle("");
     setLinkUrl("");
-    setFile(null);
     setPlacement("jobs_board");
+    setFile(null);
     setStartDate(today);
     setEndDate(defaultEnd.toISOString().split("T")[0]);
-    setIsPaidAd(false);
-    setPaymentStatus("unpaid");
-    setAmountCharged("");
+
+    alert("Ad request submitted. An admin will review it shortly.");
+    onSubmitted?.();
   }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 mb-6">
-      <h3 className="text-white font-semibold mb-4">Create New Ad</h3>
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
+      <h3 className="text-white font-semibold mb-4">Submit an Ad Request</h3>
 
       <input
         type="text"
@@ -138,7 +112,7 @@ export function AdForm({
 
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <label className="block text-xs text-gray-400 mb-1">Start Date</label>
+          <label className="block text-xs text-gray-400 mb-1">Desired Start Date</label>
           <input
             type="date"
             value={startDate}
@@ -147,7 +121,7 @@ export function AdForm({
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-400 mb-1">End Date</label>
+          <label className="block text-xs text-gray-400 mb-1">Desired End Date</label>
           <input
             type="date"
             value={endDate}
@@ -157,46 +131,10 @@ export function AdForm({
         </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-3">
-        <button
-          type="button"
-          onClick={() => setIsPaidAd(!isPaidAd)}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
-            isPaidAd
-              ? "bg-blue-950 border-blue-700 text-blue-400"
-              : "bg-zinc-800 border-zinc-700 text-gray-400"
-          }`}
-        >
-          {isPaidAd ? "Paid Ad" : "House Ad (free)"}
-        </button>
-      </div>
-
-      {isPaidAd && (
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Payment Status</label>
-            <select
-              value={paymentStatus}
-              onChange={(e) => setPaymentStatus(e.target.value)}
-              className="w-full p-3 rounded bg-zinc-800 border border-zinc-700 text-white"
-            >
-              <option value="unpaid">Unpaid</option>
-              <option value="paid">Paid</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Amount Charged ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={amountCharged}
-              onChange={(e) => setAmountCharged(e.target.value)}
-              className="w-full p-3 rounded bg-zinc-800 border border-zinc-700 text-white"
-            />
-          </div>
-        </div>
-      )}
+      <p className="text-xs text-gray-500 mb-3">
+        Dates are requests only — an admin will confirm the final run dates and any
+        applicable charges upon approval.
+      </p>
 
       <input
         type="file"
@@ -210,7 +148,7 @@ export function AdForm({
         disabled={submitting}
         className="bg-white text-black px-5 py-2.5 rounded font-semibold disabled:opacity-50"
       >
-        {submitting ? "Creating..." : "Create Ad"}
+        {submitting ? "Submitting..." : "Submit Request"}
       </button>
     </div>
   );

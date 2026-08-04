@@ -23,13 +23,29 @@ export async function POST(req: NextRequest) {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as any;
-    const userId = session.metadata?.user_id;
+    const type = session.metadata?.type;
 
-    if (userId) {
-      await supabaseAdmin
-        .from("profiles")
-        .update({ messaging_subscribed: true })
-        .eq("id", userId);
+    if (type === "group_join") {
+      const userId = session.metadata?.user_id;
+      const conversationId = session.metadata?.conversation_id;
+
+      if (userId && conversationId) {
+        await supabaseAdmin
+          .from("conversation_participants")
+          .update({ payment_status: "paid" })
+          .eq("conversation_id", conversationId)
+          .eq("user_id", userId);
+      }
+    } else {
+      // Existing messaging subscription flow
+      const userId = session.metadata?.user_id;
+
+      if (userId) {
+        await supabaseAdmin
+          .from("profiles")
+          .update({ messaging_subscribed: true })
+          .eq("id", userId);
+      }
     }
   }
 

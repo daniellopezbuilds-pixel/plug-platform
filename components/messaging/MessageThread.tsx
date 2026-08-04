@@ -9,12 +9,14 @@ export function MessageThread({
   currentUserId,
   sending,
   onSend,
+  onDelete,
   locked = false,
 }: {
   messages: Message[];
   currentUserId: string | null;
   sending: boolean;
   onSend: (content: string) => void;
+  onDelete: (messageId: string) => void;
   locked?: boolean;
 }) {
   const [input, setInput] = useState("");
@@ -30,19 +32,39 @@ export function MessageThread({
     setInput("");
   }
 
+  function handleDelete(messageId: string) {
+    if (confirm("Delete this message? This cannot be undone.")) {
+      onDelete(messageId);
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto space-y-3 p-4">
         {messages.map((msg) => {
           const isMine = msg.sender_id === currentUserId;
+          const isDeleted = Boolean(msg.deleted_at);
+
           return (
-            <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+            <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"} group`}>
+              {isMine && !isDeleted && (
+                <button
+                  onClick={() => handleDelete(msg.id)}
+                  className="opacity-0 group-hover:opacity-100 transition text-xs text-gray-500 hover:text-red-400 self-center mr-2"
+                >
+                  Delete
+                </button>
+              )}
               <div
                 className={`max-w-[70%] px-4 py-2.5 rounded-2xl ${
-                  isMine ? "bg-yellow-400 text-black" : "bg-zinc-800 text-white"
+                  isDeleted
+                    ? "bg-zinc-900 border border-zinc-800 text-gray-500 italic"
+                    : isMine
+                    ? "bg-yellow-400 text-black"
+                    : "bg-zinc-800 text-white"
                 }`}
               >
-                <p className="text-sm">{msg.content}</p>
+                <p className="text-sm">{isDeleted ? "Message deleted" : msg.content}</p>
               </div>
             </div>
           );
