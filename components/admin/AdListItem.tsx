@@ -19,8 +19,13 @@ export function AdListItem({
     updates: {
       title: string;
       link_url: string;
-      placement: "jobs_board" | "marketplace";
+      placement: "jobs_board" | "marketplace" | "feed";
       image_path?: string;
+      start_date?: string | null;
+      end_date?: string | null;
+      is_paid_ad?: boolean;
+      payment_status?: string;
+      amount_charged?: number | null;
     }
   ) => Promise<{ error: string | null }>;
 }) {
@@ -40,6 +45,13 @@ export function AdListItem({
     );
   }
 
+  const placementLabel =
+    ad.placement === "jobs_board"
+      ? "Jobs Board"
+      : ad.placement === "marketplace"
+      ? "Marketplace"
+      : "Feed";
+
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 flex items-center gap-4">
       <img
@@ -51,7 +63,7 @@ export function AdListItem({
       <div className="flex-1">
         <h4 className="text-white font-semibold">{ad.title}</h4>
         <p className="text-gray-400 text-sm">
-          {ad.placement === "jobs_board" ? "Jobs Board" : "Marketplace"}
+          {placementLabel}
           {ad.link_url && (
             <span>
               {" "}
