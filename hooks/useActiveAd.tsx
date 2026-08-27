@@ -10,7 +10,7 @@ export type ActiveAd = {
   link_url: string | null;
 };
 
-export function useActiveAd(placement: "jobs_board" | "marketplace") {
+export function useActiveAd(placement: "jobs_board" | "marketplace" | "feed") {
   const [ad, setAd] = useState<ActiveAd | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -18,11 +18,16 @@ export function useActiveAd(placement: "jobs_board" | "marketplace") {
     async function load() {
       setLoading(true);
 
+      const today = new Date().toISOString().split("T")[0];
+
       const { data } = await supabase
-        .from("ads")
+        .from("sponsored_listings")
         .select("id, title, image_path, link_url")
         .eq("placement", placement)
         .eq("is_active", true)
+        .eq("status", "approved")
+        .or(`start_date.is.null,start_date.lte.${today}`)
+        .or(`end_date.is.null,end_date.gte.${today}`)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

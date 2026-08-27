@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { uploadAdImage } from "@/lib/ads";
+import { uploadAdImage, validateAdImage, AD_SPEC_TEXT } from "@/lib/ads";
 import type { Ad } from "@/hooks/useAds";
 
 export function EditAdForm({
@@ -27,7 +27,11 @@ export function EditAdForm({
   const [linkUrl, setLinkUrl] = useState(ad.link_url || "");
   const [placement, setPlacement] = useState<"jobs_board" | "marketplace" | "feed">(ad.placement);
   const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [fileInfo, setFileInfo] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   const [startDate, setStartDate] = useState(ad.start_date || "");
   const [endDate, setEndDate] = useState(ad.end_date || "");
@@ -37,9 +41,34 @@ export function EditAdForm({
     ad.amount_charged?.toString() || ""
   );
 
+  async function handleFileChange(selected: File | null) {
+    setFormError(null);
+    setFileError(null);
+    setFileInfo(null);
+
+    if (!selected) {
+      setFile(null);
+      return;
+    }
+
+    const { error, width, height } = await validateAdImage(selected);
+
+    if (error) {
+      setFile(null);
+      setFileError(error);
+      setFileInputKey((k) => k + 1);
+      return;
+    }
+
+    setFile(selected);
+    setFileInfo(`${width}×${height}px — looks good`);
+  }
+
   async function handleSubmit() {
+    setFormError(null);
+
     if (!title.trim()) {
-      alert("Title is required.");
+      setFormError("Title is required.");
       return;
     }
 
@@ -51,7 +80,7 @@ export function EditAdForm({
       const { error: uploadError, path } = await uploadAdImage(file);
 
       if (uploadError || !path) {
-        alert(uploadError || "Image upload failed.");
+        setFormError(uploadError || "Image upload failed.");
         setSubmitting(false);
         return;
       }
@@ -74,7 +103,7 @@ export function EditAdForm({
     setSubmitting(false);
 
     if (error) {
-      alert(error);
+      setFormError(error);
       return;
     }
   }
@@ -197,20 +226,37 @@ export function EditAdForm({
         </div>
       )}
 
-      <label className="block text-sm text-gray-400 mb-2">
+      <label className="block text-sm text-gray-400 mb-1">
         Replace Image (optional — leave blank to keep current image)
       </label>
+      <p className="text-xs text-gray-500 mb-2">{AD_SPEC_TEXT}</p>
+
       <input
+        key={fileInputKey}
         type="file"
-        accept="image/*"
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
-        className="w-full p-3 rounded bg-zinc-800 border border-zinc-700 text-white mb-4"
+        accept="image/png,image/jpeg,image/webp"
+        onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+        className="w-full p-3 rounded bg-zinc-800 border border-zinc-700 text-white mb-2"
       />
 
-      <div className="flex gap-3">
+      {fileError && (
+        <p className="text-sm text-red-400 mb-3 bg-red-950/40 border border-red-900 rounded p-2">
+          {fileError}
+        </p>
+      )}
+
+      {fileInfo && <p className="text-sm text-green-400 mb-3">✓ {fileInfo}</p>}
+
+      {formError && (
+        <p className="text-sm text-red-400 mb-3 bg-red-950/40 border border-red-900 rounded p-2">
+          {formError}
+        </p>
+      )}
+
+      <div className="flex gap-3 mt-2">
         <button
           onClick={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || !title.trim()}
           className="bg-white text-black px-5 py-2.5 rounded font-semibold disabled:opacity-50"
         >
           {submitting ? "Saving..." : "Save Changes"}

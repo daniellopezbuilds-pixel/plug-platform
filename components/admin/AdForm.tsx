@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { uploadAdImage } from "@/lib/ads";
+import { uploadAdImage, validateAdImage, AD_SPEC_TEXT } from "@/lib/ads";
 
 export function AdForm({
   onCreate,
@@ -22,7 +22,11 @@ export function AdForm({
   const [linkUrl, setLinkUrl] = useState("");
   const [placement, setPlacement] = useState<"jobs_board" | "marketplace" | "feed">("jobs_board");
   const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [fileInfo, setFileInfo] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   const today = new Date().toISOString().split("T")[0];
   const defaultEnd = new Date();
@@ -34,9 +38,54 @@ export function AdForm({
   const [paymentStatus, setPaymentStatus] = useState("unpaid");
   const [amountCharged, setAmountCharged] = useState("");
 
+  async function handleFileChange(selected: File | null) {
+    setFormError(null);
+    setFileError(null);
+    setFileInfo(null);
+
+    if (!selected) {
+      setFile(null);
+      return;
+    }
+
+    const { error, width, height } = await validateAdImage(selected);
+
+    if (error) {
+      setFile(null);
+      setFileError(error);
+      return;
+    }
+
+    setFile(selected);
+    setFileInfo(`${width}×${height}px — looks good`);
+  }
+
+  function resetForm() {
+    setTitle("");
+    setLinkUrl("");
+    setFile(null);
+    setFileError(null);
+    setFileInfo(null);
+    setFormError(null);
+    setPlacement("jobs_board");
+    setStartDate(today);
+    setEndDate(defaultEnd.toISOString().split("T")[0]);
+    setIsPaidAd(false);
+    setPaymentStatus("unpaid");
+    setAmountCharged("");
+    setFileInputKey((k) => k + 1);
+  }
+
   async function handleSubmit() {
-    if (!title || !file) {
-      alert("Title and image are required.");
+    setFormError(null);
+
+    if (!title.trim()) {
+      setFormError("Ad title is required.");
+      return;
+    }
+
+    if (!file) {
+      setFormError("A valid ad image is required.");
       return;
     }
 
@@ -45,7 +94,7 @@ export function AdForm({
     const { error: uploadError, path } = await uploadAdImage(file);
 
     if (uploadError || !path) {
-      alert(uploadError || "Image upload failed.");
+      setFormError(uploadError || "Image upload failed.");
       setSubmitting(false);
       return;
     }
@@ -65,19 +114,11 @@ export function AdForm({
     setSubmitting(false);
 
     if (error) {
-      alert(error);
+      setFormError(error);
       return;
     }
 
-    setTitle("");
-    setLinkUrl("");
-    setFile(null);
-    setPlacement("jobs_board");
-    setStartDate(today);
-    setEndDate(defaultEnd.toISOString().split("T")[0]);
-    setIsPaidAd(false);
-    setPaymentStatus("unpaid");
-    setAmountCharged("");
+    resetForm();
   }
 
   return (
@@ -198,17 +239,35 @@ export function AdForm({
         </div>
       )}
 
+      <label className="block text-xs text-gray-400 mb-1">Ad Image</label>
+      <p className="text-xs text-gray-500 mb-2">{AD_SPEC_TEXT}</p>
+
       <input
+        key={fileInputKey}
         type="file"
-        accept="image/*"
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
-        className="w-full p-3 rounded bg-zinc-800 border border-zinc-700 text-white mb-4"
+        accept="image/png,image/jpeg,image/webp"
+        onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+        className="w-full p-3 rounded bg-zinc-800 border border-zinc-700 text-white mb-2"
       />
+
+      {fileError && (
+        <p className="text-sm text-red-400 mb-3 bg-red-950/40 border border-red-900 rounded p-2">
+          {fileError}
+        </p>
+      )}
+
+      {fileInfo && <p className="text-sm text-green-400 mb-3">✓ {fileInfo}</p>}
+
+      {formError && (
+        <p className="text-sm text-red-400 mb-3 bg-red-950/40 border border-red-900 rounded p-2">
+          {formError}
+        </p>
+      )}
 
       <button
         onClick={handleSubmit}
-        disabled={submitting}
-        className="bg-white text-black px-5 py-2.5 rounded font-semibold disabled:opacity-50"
+        disabled={submitting || !file || !title.trim()}
+        className="bg-white text-black px-5 py-2.5 rounded font-semibold disabled:opacity-50 mt-2"
       >
         {submitting ? "Creating..." : "Create Ad"}
       </button>

@@ -25,7 +25,10 @@ export default function JobsPage() {
   }
 
   const topBannerAd = ads[0] || null;
-  const bottomBannerAd = ads.length > 1 ? ads[ads.length - 1] : ads[0] || null;
+
+  // Only show a bottom banner when there's a *different* ad to show.
+  // With a single active ad, the bottom slot is hidden rather than repeated.
+  const bottomBannerAd = ads.length > 1 ? ads[1] : null;
 
   return (
     <div>

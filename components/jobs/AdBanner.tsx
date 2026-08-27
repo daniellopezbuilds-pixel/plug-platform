@@ -7,11 +7,16 @@ export function AdBanner({ ad }: { ad: ActiveAd }) {
   const imageUrl = getAdPublicUrl(ad.image_path);
 
   const content = (
-    <img
-      src={imageUrl}
-      alt={ad.title}
-      className="w-full h-32 rounded-lg object-cover border border-zinc-800"
-    />
+    <div
+      className="relative w-full max-w-[728px] rounded-lg border border-zinc-800 overflow-hidden bg-black"
+      style={{ paddingTop: "min(25%, 182px)" }}
+    >
+      <img
+        src={imageUrl}
+        alt={ad.title}
+        className="absolute inset-0 w-full h-full object-contain"
+      />
+    </div>
   );
 
   return (
