@@ -9,54 +9,45 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("worker");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSignup() {
+    setError(null);
+
     if (!firstName.trim() || !lastName.trim()) {
-      alert("Please enter your first and last name.");
+      setError("Please enter your first and last name.");
       return;
     }
 
     if (!email.trim() || !password) {
-      alert("Please enter your email and password.");
+      setError("Please enter your email and password.");
       return;
     }
 
-    const { data, error } =
-      await supabase.auth.signUp({
-        email,
-        password,
-      });
+    setSubmitting(true);
 
-    if (error) {
-      alert(error.message);
-      return;
-    }
+    const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
-    if (data.user) {
-      const profileNumber =
-        role === "worker"
-          ? `WRK-${Math.floor(
-              100000 + Math.random() * 900000
-            )}`
-          : `EMP-${Math.floor(
-              100000 + Math.random() * 900000
-            )}`;
-
-      const fullName = `${firstName.trim()} ${lastName.trim()}`;
-
-      await supabase.from("profiles").insert([
-        {
-          id: data.user.id,
-          email,
+    const { error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
           full_name: fullName,
           role,
-          xp: 0,
-          profile_number: profileNumber,
         },
-      ]);
+      },
+    });
+
+    setSubmitting(false);
+
+    if (signUpError) {
+      setError(signUpError.message);
+      return;
     }
 
-    alert("Account created successfully.");
+    alert("Account created. Please check your email to confirm your address.");
     window.location.href = "/login";
   }
 
@@ -64,13 +55,8 @@ export default function SignupPage() {
     <main className="min-h-screen bg-black text-white flex items-center justify-center px-6">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
-          <h1 className="text-5xl font-bold mb-3">
-            Sparx Plug Ecosystem
-          </h1>
-
-          <p className="text-gray-400">
-            Connect. Build. Grow.
-          </p>
+          <h1 className="text-5xl font-bold mb-3">Sparx Plug Ecosystem</h1>
+          <p className="text-gray-400">Connect. Build. Grow.</p>
         </div>
 
         <div className="space-y-4">
@@ -80,9 +66,7 @@ export default function SignupPage() {
               placeholder="First Name"
               className="w-1/2 p-3 rounded bg-gray-900 border border-gray-700"
               value={firstName}
-              onChange={(e) =>
-                setFirstName(e.target.value)
-              }
+              onChange={(e) => setFirstName(e.target.value)}
             />
 
             <input
@@ -90,9 +74,7 @@ export default function SignupPage() {
               placeholder="Last Name"
               className="w-1/2 p-3 rounded bg-gray-900 border border-gray-700"
               value={lastName}
-              onChange={(e) =>
-                setLastName(e.target.value)
-              }
+              onChange={(e) => setLastName(e.target.value)}
             />
           </div>
 
@@ -101,9 +83,7 @@ export default function SignupPage() {
             placeholder="Email"
             className="w-full p-3 rounded bg-gray-900 border border-gray-700"
             value={email}
-            onChange={(e) =>
-              setEmail(e.target.value)
-            }
+            onChange={(e) => setEmail(e.target.value)}
           />
 
           <input
@@ -111,22 +91,16 @@ export default function SignupPage() {
             placeholder="Password"
             className="w-full p-3 rounded bg-gray-900 border border-gray-700"
             value={password}
-            onChange={(e) =>
-              setPassword(e.target.value)
-            }
+            onChange={(e) => setPassword(e.target.value)}
           />
 
           <div className="space-y-2">
-            <p className="text-sm text-gray-400">
-              I am signing up as:
-            </p>
+            <p className="text-sm text-gray-400">I am signing up as:</p>
 
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() =>
-                  setRole("worker")
-                }
+                onClick={() => setRole("worker")}
                 className={`flex-1 p-3 rounded border ${
                   role === "worker"
                     ? "bg-white text-black border-white"
@@ -138,9 +112,7 @@ export default function SignupPage() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setRole("employer")
-                }
+                onClick={() => setRole("employer")}
                 className={`flex-1 p-3 rounded border ${
                   role === "employer"
                     ? "bg-white text-black border-white"
@@ -152,11 +124,18 @@ export default function SignupPage() {
             </div>
           </div>
 
+          {error && (
+            <p className="text-sm text-red-400 bg-red-950/40 border border-red-900 rounded p-3">
+              {error}
+            </p>
+          )}
+
           <button
             onClick={handleSignup}
-            className="w-full bg-white text-black p-3 rounded font-semibold hover:bg-gray-200 transition"
+            disabled={submitting}
+            className="w-full bg-white text-black p-3 rounded font-semibold hover:bg-gray-200 transition disabled:opacity-50"
           >
-            Create Account
+            {submitting ? "Creating account..." : "Create Account"}
           </button>
         </div>
       </div>
