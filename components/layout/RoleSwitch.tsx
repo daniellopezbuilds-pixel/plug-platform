@@ -22,7 +22,7 @@ export function RoleSwitch({
           onClick={() => onSwitch(mode)}
           className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
             activeMode === mode
-              ? "bg-brand text-white"
+              ? "bg-accent text-on-accent"
               : "text-gray-400 hover:text-white"
           }`}
         >

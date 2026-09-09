@@ -46,7 +46,7 @@ export function ProfileCard({
         <button
           onClick={() => onConnect(profile.id)}
           disabled={isActing}
-          className="bg-brand text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-brand-soft disabled:opacity-50 transition"
+          className="bg-accent text-on-accent px-5 py-2.5 rounded-lg font-semibold hover:bg-accent-hover disabled:opacity-50 transition"
         >
           {isActing ? "Sending..." : "Connect"}
         </button>
@@ -71,7 +71,7 @@ export function ProfileCard({
 
     if (connection.status === "pending" && connection.direction === "received") {
       return (
-        <span className="bg-transparent text-white border border-brand px-5 py-2.5 rounded-lg font-semibold text-sm">
+        <span className="bg-transparent text-white border border-accent px-5 py-2.5 rounded-lg font-semibold text-sm">
           Respond in Requests
         </span>
       );
@@ -163,7 +163,7 @@ export function ProfileCard({
           }
           target="_blank"
           rel="noopener noreferrer"
-          className="text-brand-soft hover:text-white text-sm block mb-4"
+          className="text-accent-2-soft hover:text-white text-sm block mb-4"
         >
           {profile.company_website} ↗
         </a>
@@ -174,7 +174,7 @@ export function ProfileCard({
         {profile.resume_path && (
           <button
             onClick={handleViewResume}
-            className="text-brand-soft hover:text-white text-sm font-semibold"
+            className="text-accent-2-soft hover:text-white text-sm font-semibold"
           >
             View Resume →
           </button>

@@ -16,7 +16,7 @@ import {
 const STEP_COUNT = 3;
 
 const inputClass =
-  "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-brand focus:outline-none transition";
+  "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -186,7 +186,7 @@ export default function SignupPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold">
-            Sparx Plug <span className="text-brand-soft">Ecosystem</span>
+            Sparx Plug <span className="text-accent-2-soft">Ecosystem</span>
           </h1>
           <p className="text-gray-400 text-sm mt-1">Connect. Build. Grow.</p>
         </div>
@@ -199,7 +199,7 @@ export default function SignupPage() {
                 <div
                   key={i}
                   className={`h-1 flex-1 rounded-full transition ${
-                    i <= step ? "bg-brand" : "bg-zinc-800"
+                    i <= step ? "bg-accent" : "bg-zinc-800"
                   }`}
                 />
               ))}
@@ -228,17 +228,17 @@ export default function SignupPage() {
                     }}
                     className={`w-full text-left p-3 rounded-lg border transition flex items-start gap-3 ${
                       selected
-                        ? "border-brand bg-transparent"
+                        ? "border-accent bg-transparent"
                         : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"
                     }`}
                   >
                     <span
                       className={`mt-0.5 h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                        selected ? "border-brand" : "border-zinc-700"
+                        selected ? "border-accent" : "border-zinc-700"
                       }`}
                     >
                       {selected && (
-                        <span className="h-2 w-2 rounded-full bg-brand" />
+                        <span className="h-2 w-2 rounded-full bg-accent" />
                       )}
                     </span>
                     <span>
@@ -351,7 +351,7 @@ export default function SignupPage() {
           )}
 
           {error && (
-            <p className="mt-4 text-sm text-red-400 bg-red-950/40 border border-red-900 rounded-lg p-3">
+            <p className="mt-4 text-sm text-rose-400 bg-rose-950/40 border border-rose-900 rounded-lg p-3">
               {error}
             </p>
           )}
@@ -371,7 +371,7 @@ export default function SignupPage() {
               type="button"
               onClick={isLastStep ? handleSignup : goNext}
               disabled={submitting}
-              className="flex-1 bg-brand text-white p-3 rounded-lg font-semibold hover:bg-brand-soft transition disabled:opacity-50"
+              className="flex-1 bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50"
             >
               {submitting
                 ? "Creating account..."
@@ -384,7 +384,7 @@ export default function SignupPage() {
 
         <p className="text-center text-sm text-gray-400 mt-5">
           Already have an account?{" "}
-          <Link href="/login" className="text-brand-soft hover:underline">
+          <Link href="/login" className="text-accent-2-soft hover:underline">
             Log in
           </Link>
         </p>

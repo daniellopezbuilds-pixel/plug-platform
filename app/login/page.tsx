@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 const inputClass =
-  "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-brand focus:outline-none transition";
+  "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
 
 const labelClass = "block text-sm text-gray-400 mb-1";
 
@@ -56,7 +56,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold">
-            Sparx Plug <span className="text-brand-soft">Ecosystem</span>
+            Sparx Plug <span className="text-accent-2-soft">Ecosystem</span>
           </h1>
           <p className="text-gray-400 text-sm mt-1">Connect. Build. Grow.</p>
         </div>
@@ -101,7 +101,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="text-sm text-red-400 bg-red-950/40 border border-red-900 rounded-lg p-3">
+              <p className="text-sm text-rose-400 bg-rose-950/40 border border-rose-900 rounded-lg p-3">
                 {error}
               </p>
             )}
@@ -110,7 +110,7 @@ export default function LoginPage() {
               type="button"
               onClick={handleLogin}
               disabled={submitting}
-              className="w-full bg-brand text-white p-3 rounded-lg font-semibold hover:bg-brand-soft transition disabled:opacity-50"
+              className="w-full bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50"
             >
               {submitting ? "Logging in..." : "Log in"}
             </button>
@@ -119,7 +119,7 @@ export default function LoginPage() {
 
         <p className="text-center text-sm text-gray-400 mt-5">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="text-brand-soft hover:underline">
+          <Link href="/signup" className="text-accent-2-soft hover:underline">
             Sign up
           </Link>
         </p>

@@ -41,55 +41,55 @@ export function Sidebar({
         <div className="flex items-start justify-between mb-10">
           <h1 className="text-3xl font-bold leading-tight">
             Sparx Plug
-            <span className="block text-lg text-brand-soft">Ecosystem</span>
+            <span className="block text-lg text-accent-2-soft">Ecosystem</span>
           </h1>
           <NotificationBell />
         </div>
 
         <nav className="space-y-5">
-          <Link href="/dashboard" className="block hover:text-brand-soft transition">
+          <Link href="/dashboard" className="block hover:text-accent-2-soft transition">
             Dashboard
           </Link>
           {isBrand && (
             <Link
               href="/dashboard/branding-deals"
-              className="block hover:text-brand-soft transition"
+              className="block hover:text-accent-2-soft transition"
             >
               Branding deals
             </Link>
           )}
-          <Link href="/dashboard/feed" className="block hover:text-brand-soft transition">
+          <Link href="/dashboard/feed" className="block hover:text-accent-2-soft transition">
             Feed
           </Link>
-          <Link href="/dashboard/profile" className="block hover:text-brand-soft transition">
+          <Link href="/dashboard/profile" className="block hover:text-accent-2-soft transition">
             Profile
           </Link>
           <Link
             href="/dashboard/messages"
-            className="flex items-center gap-2 hover:text-brand-soft transition"
+            className="flex items-center gap-2 hover:text-accent-2-soft transition"
           >
             Messages
             {unreadCount > 0 && (
-              <span className="bg-zinc-700 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+              <span className="bg-accent-2 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
           </Link>
           {!isBrand && (
-            <Link href="/dashboard/requests" className="block hover:text-brand-soft transition">
+            <Link href="/dashboard/requests" className="block hover:text-accent-2-soft transition">
               Requests
             </Link>
           )}
 
           {!isBrand && activeRole === "worker" && (
             <>
-              <Link href="/dashboard/jobs" className="block hover:text-brand-soft transition">
+              <Link href="/dashboard/jobs" className="block hover:text-accent-2-soft transition">
                 Jobs
               </Link>
-              <Link href="/dashboard/applications" className="block hover:text-brand-soft transition">
+              <Link href="/dashboard/applications" className="block hover:text-accent-2-soft transition">
                 Applications
               </Link>
-              <Link href="/dashboard/marketplace" className="block hover:text-brand-soft transition">
+              <Link href="/dashboard/marketplace" className="block hover:text-accent-2-soft transition">
                 My Local Network
               </Link>
             </>
@@ -97,13 +97,13 @@ export function Sidebar({
 
           {!isBrand && activeRole === "employer" && (
             <>
-              <Link href="/dashboard/jobs/create" className="block hover:text-brand-soft transition">
+              <Link href="/dashboard/jobs/create" className="block hover:text-accent-2-soft transition">
                 Post Job
               </Link>
-              <Link href="/dashboard/applicants" className="block hover:text-brand-soft transition">
+              <Link href="/dashboard/applicants" className="block hover:text-accent-2-soft transition">
                 Applicants
               </Link>
-              <Link href="/dashboard/marketplace" className="block hover:text-brand-soft transition">
+              <Link href="/dashboard/marketplace" className="block hover:text-accent-2-soft transition">
                 My Local Network
               </Link>
             </>
@@ -132,7 +132,7 @@ export function Sidebar({
             {typeLabel && ` · ${typeLabel}`}
           </p>
         </div>
-        <button onClick={onLogout} className="text-red-400 hover:text-red-300 transition">
+        <button onClick={onLogout} className="text-rose-400 hover:text-rose-300 transition">
           Logout
         </button>
       </div>

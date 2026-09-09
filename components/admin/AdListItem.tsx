@@ -67,7 +67,7 @@ export function AdListItem({
           {ad.link_url && (
             <span>
               {" "}
-              · <a href={ad.link_url} target="_blank" rel="noopener noreferrer" className="text-brand-soft hover:text-white">{ad.link_url}</a>
+              · <a href={ad.link_url} target="_blank" rel="noopener noreferrer" className="text-accent-2-soft hover:text-white">{ad.link_url}</a>
             </span>
           )}
         </p>
@@ -98,7 +98,7 @@ export function AdListItem({
         </button>
         <button
           onClick={() => onDelete(ad.id)}
-          className="bg-red-950 text-red-400 border border-red-800 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-red-900 transition"
+          className="bg-rose-950 text-rose-400 border border-rose-800 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-rose-900 transition"
         >
           Delete
         </button>

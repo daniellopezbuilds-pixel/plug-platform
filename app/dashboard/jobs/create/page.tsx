@@ -64,7 +64,7 @@ export default function CreateJobPage() {
       <Card>
         <div className="space-y-4">
           {error && (
-            <div className="bg-red-950 border border-red-800 text-red-300 rounded-lg p-3 text-sm">
+            <div className="bg-rose-950 border border-rose-800 text-rose-300 rounded-lg p-3 text-sm">
               {error}
             </div>
           )}
@@ -126,7 +126,7 @@ export default function CreateJobPage() {
                 disabled={submitting}
                 className={`px-5 py-3 rounded-lg font-semibold border transition disabled:opacity-50 ${
                   requiredUnionStatus === "union"
-                    ? "bg-transparent border-brand text-white"
+                    ? "bg-transparent border-accent text-white"
                     : "bg-zinc-800 border-zinc-700 text-gray-400"
                 }`}
               >
@@ -140,7 +140,7 @@ export default function CreateJobPage() {
                 disabled={submitting}
                 className={`px-5 py-3 rounded-lg font-semibold border transition disabled:opacity-50 ${
                   requiredUnionStatus === "non_union"
-                    ? "bg-transparent border-brand text-white"
+                    ? "bg-transparent border-accent text-white"
                     : "bg-zinc-800 border-zinc-700 text-gray-400"
                 }`}
               >
@@ -155,7 +155,7 @@ export default function CreateJobPage() {
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="bg-brand text-white px-6 py-4 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-accent text-on-accent px-6 py-4 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? "Posting..." : "Post Job"}
           </button>

@@ -50,7 +50,7 @@ export function MessageThread({
               {isMine && !isDeleted && (
                 <button
                   onClick={() => handleDelete(msg.id)}
-                  className="opacity-0 group-hover:opacity-100 transition text-xs text-gray-400 hover:text-red-400 self-center mr-2"
+                  className="opacity-0 group-hover:opacity-100 transition text-xs text-gray-400 hover:text-rose-400 self-center mr-2"
                 >
                   Delete
                 </button>
@@ -60,7 +60,7 @@ export function MessageThread({
                   isDeleted
                     ? "bg-zinc-900 border border-zinc-800 text-gray-400 italic"
                     : isMine
-                    ? "bg-brand text-white"
+                    ? "bg-accent-2 text-white"
                     : "bg-zinc-800 text-white"
                 }`}
               >
@@ -93,7 +93,7 @@ export function MessageThread({
           <button
             onClick={handleSend}
             disabled={sending || !input.trim()}
-            className="bg-brand text-white px-5 py-3 rounded-lg font-semibold disabled:opacity-50"
+            className="bg-accent text-on-accent px-5 py-3 rounded-lg font-semibold disabled:opacity-50"
           >
             Send
           </button>

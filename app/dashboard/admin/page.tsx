@@ -112,13 +112,13 @@ export default function AdminPage() {
           onClick={() => setActiveTab("requests")}
           className={`px-5 py-3 font-semibold border-b-2 transition ${
             activeTab === "requests"
-              ? "border-brand text-white"
+              ? "border-accent text-white"
               : "border-transparent text-gray-400 hover:text-white"
           }`}
         >
           All Requests
           {totalPendingRequests > 0 && (
-            <span className="ml-2 bg-zinc-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+            <span className="ml-2 bg-accent-2 text-white text-xs font-bold px-2 py-0.5 rounded-full">
               {totalPendingRequests}
             </span>
           )}
@@ -127,7 +127,7 @@ export default function AdminPage() {
           onClick={() => setActiveTab("employers")}
           className={`px-5 py-3 font-semibold border-b-2 transition ${
             activeTab === "employers"
-              ? "border-brand text-white"
+              ? "border-accent text-white"
               : "border-transparent text-gray-400 hover:text-white"
           }`}
         >
@@ -137,7 +137,7 @@ export default function AdminPage() {
           onClick={() => setActiveTab("union")}
           className={`px-5 py-3 font-semibold border-b-2 transition ${
             activeTab === "union"
-              ? "border-brand text-white"
+              ? "border-accent text-white"
               : "border-transparent text-gray-400 hover:text-white"
           }`}
         >
@@ -147,13 +147,13 @@ export default function AdminPage() {
           onClick={() => setActiveTab("ad-requests")}
           className={`px-5 py-3 font-semibold border-b-2 transition ${
             activeTab === "ad-requests"
-              ? "border-brand text-white"
+              ? "border-accent text-white"
               : "border-transparent text-gray-400 hover:text-white"
           }`}
         >
           Advertisement Requests
           {brandAdRequests.length > 0 && (
-            <span className="ml-2 bg-zinc-700 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+            <span className="ml-2 bg-accent-2 text-white text-xs font-bold px-2 py-0.5 rounded-full">
               {brandAdRequests.length}
             </span>
           )}
@@ -162,7 +162,7 @@ export default function AdminPage() {
           onClick={() => setActiveTab("ads")}
           className={`px-5 py-3 font-semibold border-b-2 transition ${
             activeTab === "ads"
-              ? "border-brand text-white"
+              ? "border-accent text-white"
               : "border-transparent text-gray-400 hover:text-white"
           }`}
         >

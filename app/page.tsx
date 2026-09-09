@@ -36,7 +36,7 @@ export default function HomePage() {
         <div className="flex gap-4 justify-center">
           <Link
             href="/login"
-            className="bg-brand text-white px-8 py-4 rounded-lg font-semibold hover:bg-brand-soft transition"
+            className="bg-accent text-on-accent px-8 py-4 rounded-lg font-semibold hover:bg-accent-hover transition"
           >
             Login
           </Link>

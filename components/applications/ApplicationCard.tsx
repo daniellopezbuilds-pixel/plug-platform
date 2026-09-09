@@ -57,7 +57,7 @@ export function ApplicationCard({
       {application.status === "accepted" && job?.user_id && !hasReviewed && !showReviewForm && (
         <button
           onClick={() => setShowReviewForm(true)}
-          className="text-brand-soft hover:text-white text-sm font-semibold mt-4 block"
+          className="text-accent-2-soft hover:text-white text-sm font-semibold mt-4 block"
         >
           Leave a review →
         </button>

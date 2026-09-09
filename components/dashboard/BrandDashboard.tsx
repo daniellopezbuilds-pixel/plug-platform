@@ -11,7 +11,7 @@ export function BrandDashboard() {
       </p>
       <Link
         href="/dashboard/branding-deals"
-        className="inline-block bg-brand text-white px-5 py-3 rounded-lg font-semibold"
+        className="inline-block bg-accent text-on-accent px-5 py-3 rounded-lg font-semibold"
       >
         Go to Branding deals
       </Link>

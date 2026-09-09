@@ -125,7 +125,7 @@ export function AdRequestCard({
                   <a href={linkLabel}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-brand-soft hover:text-white"
+                  className="text-accent-2-soft hover:text-white"
                 >
                   {linkLabel}
                 </a>
@@ -175,7 +175,7 @@ export function AdRequestCard({
           onClick={() => setIsPaidAd(!isPaidAd)}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             isPaidAd
-              ? "bg-transparent border-brand text-white"
+              ? "bg-transparent border-accent text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -211,7 +211,7 @@ export function AdRequestCard({
       )}
 
       {rejecting ? (
-        <div className="border border-red-900 bg-red-950/30 rounded-lg p-4">
+        <div className="border border-rose-900 bg-rose-950/30 rounded-lg p-4">
           <label
             htmlFor={`reason-${request.id}`}
             className="block text-xs text-gray-300 mb-1.5"
@@ -229,13 +229,13 @@ export function AdRequestCard({
             className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-sm resize-none"
           />
           {reasonError && (
-            <p className="text-xs text-red-400 mt-1.5">{reasonError}</p>
+            <p className="text-xs text-rose-400 mt-1.5">{reasonError}</p>
           )}
           <div className="flex gap-3 mt-3">
             <button
               onClick={handleReject}
               disabled={submitting}
-              className="bg-red-950 text-red-400 border border-red-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-red-900 transition disabled:opacity-50"
+              className="bg-rose-950 text-rose-400 border border-rose-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-rose-900 transition disabled:opacity-50"
             >
               {submitting ? "Rejecting..." : "Confirm rejection"}
             </button>
@@ -262,7 +262,7 @@ export function AdRequestCard({
           </button>
           <button
             onClick={() => setRejecting(true)}
-            className="bg-red-950 text-red-400 border border-red-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-red-900 transition"
+            className="bg-rose-950 text-rose-400 border border-rose-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-rose-900 transition"
           >
             Reject
           </button>

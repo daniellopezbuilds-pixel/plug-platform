@@ -92,7 +92,7 @@ export default function MessagesPage() {
             <h1 className="text-xl font-bold text-white">Messages</h1>
             <button
               onClick={() => setShowNewPanel(true)}
-              className="bg-brand text-white px-3 py-1.5 rounded-lg text-sm font-semibold"
+              className="bg-accent text-on-accent px-3 py-1.5 rounded-lg text-sm font-semibold"
             >
               New
             </button>

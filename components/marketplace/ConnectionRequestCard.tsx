@@ -32,7 +32,7 @@ export function ConnectionRequestCard({
           <button
             onClick={() => requester && onRespond(request.id, requester.id, "rejected")}
             disabled={isActing}
-            className="bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
+            className="bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
           >
             Reject
           </button>

@@ -147,7 +147,7 @@ export function AdForm({
           onClick={() => setPlacement("jobs_board")}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             placement === "jobs_board"
-              ? "bg-transparent border-brand text-white"
+              ? "bg-transparent border-accent text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -158,7 +158,7 @@ export function AdForm({
           onClick={() => setPlacement("marketplace")}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             placement === "marketplace"
-              ? "bg-transparent border-brand text-white"
+              ? "bg-transparent border-accent text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -169,7 +169,7 @@ export function AdForm({
           onClick={() => setPlacement("feed")}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             placement === "feed"
-              ? "bg-transparent border-brand text-white"
+              ? "bg-transparent border-accent text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -204,7 +204,7 @@ export function AdForm({
           onClick={() => setIsPaidAd(!isPaidAd)}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             isPaidAd
-              ? "bg-transparent border-brand text-white"
+              ? "bg-transparent border-accent text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -251,7 +251,7 @@ export function AdForm({
       />
 
       {fileError && (
-        <p className="text-sm text-red-400 mb-3 bg-red-950/40 border border-red-900 rounded p-2">
+        <p className="text-sm text-rose-400 mb-3 bg-rose-950/40 border border-rose-900 rounded p-2">
           {fileError}
         </p>
       )}
@@ -259,7 +259,7 @@ export function AdForm({
       {fileInfo && <p className="text-sm text-green-400 mb-3">✓ {fileInfo}</p>}
 
       {formError && (
-        <p className="text-sm text-red-400 mb-3 bg-red-950/40 border border-red-900 rounded p-2">
+        <p className="text-sm text-rose-400 mb-3 bg-rose-950/40 border border-rose-900 rounded p-2">
           {formError}
         </p>
       )}
@@ -267,7 +267,7 @@ export function AdForm({
       <button
         onClick={handleSubmit}
         disabled={submitting || !file || !title.trim()}
-        className="bg-brand text-white px-5 py-2.5 rounded font-semibold disabled:opacity-50 mt-2"
+        className="bg-accent text-on-accent px-5 py-2.5 rounded font-semibold disabled:opacity-50 mt-2"
       >
         {submitting ? "Creating..." : "Create Ad"}
       </button>

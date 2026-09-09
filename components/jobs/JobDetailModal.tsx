@@ -57,7 +57,7 @@ export function JobDetailModal({
                 ? "bg-zinc-800 text-gray-400 cursor-not-allowed"
                 : isApplying
                 ? "bg-zinc-800 text-gray-300 cursor-wait"
-                : "bg-brand text-white hover:bg-brand-soft"
+                : "bg-accent text-on-accent hover:bg-accent-hover"
             }`}
           >
             {hasApplied ? "Applied ✓" : isApplying ? "Applying..." : "Apply Now"}

@@ -78,7 +78,7 @@ export function NewConversationPanel({
           <button
             onClick={handleStart}
             disabled={selected.size === 0}
-            className="flex-1 bg-brand text-white px-5 py-3 rounded-lg font-semibold disabled:opacity-50"
+            className="flex-1 bg-accent text-on-accent px-5 py-3 rounded-lg font-semibold disabled:opacity-50"
           >
             Start Conversation
           </button>

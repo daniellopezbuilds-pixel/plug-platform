@@ -64,7 +64,7 @@ export function ReactionBar({
           }}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             summary.userReaction
-              ? "bg-transparent border-brand text-white"
+              ? "bg-transparent border-accent text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400 hover:text-white"
           }`}
         >

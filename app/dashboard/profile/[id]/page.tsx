@@ -147,7 +147,7 @@ export default function PublicProfilePage() {
               }
               target="_blank"
               rel="noopener noreferrer"
-              className="text-brand-soft hover:text-white text-sm"
+              className="text-accent-2-soft hover:text-white text-sm"
             >
               {companyWebsite}
             </a>

@@ -56,7 +56,7 @@ export function CommentSection({
                 {isMe && (
                   <button
                     onClick={() => deleteComment(comment.id)}
-                    className="text-xs text-red-400 hover:text-red-300 shrink-0"
+                    className="text-xs text-rose-400 hover:text-rose-300 shrink-0"
                   >
                     Delete
                   </button>
@@ -82,7 +82,7 @@ export function CommentSection({
         <button
           onClick={handleSubmit}
           disabled={submitting}
-          className="bg-brand text-white px-4 py-2 rounded font-semibold text-sm disabled:opacity-50"
+          className="bg-accent text-on-accent px-4 py-2 rounded font-semibold text-sm disabled:opacity-50"
         >
           {submitting ? "..." : "Post"}
         </button>

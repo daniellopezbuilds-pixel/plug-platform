@@ -12,7 +12,7 @@ const typeLabels: Record<MyRequest["type"], string> = {
 const statusStyles: Record<MyRequest["status"], string> = {
   pending: "bg-zinc-800/60 text-gray-300 border-zinc-700",
   approved: "bg-green-950 text-green-400 border-green-800",
-  rejected: "bg-red-950 text-red-400 border-red-800",
+  rejected: "bg-rose-950 text-rose-400 border-rose-800",
   resolved: "bg-green-950 text-green-400 border-green-800",
   dismissed: "bg-zinc-800 text-gray-400 border-zinc-700",
 };

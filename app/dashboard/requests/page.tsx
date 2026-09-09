@@ -30,7 +30,7 @@ export default function RequestsPage() {
           onClick={() => setActiveTab("submit")}
           className={`px-5 py-3 font-semibold border-b-2 transition ${
             activeTab === "submit"
-              ? "border-brand text-white"
+              ? "border-accent text-white"
               : "border-transparent text-gray-400 hover:text-white"
           }`}
         >
@@ -40,7 +40,7 @@ export default function RequestsPage() {
           onClick={() => setActiveTab("history")}
           className={`px-5 py-3 font-semibold border-b-2 transition ${
             activeTab === "history"
-              ? "border-brand text-white"
+              ? "border-accent text-white"
               : "border-transparent text-gray-400 hover:text-white"
           }`}
         >

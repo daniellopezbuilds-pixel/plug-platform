@@ -13,7 +13,7 @@ export function UnionBadge({
     <span
       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold border ${
         isUnion
-          ? "bg-transparent text-white border-brand"
+          ? "bg-transparent text-white border-accent"
           : "bg-zinc-800 text-gray-300 border-zinc-700"
       }`}
     >

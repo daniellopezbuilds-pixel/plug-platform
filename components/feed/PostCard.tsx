@@ -44,7 +44,7 @@ export function PostCard({
         </div>
 
         {post.post_type === "job" && (
-          <span className="bg-transparent text-white border border-brand px-3 py-1 rounded-full text-xs font-semibold">
+          <span className="bg-transparent text-white border border-accent px-3 py-1 rounded-full text-xs font-semibold">
             Job Opportunity
           </span>
         )}
@@ -52,7 +52,7 @@ export function PostCard({
         {isMe && (
           <button
             onClick={() => onDelete(post.id)}
-            className="text-xs text-red-400 hover:text-red-300 ml-2"
+            className="text-xs text-rose-400 hover:text-rose-300 ml-2"
           >
             Delete
           </button>

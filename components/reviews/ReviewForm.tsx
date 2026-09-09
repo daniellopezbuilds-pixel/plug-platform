@@ -62,7 +62,7 @@ export function ReviewForm({
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+        className="bg-accent text-on-accent px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
       >
         {submitting ? "Submitting..." : "Submit Review"}
       </button>

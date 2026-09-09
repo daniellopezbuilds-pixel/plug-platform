@@ -47,7 +47,7 @@ export function EmployerVerificationCard({
           <button
             onClick={handleViewDocument}
             disabled={opening}
-            className="text-brand-soft hover:text-white text-sm font-semibold mt-2 disabled:opacity-50"
+            className="text-accent-2-soft hover:text-white text-sm font-semibold mt-2 disabled:opacity-50"
           >
             {opening ? "Opening..." : `View Document (${employer.document_label}) →`}
           </button>

@@ -26,7 +26,7 @@ export function JobCard({
 
       <button
         onClick={() => onViewDetails(job)}
-        className="mt-4 px-5 py-3 rounded-lg font-semibold bg-brand text-white hover:bg-brand-soft transition"
+        className="mt-4 px-5 py-3 rounded-lg font-semibold bg-accent text-on-accent hover:bg-accent-hover transition"
       >
         {hasApplied ? "View Details (Applied ✓)" : "View Details"}
       </button>

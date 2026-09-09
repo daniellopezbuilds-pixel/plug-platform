@@ -396,7 +396,7 @@ export default function ProfilePage() {
               onClick={() => setUnionStatus("union")}
               className={`px-5 py-3 rounded-lg font-semibold border transition ${
                 unionStatus === "union"
-                  ? "bg-transparent border-brand text-white"
+                  ? "bg-transparent border-accent text-white"
                   : "bg-zinc-900 border-zinc-800 text-gray-400"
               }`}
             >
@@ -407,7 +407,7 @@ export default function ProfilePage() {
               onClick={() => setUnionStatus("non_union")}
               className={`px-5 py-3 rounded-lg font-semibold border transition ${
                 unionStatus === "non_union"
-                  ? "bg-transparent border-brand text-white"
+                  ? "bg-transparent border-accent text-white"
                   : "bg-zinc-900 border-zinc-800 text-gray-400"
               }`}
             >
@@ -438,7 +438,7 @@ export default function ProfilePage() {
           {resumePath && !uploadingResume && (
             <button
               onClick={handleViewResume}
-              className="mt-3 text-brand-soft hover:text-white text-sm font-semibold"
+              className="mt-3 text-accent-2-soft hover:text-white text-sm font-semibold"
             >
               View current resume →
             </button>
@@ -549,7 +549,7 @@ export default function ProfilePage() {
             {employerDocPath && !uploadingEmployerDoc && (
               <button
                 onClick={handleViewEmployerDoc}
-                className="mt-3 text-brand-soft hover:text-white text-sm font-semibold"
+                className="mt-3 text-accent-2-soft hover:text-white text-sm font-semibold"
               >
                 View uploaded document: {employerDocLabel} →
               </button>
@@ -559,7 +559,7 @@ export default function ProfilePage() {
 
         <button
           onClick={handleSave}
-          className="bg-brand text-white px-6 py-4 rounded font-semibold"
+          className="bg-accent text-on-accent px-6 py-4 rounded font-semibold"
         >
           Save Profile
         </button>

@@ -49,11 +49,11 @@ type PlacementKey = (typeof PLACEMENTS)[number]["value"];
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-zinc-800/60 border-zinc-700 text-gray-300",
   approved: "bg-green-950/40 border-green-800 text-green-400",
-  rejected: "bg-red-950/40 border-red-900 text-red-400",
+  rejected: "bg-rose-950/40 border-rose-900 text-rose-400",
 };
 
 const inputClass =
-  "w-full p-2.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-brand focus:outline-none transition";
+  "w-full p-2.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
 
 const labelClass = "block text-sm text-gray-400 mb-1";
 
@@ -269,7 +269,7 @@ export default function BrandingDealsPage() {
                 }}
                 className={inputClass}
               />
-              {errors.title && <p className="text-xs text-red-400 mt-1">{errors.title}</p>}
+              {errors.title && <p className="text-xs text-rose-400 mt-1">{errors.title}</p>}
             </div>
 
             <div>
@@ -324,7 +324,7 @@ export default function BrandingDealsPage() {
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
-              {errors.city && <p className="text-xs text-red-400 mt-1">{errors.city}</p>}
+              {errors.city && <p className="text-xs text-rose-400 mt-1">{errors.city}</p>}
             </div>
           </div>
 
@@ -356,7 +356,7 @@ export default function BrandingDealsPage() {
               />
             </div>
           </div>
-          {errors.dates && <p className="text-xs text-red-400 -mt-2">{errors.dates}</p>}
+          {errors.dates && <p className="text-xs text-rose-400 -mt-2">{errors.dates}</p>}
 
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -373,7 +373,7 @@ export default function BrandingDealsPage() {
                 className={inputClass}
               />
               {errors.daily_budget && (
-                <p className="text-xs text-red-400 mt-1">{errors.daily_budget}</p>
+                <p className="text-xs text-rose-400 mt-1">{errors.daily_budget}</p>
               )}
             </div>
 
@@ -391,7 +391,7 @@ export default function BrandingDealsPage() {
                 className={inputClass}
               />
               {errors.run_days && (
-                <p className="text-xs text-red-400 mt-1">{errors.run_days}</p>
+                <p className="text-xs text-rose-400 mt-1">{errors.run_days}</p>
               )}
             </div>
 
@@ -414,12 +414,12 @@ export default function BrandingDealsPage() {
               onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
               className={inputClass}
             />
-            {errors.image && <p className="text-xs text-red-400 mt-1">{errors.image}</p>}
+            {errors.image && <p className="text-xs text-rose-400 mt-1">{errors.image}</p>}
             {fileInfo && <p className="text-xs text-green-400 mt-1">✓ {fileInfo}</p>}
           </div>
 
           {errors.submit && (
-            <p className="text-sm text-red-400 bg-red-950/40 border border-red-900 rounded-lg p-3">
+            <p className="text-sm text-rose-400 bg-rose-950/40 border border-rose-900 rounded-lg p-3">
               {errors.submit}
             </p>
           )}
@@ -428,7 +428,7 @@ export default function BrandingDealsPage() {
             type="button"
             onClick={handleSubmit}
             disabled={submitting || !userId}
-            className="bg-brand text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-brand-soft transition disabled:opacity-50"
+            className="bg-accent text-on-accent px-5 py-2.5 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50"
           >
             {submitting ? "Submitting..." : "Submit for review"}
           </button>
@@ -490,8 +490,8 @@ export default function BrandingDealsPage() {
                   </p>
 
                   {ad.status === "rejected" && (
-                    <div className="mt-2.5 rounded-lg border border-red-900 bg-red-950/30 p-2.5">
-                      <p className="text-xs font-semibold text-red-400 mb-1">
+                    <div className="mt-2.5 rounded-lg border border-rose-900 bg-rose-950/30 p-2.5">
+                      <p className="text-xs font-semibold text-rose-400 mb-1">
                         Why this was rejected
                       </p>
                       <p className="text-xs text-gray-300">

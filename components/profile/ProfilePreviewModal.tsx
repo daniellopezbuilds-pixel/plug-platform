@@ -164,7 +164,7 @@ export function ProfilePreviewModal({
 
             <Link
               href={`/dashboard/profile/${userId}`}
-              className="block text-center mt-5 text-brand-soft hover:text-white text-sm font-semibold"
+              className="block text-center mt-5 text-accent-2-soft hover:text-white text-sm font-semibold"
             >
               View Full Profile →
             </Link>
