@@ -46,7 +46,7 @@ export function ProfileCard({
         <button
           onClick={() => onConnect(profile.id)}
           disabled={isActing}
-          className="bg-white text-black px-5 py-2.5 rounded-lg font-semibold hover:bg-gray-200 disabled:opacity-50 transition"
+          className="bg-brand text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-brand-soft disabled:opacity-50 transition"
         >
           {isActing ? "Sending..." : "Connect"}
         </button>
@@ -71,7 +71,7 @@ export function ProfileCard({
 
     if (connection.status === "pending" && connection.direction === "received") {
       return (
-        <span className="bg-yellow-950 text-yellow-400 border border-yellow-800 px-5 py-2.5 rounded-lg font-semibold text-sm">
+        <span className="bg-transparent text-white border border-brand px-5 py-2.5 rounded-lg font-semibold text-sm">
           Respond in Requests
         </span>
       );
@@ -79,7 +79,7 @@ export function ProfileCard({
 
     if (connection.status === "rejected") {
       return (
-        <span className="bg-zinc-800 text-gray-500 border border-zinc-700 px-5 py-2.5 rounded-lg font-semibold text-sm">
+        <span className="bg-zinc-800 text-gray-400 border border-zinc-700 px-5 py-2.5 rounded-lg font-semibold text-sm">
           Not Connected
         </span>
       );
@@ -149,9 +149,9 @@ export function ProfileCard({
         </div>
       )}
 
-      {profile.bio && <p className="text-zinc-300 mb-2">{profile.bio}</p>}
+      {profile.bio && <p className="text-gray-300 mb-2">{profile.bio}</p>}
       {profile.company_description && (
-        <p className="text-zinc-400 text-sm mb-4">{profile.company_description}</p>
+        <p className="text-gray-400 text-sm mb-4">{profile.company_description}</p>
       )}
       {profile.company_website && (
         <a
@@ -163,7 +163,7 @@ export function ProfileCard({
           }
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-400 hover:text-blue-300 text-sm block mb-4"
+          className="text-brand-soft hover:text-white text-sm block mb-4"
         >
           {profile.company_website} ↗
         </a>
@@ -174,7 +174,7 @@ export function ProfileCard({
         {profile.resume_path && (
           <button
             onClick={handleViewResume}
-            className="text-yellow-400 hover:text-yellow-300 text-sm font-semibold"
+            className="text-brand-soft hover:text-white text-sm font-semibold"
           >
             View Resume →
           </button>

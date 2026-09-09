@@ -64,7 +64,7 @@ export function ReactionBar({
           }}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             summary.userReaction
-              ? "bg-blue-950 border-blue-700 text-blue-400"
+              ? "bg-transparent border-brand text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400 hover:text-white"
           }`}
         >
@@ -75,7 +75,7 @@ export function ReactionBar({
 
         <button
           onClick={() => setPickerOpen(!pickerOpen)}
-          className="absolute -top-1 -right-1 w-4 h-4 bg-zinc-700 rounded-full text-[10px] flex items-center justify-center text-gray-300 hover:bg-zinc-600"
+          className="absolute -top-1 -right-1 w-4 h-4 bg-zinc-800 rounded-full text-[10px] flex items-center justify-center text-gray-300 hover:bg-zinc-800"
           title="More reactions"
         >
           ▾
@@ -91,7 +91,7 @@ export function ReactionBar({
                   setPickerOpen(false);
                 }}
                 title={reactionConfig[type].label}
-                className="text-2xl hover:scale-125 transition-transform p-1.5 rounded hover:bg-zinc-700"
+                className="text-2xl hover:scale-125 transition-transform p-1.5 rounded hover:bg-zinc-800"
               >
                 {reactionConfig[type].emoji}
               </button>
@@ -128,7 +128,7 @@ export function ReactionBar({
                       }
                     }}
                     className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-gray-200 text-left ${
-                      isMe ? "cursor-default" : "hover:bg-zinc-700"
+                      isMe ? "cursor-default" : "hover:bg-zinc-800"
                     }`}
                   >
                     <span>{reactionConfig[reactor.reaction_type].emoji}</span>

@@ -20,7 +20,7 @@ export function JobDetailModal({
         <div className="flex items-start justify-between mb-1">
           <h2 className="text-2xl font-bold text-white">{job.title}</h2>
           {job.required_union_status && (
-            <span className="text-xs uppercase tracking-wide text-gray-500 font-semibold whitespace-nowrap ml-3">
+            <span className="text-xs uppercase tracking-wide text-gray-400 font-semibold whitespace-nowrap ml-3">
               {job.required_union_status === "union" ? "Union Required" : "Non-Union Required"}
             </span>
           )}
@@ -44,7 +44,7 @@ export function JobDetailModal({
         {job.description && (
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-gray-400 mb-2">Job Description & Qualifications</h3>
-            <p className="text-zinc-300 whitespace-pre-line">{job.description}</p>
+            <p className="text-gray-300 whitespace-pre-line">{job.description}</p>
           </div>
         )}
 
@@ -56,15 +56,15 @@ export function JobDetailModal({
               hasApplied
                 ? "bg-zinc-800 text-gray-400 cursor-not-allowed"
                 : isApplying
-                ? "bg-zinc-700 text-gray-300 cursor-wait"
-                : "bg-white text-black hover:bg-gray-200"
+                ? "bg-zinc-800 text-gray-300 cursor-wait"
+                : "bg-brand text-white hover:bg-brand-soft"
             }`}
           >
             {hasApplied ? "Applied ✓" : isApplying ? "Applying..." : "Apply Now"}
           </button>
           <button
             onClick={onClose}
-            className="bg-zinc-800 text-gray-300 px-5 py-3 rounded-lg font-semibold hover:bg-zinc-700"
+            className="bg-zinc-800 text-gray-300 px-5 py-3 rounded-lg font-semibold hover:bg-zinc-800"
           >
             Close
           </button>

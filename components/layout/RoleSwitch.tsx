@@ -1,23 +1,32 @@
+import { modeLabel, type Mode } from "@/lib/accountModes";
+
 export function RoleSwitch({
-  activeRole,
+  activeMode,
+  modes,
   onSwitch,
 }: {
-  activeRole: string;
-  onSwitch: (role: "worker" | "employer") => void;
+  activeMode: string;
+  modes: readonly Mode[];
+  onSwitch: (mode: Mode) => void;
 }) {
+  // An account with one available mode has nothing to switch between. Render
+  // nothing rather than a single dead button. Sidebar hides the surrounding
+  // "Current Mode" block on the same condition.
+  if (modes.length < 2) return null;
+
   return (
     <div className="flex gap-2 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
-      {(["worker", "employer"] as const).map((role) => (
+      {modes.map((mode) => (
         <button
-          key={role}
-          onClick={() => onSwitch(role)}
-          className={`flex-1 rounded-md py-2 text-sm font-semibold capitalize transition ${
-            activeRole === role
-              ? "bg-yellow-400 text-black"
+          key={mode}
+          onClick={() => onSwitch(mode)}
+          className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
+            activeMode === mode
+              ? "bg-brand text-white"
               : "text-gray-400 hover:text-white"
           }`}
         >
-          {role}
+          {modeLabel(mode)}
         </button>
       ))}
     </div>

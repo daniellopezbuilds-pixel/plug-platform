@@ -67,7 +67,7 @@ export function AdListItem({
           {ad.link_url && (
             <span>
               {" "}
-              · <a href={ad.link_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">{ad.link_url}</a>
+              · <a href={ad.link_url} target="_blank" rel="noopener noreferrer" className="text-brand-soft hover:text-white">{ad.link_url}</a>
             </span>
           )}
         </p>
@@ -77,7 +77,7 @@ export function AdListItem({
         className={`px-3 py-1 rounded-full text-xs font-semibold ${
           ad.is_active
             ? "bg-green-950 text-green-400 border border-green-800"
-            : "bg-zinc-800 text-gray-500 border border-zinc-700"
+            : "bg-zinc-800 text-gray-400 border border-zinc-700"
         }`}
       >
         {ad.is_active ? "Active" : "Inactive"}
@@ -86,13 +86,13 @@ export function AdListItem({
       <div className="flex gap-2 shrink-0">
         <button
           onClick={() => setEditing(true)}
-          className="bg-zinc-800 text-gray-300 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-zinc-700 transition"
+          className="border border-zinc-700 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-zinc-900 transition"
         >
           Edit
         </button>
         <button
           onClick={() => onToggleActive(ad.id, ad.is_active)}
-          className="bg-zinc-800 text-gray-300 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-zinc-700 transition"
+          className="border border-zinc-700 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-zinc-900 transition"
         >
           {ad.is_active ? "Deactivate" : "Activate"}
         </button>

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useActiveRole } from "@/hooks/useActiveRole";
 import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { availableModes } from "@/lib/accountModes";
 
 export default function DashboardLayout({
   children,
@@ -33,9 +34,17 @@ export default function DashboardLayout({
 
   return (
     <main className="min-h-screen bg-black text-white flex ">
-      <Sidebar 
+      <Sidebar
         activeRole={profile.active_role}
-        fullName={profile.full_name || ""}
+        signupType={profile.signup_type}
+        modes={availableModes(profile.account_type)}
+        // A brand is shown as its brand, not as the person managing it. The
+        // contact name stays on the profile row for admin and messaging.
+        fullName={
+          (profile.signup_type === "brand" ? profile.brand_name : null) ||
+          profile.full_name ||
+          ""
+        }
         profileNumber={profile.profile_number || ""}
         onSwitchRole={switchRole}
         onLogout={handleLogout}

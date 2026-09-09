@@ -134,7 +134,7 @@ export function EditAdForm({
           onClick={() => setPlacement("jobs_board")}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             placement === "jobs_board"
-              ? "bg-blue-950 border-blue-700 text-blue-400"
+              ? "bg-transparent border-brand text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -145,7 +145,7 @@ export function EditAdForm({
           onClick={() => setPlacement("marketplace")}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             placement === "marketplace"
-              ? "bg-blue-950 border-blue-700 text-blue-400"
+              ? "bg-transparent border-brand text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -156,7 +156,7 @@ export function EditAdForm({
           onClick={() => setPlacement("feed")}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             placement === "feed"
-              ? "bg-blue-950 border-blue-700 text-blue-400"
+              ? "bg-transparent border-brand text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -191,7 +191,7 @@ export function EditAdForm({
           onClick={() => setIsPaidAd(!isPaidAd)}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             isPaidAd
-              ? "bg-blue-950 border-blue-700 text-blue-400"
+              ? "bg-transparent border-brand text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -229,7 +229,7 @@ export function EditAdForm({
       <label className="block text-sm text-gray-400 mb-1">
         Replace Image (optional — leave blank to keep current image)
       </label>
-      <p className="text-xs text-gray-500 mb-2">{AD_SPEC_TEXT}</p>
+      <p className="text-xs text-gray-400 mb-2">{AD_SPEC_TEXT}</p>
 
       <input
         key={fileInputKey}
@@ -257,13 +257,13 @@ export function EditAdForm({
         <button
           onClick={handleSubmit}
           disabled={submitting || !title.trim()}
-          className="bg-white text-black px-5 py-2.5 rounded font-semibold disabled:opacity-50"
+          className="bg-brand text-white px-5 py-2.5 rounded font-semibold disabled:opacity-50"
         >
           {submitting ? "Saving..." : "Save Changes"}
         </button>
         <button
           onClick={onCancel}
-          className="bg-zinc-800 text-gray-300 px-5 py-2.5 rounded font-semibold hover:bg-zinc-700 transition"
+          className="bg-zinc-800 text-gray-300 px-5 py-2.5 rounded font-semibold hover:bg-zinc-800 transition"
         >
           Cancel
         </button>

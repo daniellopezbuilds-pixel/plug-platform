@@ -44,7 +44,7 @@ export function NewConversationPanel({
               {contacts.map((contact) => (
                 <label
                   key={contact.id}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800 cursor-pointer hover:bg-zinc-700 transition"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800 cursor-pointer hover:bg-zinc-800 transition"
                 >
                   <input
                     type="checkbox"
@@ -78,13 +78,13 @@ export function NewConversationPanel({
           <button
             onClick={handleStart}
             disabled={selected.size === 0}
-            className="flex-1 bg-white text-black px-5 py-3 rounded-lg font-semibold disabled:opacity-50"
+            className="flex-1 bg-brand text-white px-5 py-3 rounded-lg font-semibold disabled:opacity-50"
           >
             Start Conversation
           </button>
           <button
             onClick={onClose}
-            className="bg-zinc-800 text-gray-300 px-5 py-3 rounded-lg font-semibold hover:bg-zinc-700"
+            className="bg-zinc-800 text-gray-300 px-5 py-3 rounded-lg font-semibold hover:bg-zinc-800"
           >
             Cancel
           </button>

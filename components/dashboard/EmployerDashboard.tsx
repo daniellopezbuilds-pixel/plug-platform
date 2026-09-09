@@ -26,13 +26,13 @@ export function EmployerDashboard() {
       <Card>
         <h2 className="text-2xl font-bold mb-5">Quick Actions</h2>
         <div className="flex flex-wrap gap-4">
-          <Link href="/dashboard/jobs/create" className="bg-white text-black px-5 py-3 rounded-lg font-semibold">
+          <Link href="/dashboard/jobs/create" className="bg-brand text-white px-5 py-3 rounded-lg font-semibold">
             Post Job
           </Link>
-          <Link href="/dashboard/applicants" className="border border-white px-5 py-3 rounded-lg">
+          <Link href="/dashboard/applicants" className="border border-zinc-700 text-white px-5 py-3 rounded-lg hover:bg-zinc-900 transition">
             View Applicants
           </Link>
-          <Link href="/dashboard/marketplace" className="border border-white px-5 py-3 rounded-lg">
+          <Link href="/dashboard/marketplace" className="border border-zinc-700 text-white px-5 py-3 rounded-lg hover:bg-zinc-900 transition">
             Grow Network
           </Link>
         </div>

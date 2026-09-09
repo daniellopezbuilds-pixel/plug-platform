@@ -9,6 +9,10 @@ export type AdRequest = {
   image_path: string;
   link_url: string | null;
   placement: "jobs_board" | "marketplace" | "feed";
+  city: string | null;
+  /** 'brand' for brand self-service submissions, 'internal' for house/job ads. */
+  source: string | null;
+  review_notes: string | null;
   start_date: string | null;
   end_date: string | null;
   is_paid_ad: boolean;
@@ -16,6 +20,8 @@ export type AdRequest = {
   amount_charged: number | null;
   submitted_by: string;
   created_at: string;
+  /** Embedded submitter, via the submitted_by foreign key. Null for house ads. */
+  profiles: { full_name: string | null; profile_number: string | null } | null;
 };
 
 export function useAdRequests() {
@@ -27,9 +33,10 @@ export function useAdRequests() {
 
     const { data, error } = await supabase
       .from("sponsored_listings")
-      .select(
-        "id, title, image_path, link_url, placement, start_date, end_date, is_paid_ad, payment_status, amount_charged, submitted_by, created_at"
-      )
+      // select("*") rather than an explicit column list on purpose: city and
+      // review_notes may not exist yet (see supabase/branding-deals-setup.sql),
+      // and naming them here would 400 the whole admin tab until that is run.
+      .select("*, profiles!submitted_by(full_name, profile_number)")
       .eq("status", "pending")
       .order("created_at", { ascending: true });
 
@@ -76,18 +83,25 @@ export function useAdRequests() {
     return { error: null };
   }
 
-  async function reject(id: string) {
+  /**
+   * The reason is stored on the row and shown back to the brand on
+   * /dashboard/branding-deals, so it is feedback addressed to them, not an
+   * internal note.
+   */
+  async function reject(id: string, reason: string) {
     const { error } = await supabase
       .from("sponsored_listings")
-      .update({ status: "rejected", is_active: false })
+      .update({
+        status: "rejected",
+        is_active: false,
+        review_notes: reason.trim(),
+      })
       .eq("id", id);
 
-    if (error) {
-      alert(error.message);
-      return;
-    }
+    if (error) return { error: error.message };
 
     await load();
+    return { error: null };
   }
 
   return { pending, loading, approve, reject, reload: load };

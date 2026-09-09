@@ -59,7 +59,7 @@ export function CreatePostForm({
           onClick={() => setPostType("status")}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             postType === "status"
-              ? "bg-blue-950 border-blue-700 text-blue-400"
+              ? "bg-transparent border-brand text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -70,7 +70,7 @@ export function CreatePostForm({
           onClick={() => setPostType("job")}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             postType === "job"
-              ? "bg-blue-950 border-blue-700 text-blue-400"
+              ? "bg-transparent border-brand text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -111,7 +111,7 @@ export function CreatePostForm({
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="bg-white text-black px-5 py-2.5 rounded font-semibold disabled:opacity-50"
+        className="bg-brand text-white px-5 py-2.5 rounded font-semibold disabled:opacity-50"
       >
         {submitting ? "Posting..." : "Post"}
       </button>

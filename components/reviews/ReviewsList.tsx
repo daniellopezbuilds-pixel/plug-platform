@@ -14,13 +14,13 @@ export function ReviewsList({ reviews }: { reviews: Review[] }) {
             <p className="font-semibold text-white text-sm">
               {review.reviewer?.full_name || "Unknown"}
             </p>
-            <span className="text-yellow-400 text-sm">
+            <span className="text-white text-sm">
               {"★".repeat(review.rating)}
-              <span className="text-zinc-700">{"★".repeat(5 - review.rating)}</span>
+              <span className="text-gray-700">{"★".repeat(5 - review.rating)}</span>
             </span>
           </div>
-          {review.comment && <p className="text-zinc-300 text-sm">{review.comment}</p>}
-          <p className="text-gray-500 text-xs mt-2">
+          {review.comment && <p className="text-gray-300 text-sm">{review.comment}</p>}
+          <p className="text-gray-400 text-xs mt-2">
             {new Date(review.created_at).toLocaleDateString()}
           </p>
         </Card>

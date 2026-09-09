@@ -46,7 +46,7 @@ export function ApplicationCard({
         <StatusBadge status={application.status} />
       </div>
 
-      {job?.location && <p className="text-zinc-400 mb-1">{job.location}</p>}
+      {job?.location && <p className="text-gray-400 mb-1">{job.location}</p>}
       {job?.pay && <p className="text-green-400 font-semibold mb-4">{job.pay}</p>}
       {job?.description && <p className="text-gray-300 mb-4">{job.description}</p>}
 
@@ -57,7 +57,7 @@ export function ApplicationCard({
       {application.status === "accepted" && job?.user_id && !hasReviewed && !showReviewForm && (
         <button
           onClick={() => setShowReviewForm(true)}
-          className="text-yellow-400 hover:text-yellow-300 text-sm font-semibold mt-4 block"
+          className="text-brand-soft hover:text-white text-sm font-semibold mt-4 block"
         >
           Leave a review →
         </button>

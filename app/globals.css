@@ -13,6 +13,35 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Sparx Plug brand palette.
+ *
+ * The app runs black / zinc surfaces with magenta used sparingly, matching the
+ * marketing site: primary buttons, active states, links, focus rings and
+ * selected borders — nothing else.
+ *
+ * Contrast on black:
+ *   brand       4.01:1  fills, borders, focus rings, large text — NOT body copy
+ *   brand-soft  5.24:1  links and any small magenta text (4.97:1 on zinc-950)
+ *   white on a brand fill  5.24:1  (black would be only 4.01:1)
+ *
+ * ink / ink-alt / surface / surface-2 / edge / ember are kept as tokens but are
+ * deliberately unused: the purple-tinted surfaces were reverted to zinc, and
+ * ember is reserved for later.
+ */
+@theme {
+  --color-brand: #ac419f;
+  --color-brand-soft: #b85ead;
+  --color-ember: #ff5e3a;
+  --color-ink: #0d0020;
+  --color-ink-alt: #0a0a0a;
+  --color-surface: #20082f;
+  /* Derived, not in the supplied palette: surface and ink sit only 1.10:1
+     apart, so a third step is needed for chips and thumbnails to read as
+     raised rather than flat. */
+  --color-surface-2: #2c1140;
+  --color-edge: #5a2f9f;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;

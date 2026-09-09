@@ -1,6 +1,6 @@
 export function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    pending: "bg-yellow-950 text-yellow-400 border-yellow-800",
+    pending: "bg-zinc-800/60 text-gray-300 border-zinc-700",
     accepted: "bg-green-950 text-green-400 border-green-800",
     rejected: "bg-red-950 text-red-400 border-red-800",
   };

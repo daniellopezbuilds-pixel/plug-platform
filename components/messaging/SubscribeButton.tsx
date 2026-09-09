@@ -40,7 +40,7 @@ export function SubscribeButton() {
     <button
       onClick={handleSubscribe}
       disabled={loading}
-      className="bg-white text-black px-5 py-2.5 rounded-lg font-semibold disabled:opacity-50"
+      className="bg-brand text-white px-5 py-2.5 rounded-lg font-semibold disabled:opacity-50"
     >
       {loading ? "Redirecting..." : "Subscribe – $2/month"}
     </button>

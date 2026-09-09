@@ -35,7 +35,7 @@ export function GeneralRequestCard({
         </button>
         <button
           onClick={() => onDismiss(request.id, notes)}
-          className="bg-zinc-800 text-gray-300 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-zinc-700 transition"
+          className="bg-zinc-800 text-gray-300 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-zinc-800 transition"
         >
           Dismiss
         </button>

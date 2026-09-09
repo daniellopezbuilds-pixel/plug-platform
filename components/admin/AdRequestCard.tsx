@@ -20,8 +20,11 @@ export function AdRequestCard({
       amount_charged: number | null;
     }
   ) => Promise<{ error: string | null }>;
-  onReject: (id: string) => void;
+  onReject: (id: string, reason: string) => Promise<{ error: string | null }>;
 }) {
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string | null>(null);
   const today = new Date().toISOString().split("T")[0];
   const defaultEnd = new Date();
   defaultEnd.setDate(defaultEnd.getDate() + 30);
@@ -60,7 +63,26 @@ export function AdRequestCard({
     }
   }
 
+  async function handleReject() {
+    if (!reason.trim()) {
+      setReasonError("Give a short reason — the brand sees this.");
+      return;
+    }
+
+    setSubmitting(true);
+    const { error } = await onReject(request.id, reason);
+    setSubmitting(false);
+
+    if (error) setReasonError(error);
+  }
+
   const linkLabel = request.link_url;
+
+  const isBrandAd = request.source === "brand";
+
+  const submitterName =
+    request.profiles?.full_name ||
+    (request.submitted_by ? "Unknown user" : "House ad");
 
   const placementLabel =
     request.placement === "jobs_board"
@@ -78,7 +100,21 @@ export function AdRequestCard({
           className="w-24 h-16 rounded object-cover border border-zinc-700"
         />
         <div className="flex-1">
-          <h4 className="text-white font-semibold">{request.title}</h4>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="text-white font-semibold">{request.title}</h4>
+            {/* Shown in both All Requests and Advertisement Requests, so an
+                admin can tell a brand submission from a house/job ad without
+                checking which tab they are on. */}
+            <span
+              className={`text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border ${
+                isBrandAd
+                  ? "bg-zinc-800/60 border-zinc-700 text-gray-300"
+                  : "bg-zinc-800 border-zinc-700 text-gray-400"
+              }`}
+            >
+              {isBrandAd ? "Brand ad" : "House / job ad"}
+            </span>
+          </div>
           <p className="text-gray-400 text-sm">
             {placementLabel}
             {linkLabel && (
@@ -89,12 +125,25 @@ export function AdRequestCard({
                   <a href={linkLabel}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300"
+                  className="text-brand-soft hover:text-white"
                 >
                   {linkLabel}
                 </a>
               </span>
             )}
+          </p>
+          <p className="text-gray-400 text-sm mt-1">
+            {submitterName}
+            {request.profiles?.profile_number
+              ? ` (${request.profiles.profile_number})`
+              : ""}
+            {request.city ? ` · ${request.city}` : ""}
+            {request.start_date
+              ? ` · ${request.start_date} → ${request.end_date}`
+              : ""}
+            {request.amount_charged != null
+              ? ` · $${Number(request.amount_charged).toLocaleString()}`
+              : ""}
           </p>
         </div>
       </div>
@@ -126,7 +175,7 @@ export function AdRequestCard({
           onClick={() => setIsPaidAd(!isPaidAd)}
           className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
             isPaidAd
-              ? "bg-blue-950 border-blue-700 text-blue-400"
+              ? "bg-transparent border-brand text-white"
               : "bg-zinc-800 border-zinc-700 text-gray-400"
           }`}
         >
@@ -161,21 +210,64 @@ export function AdRequestCard({
         </div>
       )}
 
-      <div className="flex gap-3">
-        <button
-          onClick={handleApprove}
-          disabled={submitting}
-          className="bg-green-950 text-green-400 border border-green-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-green-900 transition disabled:opacity-50"
-        >
-          {submitting ? "Approving..." : "Approve"}
-        </button>
-        <button
-          onClick={() => onReject(request.id)}
-          className="bg-red-950 text-red-400 border border-red-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-red-900 transition"
-        >
-          Reject
-        </button>
-      </div>
+      {rejecting ? (
+        <div className="border border-red-900 bg-red-950/30 rounded-lg p-4">
+          <label
+            htmlFor={`reason-${request.id}`}
+            className="block text-xs text-gray-300 mb-1.5"
+          >
+            Why is this being rejected? The brand sees this note.
+          </label>
+          <textarea
+            id={`reason-${request.id}`}
+            rows={2}
+            value={reason}
+            onChange={(e) => {
+              setReason(e.target.value);
+              setReasonError(null);
+            }}
+            className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-sm resize-none"
+          />
+          {reasonError && (
+            <p className="text-xs text-red-400 mt-1.5">{reasonError}</p>
+          )}
+          <div className="flex gap-3 mt-3">
+            <button
+              onClick={handleReject}
+              disabled={submitting}
+              className="bg-red-950 text-red-400 border border-red-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-red-900 transition disabled:opacity-50"
+            >
+              {submitting ? "Rejecting..." : "Confirm rejection"}
+            </button>
+            <button
+              onClick={() => {
+                setRejecting(false);
+                setReason("");
+                setReasonError(null);
+              }}
+              className="border border-zinc-700 text-gray-300 px-5 py-2.5 rounded-lg font-semibold text-sm hover:border-zinc-700 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-3">
+          <button
+            onClick={handleApprove}
+            disabled={submitting}
+            className="bg-green-950 text-green-400 border border-green-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-green-900 transition disabled:opacity-50"
+          >
+            {submitting ? "Approving..." : "Approve"}
+          </button>
+          <button
+            onClick={() => setRejecting(true)}
+            className="bg-red-950 text-red-400 border border-red-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-red-900 transition"
+          >
+            Reject
+          </button>
+        </div>
+      )}
     </div>
   );
 }

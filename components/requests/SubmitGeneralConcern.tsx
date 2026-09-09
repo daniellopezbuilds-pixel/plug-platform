@@ -51,7 +51,7 @@ export function SubmitGeneralConcern({ onSubmitted }: { onSubmitted?: () => void
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="bg-white text-black px-5 py-2.5 rounded font-semibold disabled:opacity-50"
+        className="bg-brand text-white px-5 py-2.5 rounded font-semibold disabled:opacity-50"
       >
         {submitting ? "Submitting..." : "Submit Request"}
       </button>

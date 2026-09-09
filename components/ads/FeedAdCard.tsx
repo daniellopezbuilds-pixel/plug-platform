@@ -2,8 +2,20 @@
 
 import { getAdPublicUrl } from "@/lib/ads";
 import type { PublicAd } from "@/hooks/usePublicAds";
+import { AdRotationDots } from "@/components/ads/AdRotationDots";
 
-export function FeedAdCard({ ad }: { ad: PublicAd }) {
+export function FeedAdCard({
+  ad,
+  index = 0,
+  total = 1,
+  onSelect,
+}: {
+  ad: PublicAd;
+  /** 0-based index of this ad within the slot's rotation. */
+  index?: number;
+  total?: number;
+  onSelect?: (index: number) => void;
+}) {
   const imageUrl = getAdPublicUrl(ad.image_path);
 
   const content = (
@@ -18,18 +30,32 @@ export function FeedAdCard({ ad }: { ad: PublicAd }) {
           className="absolute inset-0 w-full h-full object-contain"
         />
       </div>
-      <div className="p-4 flex items-center justify-between">
+      <div className="p-4">
         <h4 className="text-white font-semibold">{ad.title}</h4>
-        <span className="text-xs text-gray-500 uppercase tracking-wide">Sponsored</span>
       </div>
     </div>
   );
 
-  return ad.link_url ? (
-    <a href={ad.link_url} target="_blank" rel="noopener noreferrer">
-      {content}
-    </a>
-  ) : (
-    content
+  return (
+    <div className="max-w-[728px]">
+      {ad.link_url ? (
+        <a href={ad.link_url} target="_blank" rel="noopener noreferrer">
+          {content}
+        </a>
+      ) : (
+        content
+      )}
+      {/* Below the card and outside the anchor: the disclosure shouldn't be a
+          click target, and a dot inside the link would navigate instead of
+          switching ads. */}
+      <div className="mt-1.5 flex items-center gap-3">
+        <span className="text-xs text-gray-400 uppercase tracking-wide">
+          Sponsored
+        </span>
+        {onSelect && (
+          <AdRotationDots index={index} total={total} onSelect={onSelect} />
+        )}
+      </div>
+    </div>
   );
 }

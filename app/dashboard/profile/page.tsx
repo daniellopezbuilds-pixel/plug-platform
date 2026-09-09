@@ -10,6 +10,7 @@ import { uploadLogo, uploadBanner, getBrandingPublicUrl } from "@/lib/branding";
 import { uploadEmployerDocument, getEmployerDocumentSignedUrl } from "@/lib/employerDocuments";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
+import { SIGNUP_TYPES } from "@/lib/signupRoles";
 
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
@@ -38,6 +39,11 @@ export default function ProfilePage() {
   const [uploadingEmployerDoc, setUploadingEmployerDoc] = useState(false);
   const [employerVerified, setEmployerVerified] = useState(false);
 
+  // From auth user_metadata, written at signup. Client-writable, so this is
+  // display only — never gate anything on it.
+  const [signupTypeKey, setSignupTypeKey] = useState<string | null>(null);
+  const [signupFields, setSignupFields] = useState<Record<string, string>>({});
+
   const { reviews, averageRating, count } = useReviews(userId || null);
   const { hiredCount, jobsLandedCount } = useProfileStats(userId || null);
 
@@ -53,6 +59,22 @@ export default function ProfilePage() {
       }
 
       setUserId(user.id);
+
+      const meta = user.user_metadata ?? {};
+      setSignupTypeKey(
+        typeof meta.signup_type === "string" ? meta.signup_type : null
+      );
+      // Coerce defensively: metadata is client-writable, so a value could be
+      // any JSON, and only strings are renderable here.
+      setSignupFields(
+        meta.signup_fields && typeof meta.signup_fields === "object"
+          ? Object.fromEntries(
+              Object.entries(meta.signup_fields as Record<string, unknown>)
+                .filter(([, v]) => typeof v === "string")
+                .map(([k, v]) => [k, v as string])
+            )
+          : {}
+      );
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -292,6 +314,20 @@ export default function ProfilePage() {
     return <div className="text-white">Loading...</div>;
   }
 
+  // Driven off SIGNUP_TYPES rather than a list repeated here, so this section
+  // always shows exactly the fields the signup form collects. An unrecognised
+  // signup_type resolves to undefined and hides the section, which also covers
+  // a junk value written into metadata by hand.
+  const signupTypeDef = SIGNUP_TYPES.find((t) => t.key === signupTypeKey);
+
+  const signupEntries = (signupTypeDef?.fields ?? [])
+    .map((field) => ({
+      key: field.key,
+      label: field.label,
+      value: (signupFields[field.key] ?? "").trim(),
+    }))
+    .filter((entry) => entry.value !== "");
+
   return (
     <div className="max-w-2xl">
       <h1 className="text-5xl font-bold mb-8 text-white">Edit Profile</h1>
@@ -299,7 +335,7 @@ export default function ProfilePage() {
       <div className="space-y-5">
         <div>
           <label className="block text-sm text-gray-400 mb-2">Profile Number</label>
-          <div className="w-full p-4 rounded bg-zinc-800 border border-zinc-700 text-yellow-400 font-semibold">
+          <div className="w-full p-4 rounded bg-zinc-900 border border-zinc-700 text-white font-semibold">
             {profileNumber}
           </div>
         </div>
@@ -360,7 +396,7 @@ export default function ProfilePage() {
               onClick={() => setUnionStatus("union")}
               className={`px-5 py-3 rounded-lg font-semibold border transition ${
                 unionStatus === "union"
-                  ? "bg-blue-950 border-blue-700 text-blue-400"
+                  ? "bg-transparent border-brand text-white"
                   : "bg-zinc-900 border-zinc-800 text-gray-400"
               }`}
             >
@@ -371,7 +407,7 @@ export default function ProfilePage() {
               onClick={() => setUnionStatus("non_union")}
               className={`px-5 py-3 rounded-lg font-semibold border transition ${
                 unionStatus === "non_union"
-                  ? "bg-zinc-700 border-zinc-500 text-white"
+                  ? "bg-transparent border-brand text-white"
                   : "bg-zinc-900 border-zinc-800 text-gray-400"
               }`}
             >
@@ -384,7 +420,7 @@ export default function ProfilePage() {
               <UnionBadge status={unionStatus} verified={unionVerified} />
             </div>
           )}
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-gray-400 mt-2">
             This is self-reported. An admin will verify it before it shows as confirmed.
           </p>
         </div>
@@ -402,12 +438,45 @@ export default function ProfilePage() {
           {resumePath && !uploadingResume && (
             <button
               onClick={handleViewResume}
-              className="mt-3 text-yellow-400 hover:text-yellow-300 text-sm font-semibold"
+              className="mt-3 text-brand-soft hover:text-white text-sm font-semibold"
             >
               View current resume →
             </button>
           )}
         </div>
+
+        {/* Hidden entirely for accounts created before the current signup
+            form — they have no signup_type, so there is nothing to show. */}
+        {signupTypeDef && (
+          <div className="border-t border-zinc-800 pt-6 mt-2">
+            <div className="flex items-center gap-3 mb-1">
+              <h2 className="text-xl font-bold text-white">Signup details</h2>
+              <span className="text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-gray-300">
+                {signupTypeDef.label}
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">
+              What you entered at signup. Read-only for now.
+            </p>
+
+            {signupEntries.length === 0 ? (
+              <p className="text-sm text-gray-400">
+                Nothing was filled in at signup — these fields were optional.
+              </p>
+            ) : (
+              <dl className="space-y-3">
+                {signupEntries.map((entry) => (
+                  <div key={entry.key}>
+                    <dt className="text-xs text-gray-400 mb-0.5">{entry.label}</dt>
+                    <dd className="text-white whitespace-pre-wrap break-words">
+                      {entry.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        )}
 
         <div className="border-t border-zinc-800 pt-6 mt-2">
           <h2 className="text-xl font-bold text-white mb-4">Company Branding</h2>
@@ -480,7 +549,7 @@ export default function ProfilePage() {
             {employerDocPath && !uploadingEmployerDoc && (
               <button
                 onClick={handleViewEmployerDoc}
-                className="mt-3 text-yellow-400 hover:text-yellow-300 text-sm font-semibold"
+                className="mt-3 text-brand-soft hover:text-white text-sm font-semibold"
               >
                 View uploaded document: {employerDocLabel} →
               </button>
@@ -490,7 +559,7 @@ export default function ProfilePage() {
 
         <button
           onClick={handleSave}
-          className="bg-white text-black px-6 py-4 rounded font-semibold"
+          className="bg-brand text-white px-6 py-4 rounded font-semibold"
         >
           Save Profile
         </button>

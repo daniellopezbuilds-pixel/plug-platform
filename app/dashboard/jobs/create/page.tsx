@@ -126,7 +126,7 @@ export default function CreateJobPage() {
                 disabled={submitting}
                 className={`px-5 py-3 rounded-lg font-semibold border transition disabled:opacity-50 ${
                   requiredUnionStatus === "union"
-                    ? "bg-blue-950 border-blue-700 text-blue-400"
+                    ? "bg-transparent border-brand text-white"
                     : "bg-zinc-800 border-zinc-700 text-gray-400"
                 }`}
               >
@@ -140,14 +140,14 @@ export default function CreateJobPage() {
                 disabled={submitting}
                 className={`px-5 py-3 rounded-lg font-semibold border transition disabled:opacity-50 ${
                   requiredUnionStatus === "non_union"
-                    ? "bg-zinc-700 border-zinc-500 text-white"
+                    ? "bg-transparent border-brand text-white"
                     : "bg-zinc-800 border-zinc-700 text-gray-400"
                 }`}
               >
                 Non-Union Required
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-gray-400 mt-2">
               Click a selected option again to remove the requirement.
             </p>
           </div>
@@ -155,7 +155,7 @@ export default function CreateJobPage() {
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="bg-white text-black px-6 py-4 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-brand text-white px-6 py-4 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? "Posting..." : "Post Job"}
           </button>

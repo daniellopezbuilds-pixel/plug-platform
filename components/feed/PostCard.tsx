@@ -36,15 +36,15 @@ export function PostCard({
             {post.author?.full_name || "User"}
           </button>
           {post.author?.trade && (
-            <span className="text-gray-500 font-normal text-sm"> · {post.author.trade}</span>
+            <span className="text-gray-400 font-normal text-sm"> · {post.author.trade}</span>
           )}
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-400">
             {new Date(post.created_at).toLocaleDateString()}
           </p>
         </div>
 
         {post.post_type === "job" && (
-          <span className="bg-yellow-950 text-yellow-400 border border-yellow-800 px-3 py-1 rounded-full text-xs font-semibold">
+          <span className="bg-transparent text-white border border-brand px-3 py-1 rounded-full text-xs font-semibold">
             Job Opportunity
           </span>
         )}

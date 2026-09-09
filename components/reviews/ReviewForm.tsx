@@ -47,7 +47,7 @@ export function ReviewForm({
             onMouseLeave={() => setHoverRating(0)}
             className="text-2xl leading-none"
           >
-            <span className={(hoverRating || rating) >= star ? "text-yellow-400" : "text-zinc-600"}>
+            <span className={(hoverRating || rating) >= star ? "text-white" : "text-gray-400"}>
               ★
             </span>
           </button>
@@ -62,7 +62,7 @@ export function ReviewForm({
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="bg-white text-black px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+        className="bg-brand text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
       >
         {submitting ? "Submitting..." : "Submit Review"}
       </button>

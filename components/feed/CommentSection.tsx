@@ -36,7 +36,7 @@ export function CommentSection({
   return (
     <div className="mt-4 border-t border-zinc-800 pt-4">
       {loading ? (
-        <p className="text-gray-500 text-sm">Loading comments...</p>
+        <p className="text-gray-400 text-sm">Loading comments...</p>
       ) : (
         <div className="space-y-3 mb-4">
           {comments.map((comment) => {
@@ -65,7 +65,7 @@ export function CommentSection({
             );
           })}
           {comments.length === 0 && (
-            <p className="text-gray-500 text-sm">No comments yet.</p>
+            <p className="text-gray-400 text-sm">No comments yet.</p>
           )}
         </div>
       )}
@@ -82,7 +82,7 @@ export function CommentSection({
         <button
           onClick={handleSubmit}
           disabled={submitting}
-          className="bg-white text-black px-4 py-2 rounded font-semibold text-sm disabled:opacity-50"
+          className="bg-brand text-white px-4 py-2 rounded font-semibold text-sm disabled:opacity-50"
         >
           {submitting ? "..." : "Post"}
         </button>

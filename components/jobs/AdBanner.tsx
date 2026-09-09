@@ -2,8 +2,20 @@
 
 import { getAdPublicUrl } from "@/lib/ads";
 import type { ActiveAd } from "@/hooks/useActiveAd";
+import { AdRotationDots } from "@/components/ads/AdRotationDots";
 
-export function AdBanner({ ad }: { ad: ActiveAd }) {
+export function AdBanner({
+  ad,
+  index = 0,
+  total = 1,
+  onSelect,
+}: {
+  ad: ActiveAd;
+  /** 0-based index of this ad within the slot's rotation. */
+  index?: number;
+  total?: number;
+  onSelect?: (index: number) => void;
+}) {
   const imageUrl = getAdPublicUrl(ad.image_path);
 
   const content = (
@@ -20,7 +32,7 @@ export function AdBanner({ ad }: { ad: ActiveAd }) {
   );
 
   return (
-    <div className="mb-8">
+    <div className="mb-8 max-w-[728px]">
       {ad.link_url ? (
         <a href={ad.link_url} target="_blank" rel="noopener noreferrer">
           {content}
@@ -28,6 +40,15 @@ export function AdBanner({ ad }: { ad: ActiveAd }) {
       ) : (
         content
       )}
+      {/* Outside the anchor so the disclosure isn't itself a click target. */}
+      <div className="mt-1.5 flex items-center gap-3">
+        <span className="text-xs text-gray-400 uppercase tracking-wide">
+          Sponsored
+        </span>
+        {onSelect && (
+          <AdRotationDots index={index} total={total} onSelect={onSelect} />
+        )}
+      </div>
     </div>
   );
 }

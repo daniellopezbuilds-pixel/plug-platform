@@ -6,18 +6,22 @@ import { usePostReactions } from "@/hooks/usePostReactions";
 import { usePublicAds } from "@/hooks/usePublicAds";
 import { CreatePostForm } from "@/components/feed/CreatePostForm";
 import { PostCard } from "@/components/feed/PostCard";
-import { AdBanner } from "@/components/jobs/AdBanner";
 import { FeedAdCard } from "@/components/ads/FeedAdCard";
 import { ProfilePreviewModal } from "@/components/profile/ProfilePreviewModal";
 import { useState } from "react";
 
-const FEED_AD_INTERVAL = 5;
+// The feed's single ad slot: one card after the 3rd post. Needs 4+ posts for
+// that to be a real mid-stream position — below that the slot moves to the top
+// of the stream. The old version indexed into the post list, so an empty feed
+// rendered no ad at all and a paid placement served nothing.
+const FEED_AD_AFTER_INDEX = 2;
+const FEED_AD_MIN_POSTS = FEED_AD_AFTER_INDEX + 2;
 
 export default function FeedPage() {
   const router = useRouter();
   const { posts, loading, userId, createPost, deletePost } = usePosts();
   const { summaries, react } = usePostReactions(posts.map((p) => p.id));
-  const { ads } = usePublicAds("feed");
+  const { ad, adIndex, adCount, selectAd } = usePublicAds("feed");
 
   const [previewUserId, setPreviewUserId] = useState<string | null>(null);
 
@@ -29,16 +33,29 @@ export default function FeedPage() {
     setPreviewUserId(targetUserId);
   }
 
-  const topBannerAd = ads[0] || null;
-  const bottomBannerAd = ads.length > 1 ? ads[ads.length - 1] : ads[0] || null;
+  // Exactly one of these is true whenever there's an ad, so the slot renders
+  // once and only once.
+  const adInStream = ad !== null && posts.length >= FEED_AD_MIN_POSTS;
+  const adAtTop = ad !== null && posts.length < FEED_AD_MIN_POSTS;
 
   return (
     <div className="max-w-2xl">
       <h1 className="text-5xl font-bold text-white mb-8">Community Feed</h1>
 
-      {topBannerAd && <AdBanner ad={topBannerAd} />}
-
       <CreatePostForm onCreate={createPost} />
+
+      {/* Short or empty feed: the slot sits at the top of the stream so an
+          approved ad always appears somewhere. */}
+      {adAtTop && ad && (
+        <div className="mb-5">
+          <FeedAdCard
+            ad={ad}
+            index={adIndex}
+            total={adCount}
+            onSelect={selectAd}
+          />
+        </div>
+      )}
 
       {loading ? (
         <p className="text-gray-400">Loading feed...</p>
@@ -47,14 +64,7 @@ export default function FeedPage() {
       ) : (
         <div className="space-y-5">
           {posts.map((post, index) => {
-            const showAdAfterThis =
-              ads.length > 0 &&
-              (index + 1) % FEED_AD_INTERVAL === 0 &&
-              index !== posts.length - 1;
-
-            const feedAd = showAdAfterThis
-              ? ads[Math.floor(index / FEED_AD_INTERVAL) % ads.length]
-              : null;
+            const showAdAfterThis = adInStream && index === FEED_AD_AFTER_INDEX;
 
             return (
               <div key={post.id}>
@@ -73,20 +83,19 @@ export default function FeedPage() {
                   onDelete={deletePost}
                   onViewProfile={handleViewProfile}
                 />
-                {feedAd && (
+                {showAdAfterThis && ad && (
                   <div className="mt-5">
-                    <FeedAdCard ad={feedAd} />
+                    <FeedAdCard
+                      ad={ad}
+                      index={adIndex}
+                      total={adCount}
+                      onSelect={selectAd}
+                    />
                   </div>
                 )}
               </div>
             );
           })}
-        </div>
-      )}
-
-      {bottomBannerAd && (
-        <div className="mt-8">
-          <AdBanner ad={bottomBannerAd} />
         </div>
       )}
 

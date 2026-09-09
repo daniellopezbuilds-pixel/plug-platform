@@ -47,7 +47,7 @@ export function EmployerVerificationCard({
           <button
             onClick={handleViewDocument}
             disabled={opening}
-            className="text-yellow-400 hover:text-yellow-300 text-sm font-semibold mt-2 disabled:opacity-50"
+            className="text-brand-soft hover:text-white text-sm font-semibold mt-2 disabled:opacity-50"
           >
             {opening ? "Opening..." : `View Document (${employer.document_label}) →`}
           </button>
@@ -63,7 +63,7 @@ export function EmployerVerificationCard({
         </button>
         <button
           onClick={() => onReject(employer.id)}
-          className="bg-zinc-800 text-gray-300 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-zinc-700 transition"
+          className="border border-zinc-700 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-zinc-900 transition"
         >
           Reject
         </button>

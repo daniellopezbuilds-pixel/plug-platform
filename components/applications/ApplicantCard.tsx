@@ -67,7 +67,7 @@ export function ApplicantCard({
         )}
       </div>
 
-      <p className="text-zinc-300 mb-4">
+      <p className="text-gray-300 mb-4">
         Applied for <span className="font-semibold">{applicant.jobs?.title}</span>
       </p>
 
@@ -78,7 +78,7 @@ export function ApplicantCard({
       {applicant.profiles?.resume_path && (
         <button
           onClick={handleViewResume}
-          className="text-yellow-400 hover:text-yellow-300 text-sm font-semibold mb-4 block"
+          className="text-brand-soft hover:text-white text-sm font-semibold mb-4 block"
         >
           View Resume →
         </button>
@@ -103,7 +103,7 @@ export function ApplicantCard({
           <button
             onClick={() => onUpdateStatus(applicant.id, "pending")}
             disabled={isUpdating}
-            className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition"
+            className="bg-zinc-800 hover:bg-zinc-800 disabled:opacity-40 text-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition"
           >
             Reset
           </button>
@@ -113,7 +113,7 @@ export function ApplicantCard({
       {applicant.status === "accepted" && !hasReviewed && !showReviewForm && (
         <button
           onClick={() => setShowReviewForm(true)}
-          className="text-yellow-400 hover:text-yellow-300 text-sm font-semibold mt-4 block"
+          className="text-brand-soft hover:text-white text-sm font-semibold mt-4 block"
         >
           Leave a review →
         </button>

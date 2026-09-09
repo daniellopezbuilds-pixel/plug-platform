@@ -45,7 +45,7 @@ export function ConversationList({
             className="w-full text-left p-4 flex items-start gap-2"
           >
             {conv.isUnread && (
-              <span className="w-2 h-2 rounded-full bg-yellow-400 mt-2 flex-shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-zinc-500 mt-2 flex-shrink-0" />
             )}
             <div className="min-w-0 flex-1 pr-6">
               <p className={`truncate ${conv.isUnread ? "font-bold text-white" : "font-semibold text-white"}`}>
@@ -65,7 +65,7 @@ export function ConversationList({
 
           <button
             onClick={(e) => handleDelete(e, conv.id)}
-            className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition text-xs text-gray-500 hover:text-red-400"
+            className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition text-xs text-gray-400 hover:text-red-400"
             title="Delete conversation"
           >
             ✕
