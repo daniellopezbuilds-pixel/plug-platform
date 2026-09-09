@@ -10,6 +10,10 @@ import {
   uploadAdImage,
   validateAdImage,
 } from "@/lib/ads";
+import { PageHeading } from "@/components/layout/PageHeading";
+import { AdSubmissionSkeleton } from "@/components/ui/Skeleton";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { Spinner } from "@/components/ui/Spinner";
 
 // Edit this list to change the city options.
 const CALIFORNIA_CITIES = [
@@ -234,12 +238,11 @@ export default function BrandingDealsPage() {
     PLACEMENTS.find((p) => p.value === v)?.label ?? v;
 
   return (
-    // Capped like the other dashboard pages (max-w-2xl/3xl/4xl elsewhere).
-    // One step wider because it is the only two-column page; without a cap it
-    // stretched to 1880px on a 1920 screen while every other page stopped
-    // under 1000px.
-    <div className="max-w-5xl">
-      <h1 className="text-4xl font-bold text-white mb-3">Branding deals</h1>
+    // The width cap that used to be here is gone: the dashboard layout now
+    // centres a 1200px column for every page, so a per-page max-width only
+    // made this one narrower and left-aligned inside it.
+    <div>
+      <PageHeading title="Branding deals" />
 
       <p className="text-sm text-gray-400 bg-zinc-900 border border-zinc-800 rounded-lg p-3 mb-6">
         Every campaign is reviewed before it runs. Submissions start as{" "}
@@ -256,7 +259,7 @@ export default function BrandingDealsPage() {
           <h2 className="text-xl font-bold mb-5">New advertisement</h2>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="title" className={labelClass}>Ad title</label>
               <input
@@ -328,7 +331,7 @@ export default function BrandingDealsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="start_date" className={labelClass}>Start date</label>
               <input
@@ -358,7 +361,7 @@ export default function BrandingDealsPage() {
           </div>
           {errors.dates && <p className="text-xs text-rose-400 -mt-2">{errors.dates}</p>}
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label htmlFor="daily_budget" className={labelClass}>Daily budget</label>
               <input
@@ -428,8 +431,9 @@ export default function BrandingDealsPage() {
             type="button"
             onClick={handleSubmit}
             disabled={submitting || !userId}
-            className="bg-accent text-on-accent px-5 py-2.5 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50"
+            className="bg-accent text-on-accent px-5 py-2.5 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
+            <ButtonSpinner active={submitting} />
             {submitting ? "Submitting..." : "Submit for review"}
           </button>
         </div>
@@ -439,7 +443,7 @@ export default function BrandingDealsPage() {
           <h2 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Your submissions</h2>
 
           {loading ? (
-            <p className="text-gray-400">Loading...</p>
+            <AdSubmissionSkeleton />
           ) : ads.length === 0 ? (
             <p className="text-gray-400">Nothing submitted yet.</p>
           ) : (
@@ -508,9 +512,10 @@ export default function BrandingDealsPage() {
               <div ref={sentinelRef} aria-hidden />
 
               {loadingMore && (
-                <p className="text-xs text-gray-400 text-center py-2">
-                  Loading more...
-                </p>
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <Spinner size="sm" label="" />
+                  <span className="text-xs text-gray-400">Loading more</span>
+                </div>
               )}
               {!hasMore && ads.length > SUBMISSIONS_PAGE_SIZE && (
                 <p className="text-xs text-gray-400 text-center py-2">

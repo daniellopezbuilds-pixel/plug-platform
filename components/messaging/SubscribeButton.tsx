@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 export function SubscribeButton() {
   const [loading, setLoading] = useState(false);
@@ -45,8 +46,9 @@ export function SubscribeButton() {
     <button
       onClick={handleSubscribe}
       disabled={loading}
-      className="bg-accent text-on-accent px-5 py-2.5 rounded-lg font-semibold disabled:opacity-50"
+      className="bg-accent text-on-accent px-5 py-2.5 rounded-lg font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
     >
+      <ButtonSpinner active={loading} />
       {loading ? "Redirecting..." : "Subscribe – $2/month"}
     </button>
   );

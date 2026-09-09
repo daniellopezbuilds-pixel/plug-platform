@@ -2,17 +2,19 @@
 
 import { useApplications } from "@/hooks/useApplications";
 import { ApplicationCard } from "@/components/applications/ApplicationCard";
+import { PageHeading } from "@/components/layout/PageHeading";
+import { CardSkeleton } from "@/components/ui/Skeleton";
 
 export default function ApplicationsPage() {
   const { applications, reviewedIds, loading, refresh } = useApplications();
 
   if (loading) {
-    return <div className="text-white">Loading applications...</div>;
+    return <CardSkeleton />;
   }
 
   return (
     <div>
-      <h1 className="text-5xl font-bold mb-8">My Applications</h1>
+      <PageHeading title="My Applications" />
 
       {applications.length === 0 ? (
         <p className="text-gray-400">No applications yet.</p>

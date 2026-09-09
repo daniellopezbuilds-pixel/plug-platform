@@ -6,6 +6,7 @@ import { useMyRequests } from "@/hooks/useMyRequests";
 import { SubmitAdRequest } from "@/components/requests/SubmitAdRequest";
 import { SubmitGeneralConcern } from "@/components/requests/SubmitGeneralConcern";
 import { MyRequestsList } from "@/components/requests/MyRequestsList";
+import { PageHeading } from "@/components/layout/PageHeading";
 
 type RequestsTab = "submit" | "history";
 type SubmitType = "menu" | "employer" | "union" | "ad" | "general";
@@ -22,8 +23,8 @@ export default function RequestsPage() {
   }
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="text-5xl font-bold text-white mb-8">Requests</h1>
+    <div className="max-w-3xl mx-auto">
+      <PageHeading title="Requests" />
 
       <div className="flex gap-2 mb-8 border-b border-zinc-800">
         <button

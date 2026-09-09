@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_AFTER_LOGIN, safeReturnTo } from "@/lib/returnTo";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 const inputClass =
   "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
@@ -139,8 +140,9 @@ export default function LoginPage() {
               type="button"
               onClick={handleLogin}
               disabled={submitting}
-              className="w-full bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50"
+              className="w-full bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
+              <ButtonSpinner active={submitting} />
               {submitting ? "Logging in..." : "Log in"}
             </button>
           </div>

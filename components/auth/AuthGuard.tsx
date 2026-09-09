@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { currentReturnTo } from "@/lib/returnTo";
+import { ScreenLoader } from "@/components/ui/Loading";
 
 /**
  * The single auth gate for /dashboard and everything under it.
@@ -86,7 +87,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Held deliberately until the check resolves, so no dashboard content or
   // query fires for someone who is about to be redirected.
   if (!checked) {
-    return <div className="min-h-screen bg-black text-white p-10">Loading...</div>;
+    return <ScreenLoader message="Checking your session" />;
   }
 
   return <>{children}</>;

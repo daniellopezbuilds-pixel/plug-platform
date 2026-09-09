@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { uploadAdImage, validateAdImage, AD_SPEC_TEXT } from "@/lib/ads";
 import type { Ad } from "@/hooks/useAds";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 export function EditAdForm({
   ad,
@@ -164,7 +165,7 @@ export function EditAdForm({
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div>
           <label className="block text-xs text-gray-400 mb-1">Start Date</label>
           <input
@@ -200,7 +201,7 @@ export function EditAdForm({
       </div>
 
       {isPaidAd && (
-        <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <div>
             <label className="block text-xs text-gray-400 mb-1">Payment Status</label>
             <select
@@ -257,8 +258,9 @@ export function EditAdForm({
         <button
           onClick={handleSubmit}
           disabled={submitting || !title.trim()}
-          className="bg-accent text-on-accent px-5 py-2.5 rounded font-semibold disabled:opacity-50"
+          className="bg-accent text-on-accent px-5 py-2.5 rounded font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
+          <ButtonSpinner active={submitting} />
           {submitting ? "Saving..." : "Save Changes"}
         </button>
         <button

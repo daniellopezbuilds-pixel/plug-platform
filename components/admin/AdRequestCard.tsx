@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getAdPublicUrl } from "@/lib/ads";
 import type { AdRequest } from "@/hooks/useAdRequests";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 export function AdRequestCard({
   request,
@@ -148,14 +149,14 @@ export function AdRequestCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div>
           <label className="block text-xs text-gray-400 mb-1">Start Date</label>
           <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-sm"
+            className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-base sm:text-sm"
           />
         </div>
         <div>
@@ -164,7 +165,7 @@ export function AdRequestCard({
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-sm"
+            className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-base sm:text-sm"
           />
         </div>
       </div>
@@ -184,13 +185,13 @@ export function AdRequestCard({
       </div>
 
       {isPaidAd && (
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           <div>
             <label className="block text-xs text-gray-400 mb-1">Payment Status</label>
             <select
               value={paymentStatus}
               onChange={(e) => setPaymentStatus(e.target.value)}
-              className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-sm"
+              className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-base sm:text-sm"
             >
               <option value="unpaid">Unpaid</option>
               <option value="paid">Paid</option>
@@ -204,7 +205,7 @@ export function AdRequestCard({
               step="0.01"
               value={amountCharged}
               onChange={(e) => setAmountCharged(e.target.value)}
-              className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-sm"
+              className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-base sm:text-sm"
             />
           </div>
         </div>
@@ -226,7 +227,7 @@ export function AdRequestCard({
               setReason(e.target.value);
               setReasonError(null);
             }}
-            className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-sm resize-none"
+            className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-base sm:text-sm resize-none"
           />
           {reasonError && (
             <p className="text-xs text-rose-400 mt-1.5">{reasonError}</p>
@@ -235,8 +236,9 @@ export function AdRequestCard({
             <button
               onClick={handleReject}
               disabled={submitting}
-              className="bg-rose-950 text-rose-400 border border-rose-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-rose-900 transition disabled:opacity-50"
+              className="bg-rose-950 text-rose-400 border border-rose-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-rose-900 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
+              <ButtonSpinner active={submitting} />
               {submitting ? "Rejecting..." : "Confirm rejection"}
             </button>
             <button
@@ -256,8 +258,9 @@ export function AdRequestCard({
           <button
             onClick={handleApprove}
             disabled={submitting}
-            className="bg-green-950 text-green-400 border border-green-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-green-900 transition disabled:opacity-50"
+            className="bg-green-950 text-green-400 border border-green-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-green-900 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
+            <ButtonSpinner active={submitting} />
             {submitting ? "Approving..." : "Approve"}
           </button>
           <button

@@ -9,6 +9,7 @@ import { ReviewsList } from "@/components/reviews/ReviewsList";
 import { getBrandingPublicUrl } from "@/lib/branding";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
+import { PageLoader } from "@/components/ui/Loading";
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -75,7 +76,7 @@ export default function PublicProfilePage() {
   }, [profileId]);
 
   if (loading) {
-    return <div className="text-white">Loading profile...</div>;
+    return <PageLoader message="Loading profile" />;
   }
 
   if (notFound) {

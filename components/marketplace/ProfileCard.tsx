@@ -10,6 +10,7 @@ import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import type { DirectoryProfile } from "@/hooks/useDirectory";
 import type { ConnectionInfo } from "@/hooks/useConnections";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 export function ProfileCard({
   profile,
@@ -48,6 +49,7 @@ export function ProfileCard({
           disabled={isActing}
           className="bg-accent text-on-accent px-5 py-2.5 rounded-lg font-semibold hover:bg-accent-hover disabled:opacity-50 transition"
         >
+          <ButtonSpinner active={isActing} />
           {isActing ? "Sending..." : "Connect"}
         </button>
       );

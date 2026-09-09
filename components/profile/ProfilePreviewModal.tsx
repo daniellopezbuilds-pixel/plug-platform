@@ -9,6 +9,7 @@ import { ReviewsList } from "@/components/reviews/ReviewsList";
 import { getBrandingPublicUrl } from "@/lib/branding";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
+import { InlineLoader } from "@/components/ui/Loading";
 
 export function ProfilePreviewModal({
   userId,
@@ -86,7 +87,7 @@ export function ProfilePreviewModal({
         </button>
 
         {loading ? (
-          <p className="text-gray-400">Loading profile...</p>
+          <InlineLoader message="Loading profile" />
         ) : notFound ? (
           <div>
             <h2 className="text-2xl font-bold text-white mb-2">Profile Not Found</h2>

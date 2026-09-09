@@ -1,4 +1,5 @@
 import { UnionBadge } from "@/components/ui/UnionBadge";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import type { Job } from "@/hooks/useJobs";
 
 export function JobDetailModal({
@@ -52,7 +53,7 @@ export function JobDetailModal({
           <button
             onClick={() => onApply(job.id)}
             disabled={hasApplied || isApplying}
-            className={`flex-1 px-5 py-3 rounded-lg font-semibold transition ${
+            className={`flex-1 px-5 py-3 rounded-lg font-semibold transition inline-flex items-center justify-center gap-2 ${
               hasApplied
                 ? "bg-zinc-800 text-gray-400 cursor-not-allowed"
                 : isApplying
@@ -60,6 +61,11 @@ export function JobDetailModal({
                 : "bg-accent text-on-accent hover:bg-accent-hover"
             }`}
           >
+            {/* Tracks isApplying only. This button has three states, and the
+                third — hasApplied — is a finished result, not work in
+                progress; a spinner beside "Applied ✓" would say the opposite
+                of what it means. */}
+            <ButtonSpinner active={isApplying} />
             {hasApplied ? "Applied ✓" : isApplying ? "Applying..." : "Apply Now"}
           </button>
           <button

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSubmitGeneralConcern } from "@/hooks/useSubmitGeneralConcern";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 export function SubmitGeneralConcern({ onSubmitted }: { onSubmitted?: () => void }) {
   const { submit, submitting } = useSubmitGeneralConcern();
@@ -51,8 +52,9 @@ export function SubmitGeneralConcern({ onSubmitted }: { onSubmitted?: () => void
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="bg-accent text-on-accent px-5 py-2.5 rounded font-semibold disabled:opacity-50"
+        className="bg-accent text-on-accent px-5 py-2.5 rounded font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
       >
+        <ButtonSpinner active={submitting} />
         {submitting ? "Submitting..." : "Submit Request"}
       </button>
     </div>

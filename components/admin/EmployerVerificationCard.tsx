@@ -4,6 +4,7 @@ import { useState } from "react";
 import { getEmployerDocumentSignedUrl } from "@/lib/employerDocuments";
 import { getBrandingPublicUrl } from "@/lib/branding";
 import type { PendingEmployer } from "@/hooks/useEmployerVerifications";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 export function EmployerVerificationCard({
   employer,
@@ -47,8 +48,9 @@ export function EmployerVerificationCard({
           <button
             onClick={handleViewDocument}
             disabled={opening}
-            className="text-accent-2-soft hover:text-white text-sm font-semibold mt-2 disabled:opacity-50"
+            className="text-accent-2-soft hover:text-white text-sm font-semibold mt-2 disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
+            <ButtonSpinner active={opening} />
             {opening ? "Opening..." : `View Document (${employer.document_label}) →`}
           </button>
         </div>

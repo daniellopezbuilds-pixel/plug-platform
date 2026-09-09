@@ -25,7 +25,7 @@ export function AdRotationDots({
     // -ml-1 cancels the first button's padding so the dots still sit flush
     // left under the ad, without giving that one a smaller tap target.
     <div
-      className="flex items-center -ml-1"
+      className="flex items-center -ml-3.5 md:-ml-1"
       role="group"
       aria-label="Sponsored ad rotation"
     >
@@ -36,7 +36,7 @@ export function AdRotationDots({
           onClick={() => onSelect(i)}
           aria-label={`Show sponsored ad ${i + 1} of ${total}`}
           aria-current={i === index ? "true" : undefined}
-          className="p-1"
+          className="h-11 w-11 md:h-auto md:w-auto flex items-center justify-center md:p-1"
         >
           <span
             className={`block h-1.5 w-1.5 rounded-full transition-colors ${

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePostComments } from "@/hooks/usePostComments";
+import { InlineLoader } from "@/components/ui/Loading";
 
 export function CommentSection({
   postId,
@@ -36,7 +37,7 @@ export function CommentSection({
   return (
     <div className="mt-4 border-t border-zinc-800 pt-4">
       {loading ? (
-        <p className="text-gray-400 text-sm">Loading comments...</p>
+        <InlineLoader message="Loading comments" />
       ) : (
         <div className="space-y-3 mb-4">
           {comments.map((comment) => {
@@ -77,7 +78,7 @@ export function CommentSection({
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          className="flex-1 p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-sm"
+          className="flex-1 p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-base sm:text-sm"
         />
         <button
           onClick={handleSubmit}

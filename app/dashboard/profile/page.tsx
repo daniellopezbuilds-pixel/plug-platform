@@ -12,6 +12,9 @@ import { ChangePasswordSection } from "@/components/profile/ChangePasswordSectio
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import { SIGNUP_TYPES } from "@/lib/signupRoles";
+import { PageHeading } from "@/components/layout/PageHeading";
+import { PageLoader } from "@/components/ui/Loading";
+import { InlineLoader } from "@/components/ui/Loading";
 
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
@@ -312,7 +315,7 @@ export default function ProfilePage() {
   }
 
   if (loading) {
-    return <div className="text-white">Loading...</div>;
+    return <PageLoader message="Loading your profile" />;
   }
 
   // Driven off SIGNUP_TYPES rather than a list repeated here, so this section
@@ -330,8 +333,8 @@ export default function ProfilePage() {
     .filter((entry) => entry.value !== "");
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-5xl font-bold mb-8 text-white">Edit Profile</h1>
+    <div className="max-w-2xl mx-auto">
+      <PageHeading title="Edit Profile" />
 
       <div className="space-y-5">
         <div>
@@ -391,7 +394,7 @@ export default function ProfilePage() {
 
         <div>
           <label className="block text-sm text-gray-400 mb-2">Union Status</label>
-          <div className="flex gap-3 mb-2">
+          <div className="flex flex-wrap gap-3 mb-2">
             <button
               type="button"
               onClick={() => setUnionStatus("union")}
@@ -435,7 +438,7 @@ export default function ProfilePage() {
             disabled={uploadingResume}
             className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white disabled:opacity-50"
           />
-          {uploadingResume && <p className="text-sm text-gray-400 mt-2">Uploading...</p>}
+          {uploadingResume && <InlineLoader message="Uploading resume" />}
           {resumePath && !uploadingResume && (
             <button
               onClick={handleViewResume}
@@ -498,7 +501,7 @@ export default function ProfilePage() {
               disabled={uploadingLogo}
               className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white disabled:opacity-50"
             />
-            {uploadingLogo && <p className="text-sm text-gray-400 mt-2">Uploading...</p>}
+            {uploadingLogo && <InlineLoader message="Uploading logo" />}
           </div>
 
           <div className="mb-5">
@@ -517,7 +520,7 @@ export default function ProfilePage() {
               disabled={uploadingBanner}
               className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white disabled:opacity-50"
             />
-            {uploadingBanner && <p className="text-sm text-gray-400 mt-2">Uploading...</p>}
+            {uploadingBanner && <InlineLoader message="Uploading banner" />}
           </div>
 
           <textarea
@@ -546,7 +549,7 @@ export default function ProfilePage() {
               disabled={uploadingEmployerDoc}
               className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white disabled:opacity-50"
             />
-            {uploadingEmployerDoc && <p className="text-sm text-gray-400 mt-2">Uploading...</p>}
+            {uploadingEmployerDoc && <InlineLoader message="Uploading document" />}
             {employerDocPath && !uploadingEmployerDoc && (
               <button
                 onClick={handleViewEmployerDoc}
@@ -570,7 +573,7 @@ export default function ProfilePage() {
           the profiles row, and has its own submit. */}
       <ChangePasswordSection />
 
-      <div className="mt-12 border-t border-zinc-800 pt-8">
+      <div className="mt-10 border-t border-zinc-800 pt-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold text-white">Your Reputation</h2>
           <ReviewSummary averageRating={averageRating} count={count} />

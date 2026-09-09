@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 const inputClass =
   "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
@@ -138,24 +139,35 @@ export default function ForgotPasswordPage() {
             )}
 
             {sent && !error && (
-              <p className="text-sm text-emerald-300 bg-emerald-950/40 border border-emerald-900 rounded-lg p-3">
-                {SENT_MESSAGE}
-              </p>
+              <div>
+                <p className="text-sm text-emerald-300 bg-emerald-950/40 border border-emerald-900 rounded-lg p-3">
+                  {SENT_MESSAGE}
+                </p>
+                {/* The sending domain is new and shares history with another
+                    sender, so Gmail is filing these as spam. Muted and below
+                    the confirmation on purpose — it is a hint for the person
+                    who comes back confused, not a warning. Remove it once
+                    domain reputation settles. */}
+                <p className="text-xs text-gray-500 mt-2">
+                  If you don&apos;t see it, check your spam folder.
+                </p>
+              </div>
             )}
 
             <button
               type="button"
               onClick={handleSubmit}
               disabled={disabled}
-              className="w-full bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50"
+              className="w-full bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
+              <ButtonSpinner active={submitting} />
               {submitting
-                ? "Sending..."
-                : cooldown > 0
-                  ? `Resend in ${cooldown}s`
-                  : sent
-                    ? "Resend link"
-                    : "Send reset link"}
+              ? "Sending..."
+              : cooldown > 0
+              ? `Resend in ${cooldown}s`
+              : sent
+              ? "Resend link"
+              : "Send reset link"}
             </button>
           </div>
         </div>

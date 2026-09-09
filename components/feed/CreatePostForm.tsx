@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 export function CreatePostForm({
   onCreate,
@@ -79,7 +80,7 @@ export function CreatePostForm({
       </div>
 
       {postType === "job" && (
-        <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <input
             type="text"
             placeholder="Job Title"
@@ -111,8 +112,9 @@ export function CreatePostForm({
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="bg-accent text-on-accent px-5 py-2.5 rounded font-semibold disabled:opacity-50"
+        className="bg-accent text-on-accent px-5 py-2.5 rounded font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
       >
+        <ButtonSpinner active={submitting} />
         {submitting ? "Posting..." : "Post"}
       </button>
     </div>

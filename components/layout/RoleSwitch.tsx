@@ -20,7 +20,7 @@ export function RoleSwitch({
         <button
           key={mode}
           onClick={() => onSwitch(mode)}
-          className={`flex-1 rounded-md py-2 text-sm font-semibold transition ${
+          className={`flex-1 rounded-md min-h-11 md:min-h-0 md:py-2 text-sm font-semibold transition ${
             activeMode === mode
               ? "bg-accent text-on-accent"
               : "text-gray-400 hover:text-white"

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, validatePassword } from "@/lib/passwords";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { Spinner } from "@/components/ui/Spinner";
 
 const inputClass =
   "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
@@ -146,7 +148,10 @@ export default function ResetPasswordPage() {
           {status === "checking" && (
             <>
               <h2 className="text-lg font-semibold mb-1">Checking your link</h2>
-              <p className="text-sm text-gray-400">One moment...</p>
+              <div className="flex items-center gap-3 mt-3">
+                <Spinner size="sm" label="" />
+                <p className="text-sm text-gray-400">One moment</p>
+              </div>
             </>
           )}
 
@@ -226,8 +231,9 @@ export default function ResetPasswordPage() {
                   type="button"
                   onClick={handleSubmit}
                   disabled={submitting}
-                  className="w-full bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50"
+                  className="w-full bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
                 >
+                  <ButtonSpinner active={submitting} />
                   {submitting ? "Saving..." : "Save new password"}
                 </button>
               </div>

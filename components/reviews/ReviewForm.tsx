@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { useSubmitReview } from "@/hooks/useSubmitReview";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 export function ReviewForm({
   applicationId,
@@ -57,13 +58,14 @@ export function ReviewForm({
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         placeholder="Optional comment..."
-        className="w-full p-3 rounded bg-zinc-900 border border-zinc-700 text-white text-sm h-20 mb-3"
+        className="w-full p-3 rounded bg-zinc-900 border border-zinc-700 text-white text-base sm:text-sm h-20 mb-3"
       />
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="bg-accent text-on-accent px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+        className="bg-accent text-on-accent px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
       >
+        <ButtonSpinner active={submitting} />
         {submitting ? "Submitting..." : "Submit Review"}
       </button>
     </Card>

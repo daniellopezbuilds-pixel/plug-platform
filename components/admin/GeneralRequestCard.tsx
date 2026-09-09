@@ -23,7 +23,7 @@ export function GeneralRequestCard({
         placeholder="Admin notes (optional)"
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        className="w-full p-3 rounded bg-zinc-800 border border-zinc-700 text-white text-sm mb-4 h-20"
+        className="w-full p-3 rounded bg-zinc-800 border border-zinc-700 text-white text-base sm:text-sm mb-4 h-20"
       />
 
       <div className="flex gap-3">

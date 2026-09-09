@@ -5,12 +5,14 @@ import { WorkerDashboard } from "@/components/dashboard/WorkerDashboard";
 import { EmployerDashboard } from "@/components/dashboard/EmployerDashboard";
 import { BrandDashboard } from "@/components/dashboard/BrandDashboard";
 import { signupTypeLabel } from "@/lib/signupRoles";
+import { PageHeading } from "@/components/layout/PageHeading";
+import { PageLoader } from "@/components/ui/Loading";
 
 export default function DashboardPage() {
   const { profile, loading } = useActiveRole();
 
   if (loading || !profile) {
-    return <div className="text-white">Loading dashboard...</div>;
+    return <PageLoader message="Loading your dashboard" />;
   }
 
   const completed = [
@@ -39,8 +41,10 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-5xl font-bold mb-2">Welcome back, {profile.full_name || "User"}</h1>
-      <p className="text-gray-400 mb-10">{subtitle}</p>
+      <PageHeading
+        title={`Welcome back, ${profile.full_name || "User"}`}
+        subtitle={subtitle}
+      />
 
       {/* Brands carry role 'employer' so the signup trigger works unchanged,
           which would otherwise show them job and applicant stats. Branch on

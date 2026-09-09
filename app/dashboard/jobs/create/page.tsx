@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/Card";
+import { PageHeading } from "@/components/layout/PageHeading";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 export default function CreateJobPage() {
   const router = useRouter();
@@ -58,8 +60,8 @@ export default function CreateJobPage() {
   }
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="text-5xl font-bold text-white mb-8">Post a Job</h1>
+    <div className="max-w-3xl mx-auto">
+      <PageHeading title="Post a Job" />
 
       <Card>
         <div className="space-y-4">
@@ -155,8 +157,9 @@ export default function CreateJobPage() {
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="bg-accent text-on-accent px-6 py-4 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-accent text-on-accent px-6 py-4 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
           >
+            <ButtonSpinner active={submitting} />
             {submitting ? "Posting..." : "Post Job"}
           </button>
         </div>

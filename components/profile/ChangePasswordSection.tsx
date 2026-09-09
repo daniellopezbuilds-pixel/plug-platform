@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, validatePassword } from "@/lib/passwords";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 const inputClass =
   "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
@@ -173,8 +174,9 @@ export function ChangePasswordSection() {
           type="button"
           onClick={handleSubmit}
           disabled={submitting}
-          className="bg-accent text-on-accent px-5 py-2.5 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50"
+          className="bg-accent text-on-accent px-5 py-2.5 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
+          <ButtonSpinner active={submitting} />
           {submitting ? "Updating..." : "Update password"}
         </button>
       </div>

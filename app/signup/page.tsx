@@ -13,6 +13,7 @@ import {
   type SignupTypeKey,
 } from "@/lib/signupRoles";
 import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, validatePassword } from "@/lib/passwords";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 
 const STEP_COUNT = 3;
 
@@ -37,6 +38,10 @@ export default function SignupPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Set when signUp returns no session, i.e. email confirmation is on and the
+  // account is not usable until the link is clicked.
+  const [confirmationSent, setConfirmationSent] = useState(false);
 
   const isBrand = chosenType === "brand";
 
@@ -173,27 +178,62 @@ export default function SignupPage() {
       return;
     }
 
-    // Email confirmation is off, so signUp returns a session and we can go
-    // straight to the dashboard.
-    //
-    // The old success path is kept here, commented, in case email
-    // confirmation is turned back on:
-    //
-    //   alert("Account created. Please check your email to confirm your address.");
-    //   window.location.href = "/login";
-    //
-    // The no-session branch below does exactly that, so turning confirmation
-    // back on needs no code change — it just starts taking that branch.
+    // Email confirmation is off today, so signUp returns a session and we go
+    // straight to the dashboard. Turning confirmation back on needs no code
+    // change — it just starts taking the no-session branch below, which
+    // renders the "check your email" screen.
 
     if (!data.session) {
       // No session means confirmation is required after all. Never assume it
       // is there.
-      alert("Account created. Please check your email to confirm your address.");
-      window.location.href = "/login";
+      //
+      // This used to be alert() followed by a redirect to /login. A browser
+      // alert cannot carry the spam-folder hint below it, and it dumped the
+      // user on the login page where nothing explained why they could not log
+      // in yet. Rendered as a screen instead.
+      setConfirmationSent(true);
       return;
     }
 
     router.push("/dashboard");
+  }
+
+  if (confirmationSent) {
+    return (
+      <main className="min-h-screen bg-black text-white flex items-center justify-center px-6 py-10">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold">
+              Sparx Plug <span className="text-accent-2-soft">Ecosystem</span>
+            </h1>
+            <p className="text-gray-400 text-sm mt-1">Connect. Build. Grow.</p>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+            <h2 className="text-lg font-semibold mb-1">Check your email</h2>
+            <p className="text-sm text-gray-400">
+              We&apos;ve sent a confirmation link to{" "}
+              <span className="text-white">{email.trim()}</span>. Click it to
+              finish setting up your account.
+            </p>
+            {/* The sending domain is new and shares history with another
+                sender, so Gmail is filing these as spam. Muted and secondary
+                on purpose — a hint for the person who comes back confused, not
+                a warning. Remove it once domain reputation settles. */}
+            <p className="text-xs text-gray-500 mt-3">
+              If you don&apos;t see it, check your spam folder.
+            </p>
+          </div>
+
+          <p className="text-center text-sm text-gray-400 mt-5">
+            Already confirmed?{" "}
+            <Link href="/login" className="text-accent-2-soft hover:underline">
+              Log in
+            </Link>
+          </p>
+        </div>
+      </main>
+    );
   }
 
   const isLastStep = step === STEP_COUNT - 1;
@@ -289,7 +329,7 @@ export default function SignupPage() {
                 </p>
               )}
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
                   placeholder={isBrand ? "Contact first name" : "First name"}
@@ -392,12 +432,12 @@ export default function SignupPage() {
             </p>
           )}
 
-          <div className="flex gap-3 mt-6">
+          <div className="flex gap-3 mt-6 [&>button]:min-h-11">
             {step > 0 && (
               <button
                 type="button"
                 onClick={goBack}
-                className="px-4 py-3 rounded-lg border border-zinc-700 text-gray-300 font-medium hover:border-zinc-700 hover:text-white transition"
+                className="px-4 py-3 rounded-lg border border-zinc-700 text-gray-300 font-medium hover:border-zinc-700 hover:text-white transition inline-flex items-center justify-center gap-2"
               >
                 Back
               </button>
@@ -409,11 +449,12 @@ export default function SignupPage() {
               disabled={submitting}
               className="flex-1 bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50"
             >
+              <ButtonSpinner active={submitting} />
               {submitting
-                ? "Creating account..."
-                : isLastStep
-                ? "Create Account"
-                : "Continue"}
+              ? "Creating account..."
+              : isLastStep
+              ? "Create Account"
+              : "Continue"}
             </button>
           </div>
         </div>

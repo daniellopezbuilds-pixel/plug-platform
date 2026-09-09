@@ -1,6 +1,7 @@
 "use client";
 
 import type { MyRequest } from "@/hooks/useMyRequests";
+import { InlineLoader } from "@/components/ui/Loading";
 
 const typeLabels: Record<MyRequest["type"], string> = {
   employer_verification: "Employer Verification",
@@ -33,7 +34,7 @@ export function MyRequestsList({
   loading: boolean;
 }) {
   if (loading) {
-    return <p className="text-gray-400">Loading your requests...</p>;
+    return <InlineLoader message="Loading your requests" />;
   }
 
   if (requests.length === 0) {

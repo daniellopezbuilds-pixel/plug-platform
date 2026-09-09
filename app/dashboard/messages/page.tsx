@@ -9,6 +9,9 @@ import { ConversationList } from "@/components/messaging/ConversationList";
 import { MessageThread } from "@/components/messaging/MessageThread";
 import { NewConversationPanel } from "@/components/messaging/NewConversationPanel";
 import { useConversationParticipants } from "@/hooks/useConversationParticipants";
+import { FULL_HEIGHT_PANEL_CLASS } from "@/lib/layout";
+import { InlineLoader } from "@/components/ui/Loading";
+import { Spinner } from "@/components/ui/Spinner";
 
 export default function MessagesPage() {
   const {
@@ -85,21 +88,31 @@ export default function MessagesPage() {
     activeParticipantInfo.participants[0].role === "employer";
 
   return (
-    <div className="relative h-[calc(100vh-8rem)]">
+    <div className={`relative ${FULL_HEIGHT_PANEL_CLASS}`}>
       <div className="flex h-full border border-zinc-800 rounded-xl overflow-hidden">
-        <div className="w-80 border-r border-zinc-800 flex flex-col">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+        {/*
+          Two panes side by side from md. Under md there is no room for both
+          (the list alone was a fixed 320px on a 375px screen), so it becomes
+          one pane at a time: the list until a conversation is picked, then the
+          thread with a back button. activeId is the switch.
+        */}
+        <div
+          className={`w-full md:w-80 md:flex border-r border-zinc-800 flex-col ${
+            activeId ? "hidden" : "flex"
+          }`}
+        >
+          <div className="p-4 border-b border-zinc-800 flex items-center justify-between gap-3">
             <h1 className="text-xl font-bold text-white">Messages</h1>
             <button
               onClick={() => setShowNewPanel(true)}
-              className="bg-accent text-on-accent px-3 py-1.5 rounded-lg text-sm font-semibold"
+              className="bg-accent text-on-accent px-4 min-h-11 md:min-h-0 md:py-1.5 rounded-lg text-sm font-semibold shrink-0"
             >
               New
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-2">
             {convLoading ? (
-              <p className="text-gray-400 text-sm p-4">Loading...</p>
+              <InlineLoader message="Loading conversations" />
             ) : (
               <ConversationList
                 conversations={conversations}
@@ -111,25 +124,40 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        <div className="flex-1">
-          {!activeId ? (
-            <div className="h-full flex items-center justify-center text-gray-400">
-              Select a conversation or start a new one.
-            </div>
-          ) : msgLoading ? (
-            <div className="h-full flex items-center justify-center text-gray-400">
-              Loading messages...
-            </div>
-          ) : (
-            <MessageThread
-              messages={messages}
-              currentUserId={userId}
-              sending={sending}
-              onSend={handleSend}
-              onDelete={deleteMessage}
-              locked={isLocked}
-            />
+        <div className={`flex-1 min-w-0 flex-col ${activeId ? "flex" : "hidden md:flex"}`}>
+          {/* Back to the list. Under md the thread covers the whole panel, so
+              without this there is no way out of a conversation. */}
+          {activeId && (
+            <button
+              type="button"
+              onClick={() => setActiveId(null)}
+              className="md:hidden flex items-center gap-2 min-h-11 px-4 border-b border-zinc-800 text-sm text-gray-300 hover:text-white transition"
+            >
+              <span aria-hidden="true">&larr;</span> All conversations
+            </button>
           )}
+
+          <div className="flex-1 min-h-0">
+            {!activeId ? (
+              <div className="h-full flex items-center justify-center text-gray-400 p-4 text-center">
+                Select a conversation or start a new one.
+              </div>
+            ) : msgLoading ? (
+              <div className="h-full flex flex-col items-center justify-center gap-3">
+                <Spinner label="" />
+                <p className="text-sm text-gray-400">Loading messages</p>
+              </div>
+            ) : (
+              <MessageThread
+                messages={messages}
+                currentUserId={userId}
+                sending={sending}
+                onSend={handleSend}
+                onDelete={deleteMessage}
+                locked={isLocked}
+              />
+            )}
+          </div>
         </div>
       </div>
 

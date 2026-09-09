@@ -13,8 +13,29 @@ import { AdForm } from "@/components/admin/AdForm";
 import { AdListItem } from "@/components/admin/AdListItem";
 import { AdRequestCard } from "@/components/admin/AdRequestCard";
 import { GeneralRequestCard } from "@/components/admin/GeneralRequestCard";
+import { PageHeading } from "@/components/layout/PageHeading";
+import { PageLoader } from "@/components/ui/Loading";
+import { InlineLoader } from "@/components/ui/Loading";
 
 type AdminTab = "requests" | "employers" | "union" | "ad-requests" | "ads";
+
+
+/**
+ * Tab styling, matching the sidebar active treatment: orange label, orange
+ * bar. The bar is border-b here rather than border-l because these are a
+ * horizontal strip, but it is the same accent token at the same weight.
+ *
+ * border-b-2 is always present and merely transparent when inactive, so
+ * switching tabs does not shift the labels vertically.
+ */
+function tabClass(active: boolean) {
+  return [
+    "px-5 py-3 font-semibold border-b-2 transition whitespace-nowrap shrink-0",
+    active
+      ? "border-accent text-accent"
+      : "border-transparent text-gray-400 hover:text-white",
+  ].join(" ");
+}
 
 export default function AdminPage() {
   const { isAdmin, loading } = useIsAdmin();
@@ -77,7 +98,7 @@ export default function AdminPage() {
   }
 
   if (loading) {
-    return <div className="text-white">Loading...</div>;
+    return <PageLoader message="Checking permissions" />;
   }
 
   if (!isAdmin) {
@@ -104,17 +125,13 @@ export default function AdminPage() {
     loadingEmployers || loadingUnionWorkers || loadingAdRequests || loadingGeneralRequests;
 
   return (
-    <div className="max-w-4xl">
-      <h1 className="text-5xl font-bold mb-8 text-white">Admin Panel</h1>
+    <div className="max-w-4xl mx-auto">
+      <PageHeading title="Admin Panel" />
 
-      <div className="flex gap-2 mb-8 border-b border-zinc-800">
+      <div className="flex gap-2 mb-8 border-b border-zinc-800 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
         <button
           onClick={() => setActiveTab("requests")}
-          className={`px-5 py-3 font-semibold border-b-2 transition ${
-            activeTab === "requests"
-              ? "border-accent text-white"
-              : "border-transparent text-gray-400 hover:text-white"
-          }`}
+          className={tabClass(activeTab === "requests")}
         >
           All Requests
           {totalPendingRequests > 0 && (
@@ -125,31 +142,19 @@ export default function AdminPage() {
         </button>
         <button
           onClick={() => setActiveTab("employers")}
-          className={`px-5 py-3 font-semibold border-b-2 transition ${
-            activeTab === "employers"
-              ? "border-accent text-white"
-              : "border-transparent text-gray-400 hover:text-white"
-          }`}
+          className={tabClass(activeTab === "employers")}
         >
           Employer Verification
         </button>
         <button
           onClick={() => setActiveTab("union")}
-          className={`px-5 py-3 font-semibold border-b-2 transition ${
-            activeTab === "union"
-              ? "border-accent text-white"
-              : "border-transparent text-gray-400 hover:text-white"
-          }`}
+          className={tabClass(activeTab === "union")}
         >
           Union Verification
         </button>
         <button
           onClick={() => setActiveTab("ad-requests")}
-          className={`px-5 py-3 font-semibold border-b-2 transition ${
-            activeTab === "ad-requests"
-              ? "border-accent text-white"
-              : "border-transparent text-gray-400 hover:text-white"
-          }`}
+          className={tabClass(activeTab === "ad-requests")}
         >
           Advertisement Requests
           {brandAdRequests.length > 0 && (
@@ -160,11 +165,7 @@ export default function AdminPage() {
         </button>
         <button
           onClick={() => setActiveTab("ads")}
-          className={`px-5 py-3 font-semibold border-b-2 transition ${
-            activeTab === "ads"
-              ? "border-accent text-white"
-              : "border-transparent text-gray-400 hover:text-white"
-          }`}
+          className={tabClass(activeTab === "ads")}
         >
           Ads
         </button>
@@ -172,7 +173,7 @@ export default function AdminPage() {
 
       {activeTab === "requests" && (
         <div className="space-y-8">
-          {anyRequestsLoading && <p className="text-gray-400">Loading...</p>}
+          {anyRequestsLoading && <InlineLoader message="Loading requests" />}
 
           {!anyRequestsLoading && totalPendingRequests === 0 && (
             <p className="text-gray-400">No pending requests.</p>
@@ -254,7 +255,7 @@ export default function AdminPage() {
 
       {activeTab === "employers" && (
         <div className="space-y-4">
-          {loadingEmployers && <p className="text-gray-400">Loading...</p>}
+          {loadingEmployers && <InlineLoader message="Loading verifications" />}
           {!loadingEmployers && pendingEmployers.length === 0 && (
             <p className="text-gray-400">No employers awaiting verification.</p>
           )}
@@ -271,7 +272,7 @@ export default function AdminPage() {
 
       {activeTab === "union" && (
         <div className="space-y-4">
-          {loadingUnionWorkers && <p className="text-gray-400">Loading...</p>}
+          {loadingUnionWorkers && <InlineLoader message="Loading verifications" />}
           {!loadingUnionWorkers && pendingUnionWorkers.length === 0 && (
             <p className="text-gray-400">No workers awaiting union verification.</p>
           )}
@@ -288,7 +289,7 @@ export default function AdminPage() {
 
       {activeTab === "ad-requests" && (
         <div className="space-y-4">
-          {loadingAdRequests && <p className="text-gray-400">Loading...</p>}
+          {loadingAdRequests && <InlineLoader message="Loading ad requests" />}
           {!loadingAdRequests && brandAdRequests.length === 0 && (
             <p className="text-gray-400">No ads waiting for review.</p>
           )}
@@ -308,7 +309,7 @@ export default function AdminPage() {
           <AdForm onCreate={createAd} />
 
           <div className="space-y-3">
-            {loadingAds && <p className="text-gray-400">Loading...</p>}
+            {loadingAds && <InlineLoader message="Loading ads" />}
             {!loadingAds && ads.length === 0 && (
               <p className="text-gray-400">No ads created yet.</p>
             )}
