@@ -9,11 +9,14 @@ export function SubscribeButton() {
   async function handleSubscribe() {
     setLoading(true);
 
+    // The route derives the user from this token, so nothing about who is
+    // subscribing is sent in the body any more. getSession() is the local copy
+    // — the server validates it before creating anything.
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (!user) {
+    if (!session) {
       alert("You must be logged in.");
       setLoading(false);
       return;
@@ -21,8 +24,10 @@ export function SubscribeButton() {
 
     const res = await fetch("/api/stripe/checkout", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: user.id, email: user.email }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
     });
 
     const data = await res.json();

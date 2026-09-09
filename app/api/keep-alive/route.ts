@@ -4,6 +4,18 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 // This route does a tiny, harmless read from the database.
 // Vercel Cron hits this once a day so Supabase sees "activity"
 // and doesn't auto-pause the project after 7 days of inactivity.
+//
+// @public-route — a cron ping with no caller to authenticate. It takes no
+// input, returns no data, and the query is `select id from profiles limit 1`
+// whose result is discarded, so there is nothing here to abuse beyond causing
+// one extra query.
+//
+// It is, however, an unauthenticated public endpoint holding the service-role
+// key, which bypasses all RLS. The key is not exposed and the query is fixed,
+// so this is a least-privilege smell rather than a live hole — but if this
+// route ever grows a second query, or starts returning anything, it needs
+// either the anon key or a shared-secret header checked against the Vercel
+// cron configuration. Do not add functionality here without doing that first.
 export async function GET() {
   try {
     const { error } = await supabaseAdmin

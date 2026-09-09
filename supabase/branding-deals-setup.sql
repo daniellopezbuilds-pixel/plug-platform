@@ -10,6 +10,8 @@
 -- REQUIRED : section 1 (the city and review_notes columns)
 -- REQUIRED : section 3 (storage upload policy) — the form cannot work without
 --            it, and this was not in the original scope
+-- REQUIRED : section 5 (conversation_participants.payment_status) — the Stripe
+--            webhook already writes this column and it does not exist
 -- NOT NEEDED: section 2 (table RLS) — the policies asked for already exist and
 --            are STRICTER than the ones requested. Adding the requested version
 --            would weaken them. Do not run section 2.
@@ -18,7 +20,8 @@
 --   city          APPLIED
 --   review_notes  APPLIED
 --   storage policy (section 3)  APPLIED — an authenticated upload now returns 200
---   source        NOT APPLIED — the only outstanding statement
+--   source          NOT APPLIED — outstanding
+--   payment_status  NOT APPLIED — outstanding, added 2026-09-09
 --
 -- Everything in section 1 is `add column if not exists`, so re-running the
 -- whole script is safe.
@@ -141,3 +144,53 @@ create policy "authenticated users upload ad images"
 --
 -- That is a judgement call, not a requirement, so it is left commented.
 -- -----------------------------------------------------------------------------
+
+
+-- -----------------------------------------------------------------------------
+-- 5. REQUIRED. conversation_participants.payment_status
+--
+-- Not a branding-deals column. It lives here because this file is where
+-- hand-run additive columns are collected, and it has the same shape as
+-- section 1: one nullable column, no backfill, safe to re-run.
+--
+-- WHY IT IS NEEDED
+--
+-- app/api/stripe/webhook/route.tsx already writes it:
+--
+--   await supabaseAdmin
+--     .from("conversation_participants")
+--     .update({ payment_status: "paid" })
+--     .eq("conversation_id", conversationId)
+--     .eq("user_id", userId);
+--
+-- The column does not exist. docs/schema-inventory.md, read off the live
+-- database on 2026-09-09, lists conversation_participants as exactly:
+-- id, conversation_id, user_id, joined_at, last_read_at, hidden_at.
+--
+-- So that write has always failed. It failed silently as well, because the
+-- result was awaited without destructuring `error` — a paid group join would
+-- have taken the customer's money and granted nothing, with no trace in the
+-- logs. The error check is added in the same change as this column.
+--
+-- NULLABLE, NO DEFAULT, and that is deliberate. Every existing participant
+-- joined before paid group joins existed, and null is the honest value for
+-- them: "no payment was required". A default of 'unpaid' would retroactively
+-- mark every member of every existing conversation as owing money, and a
+-- default of 'paid' would assert a payment that never happened.
+--
+-- NOTHING READS THIS YET. There is no paid-group-join flow in the app: the
+-- group-checkout route has no caller (grep for `group-checkout` across app,
+-- components, hooks and lib returns only the route file itself). This column
+-- makes the webhook's write land instead of erroring; it does not gate
+-- anything. Whatever eventually reads it has to decide what null means before
+-- it can be a gate.
+-- -----------------------------------------------------------------------------
+
+alter table public.conversation_participants
+  add column if not exists payment_status text;
+
+comment on column public.conversation_participants.payment_status is
+  '''paid'' once a group-join checkout completes, written by the group_join '
+  'branch of app/api/stripe/webhook/route.tsx. NULL means no payment was '
+  'required — every participant predating paid group joins, and every member '
+  'of a free conversation. Nothing reads this yet; it is not a gate.';

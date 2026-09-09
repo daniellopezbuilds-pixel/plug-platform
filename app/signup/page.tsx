@@ -12,6 +12,7 @@ import {
   signupType as signupTypeDefinition,
   type SignupTypeKey,
 } from "@/lib/signupRoles";
+import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, validatePassword } from "@/lib/passwords";
 
 const STEP_COUNT = 3;
 
@@ -28,6 +29,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   // Single select, no default.
   const [chosenType, setChosenType] = useState<SignupTypeKey | null>(null);
@@ -87,8 +89,17 @@ export default function SignupPage() {
         return;
       }
 
-      if (!email.trim() || !password) {
-        setError("Please enter your email and password.");
+      if (!email.trim()) {
+        setError("Please enter your email address.");
+        return;
+      }
+
+      // Caught on the way out of this step, not at final submit two steps
+      // later — being sent back to fix a password after filling in credentials
+      // is the kind of thing that loses a signup.
+      const invalidPassword = validatePassword(password, confirmPassword);
+      if (invalidPassword) {
+        setError(invalidPassword);
         return;
       }
     }
@@ -104,8 +115,16 @@ export default function SignupPage() {
       return;
     }
 
-    if (!email.trim() || !password) {
-      setError("Please enter your email and password.");
+    if (!email.trim()) {
+      setError("Please enter your email address.");
+      return;
+    }
+
+    // Re-checked at submit as well as on the step transition: the user can go
+    // back and edit step 2 after passing it once.
+    const invalidPassword = validatePassword(password, confirmPassword);
+    if (invalidPassword) {
+      setError(invalidPassword);
       return;
     }
 
@@ -303,12 +322,29 @@ export default function SignupPage() {
                 onChange={(e) => setContactNumber(e.target.value)}
               />
 
+              <div>
+                <input
+                  type="password"
+                  placeholder="Password"
+                  autoComplete="new-password"
+                  minLength={MIN_PASSWORD_LENGTH}
+                  className={inputClass}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                {/* The rule is shown before anything is typed, not after a
+                    rejected submit. */}
+                <p className="text-xs text-gray-400 mt-1">{PASSWORD_RULE}</p>
+              </div>
+
               <input
                 type="password"
-                placeholder="Password"
+                placeholder="Confirm password"
+                autoComplete="new-password"
+                minLength={MIN_PASSWORD_LENGTH}
                 className={inputClass}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
               />
             </div>
           )}

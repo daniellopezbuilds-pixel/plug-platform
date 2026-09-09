@@ -8,6 +8,7 @@ import { ReviewsList } from "@/components/reviews/ReviewsList";
 import { uploadResume, getResumeSignedUrl } from "@/lib/resume";
 import { uploadLogo, uploadBanner, getBrandingPublicUrl } from "@/lib/branding";
 import { uploadEmployerDocument, getEmployerDocumentSignedUrl } from "@/lib/employerDocuments";
+import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import { SIGNUP_TYPES } from "@/lib/signupRoles";
@@ -564,6 +565,10 @@ export default function ProfilePage() {
           Save Profile
         </button>
       </div>
+
+      {/* Outside the Save Profile block on purpose: it writes to auth, not to
+          the profiles row, and has its own submit. */}
+      <ChangePasswordSection />
 
       <div className="mt-12 border-t border-zinc-800 pt-8">
         <div className="flex items-center justify-between mb-4">

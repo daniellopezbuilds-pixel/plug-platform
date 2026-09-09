@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { DEFAULT_AFTER_LOGIN, safeReturnTo } from "@/lib/returnTo";
 
 const inputClass =
   "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
@@ -17,6 +18,25 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Where AuthGuard bounced this visitor from, if it did.
+   *
+   * Read at submit time rather than held in state: it is only ever needed
+   * after a click, so there is nothing to synchronise on mount.
+   *
+   * window.location rather than useSearchParams, which would require a
+   * Suspense boundary and opt this page out of static rendering — /login is
+   * currently prerendered. Always passed through safeReturnTo, because an
+   * unvalidated value here is an open redirect.
+   */
+  function afterLoginTarget() {
+    if (typeof window === "undefined") return DEFAULT_AFTER_LOGIN;
+
+    return safeReturnTo(
+      new URLSearchParams(window.location.search).get("returnTo")
+    );
+  }
 
   async function handleLogin() {
     setError(null);
@@ -48,7 +68,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push(afterLoginTarget());
   }
 
   return (
@@ -98,6 +118,15 @@ export default function LoginPage() {
                 }}
                 className={inputClass}
               />
+            </div>
+
+            <div className="text-right">
+              <Link
+                href="/forgot-password"
+                className="text-sm text-gray-400 hover:text-accent-2-soft hover:underline transition"
+              >
+                Forgot password?
+              </Link>
             </div>
 
             {error && (

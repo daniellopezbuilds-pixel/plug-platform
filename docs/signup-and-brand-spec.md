@@ -37,6 +37,12 @@ empty, then drop it — do not model anything against it.
 Storage buckets: `sponsored-listings` (ad images), `branding` (company logos
 and banners), `resumes`.
 
+**Authentication is described separately in section 7**, which like this
+section documents shipped code rather than target state. Read it before
+touching signup, login, or anything session-related — the password flows, the
+`/dashboard` route guard, and the `is_admin` privilege-escalation fix all
+landed after the rest of this document was written.
+
 **There is no `accounts` table, no permits module, and no CE/courses module.**
 Any part of the earlier draft that assumed permits or CE surfaces was
 describing a product that has not been built.
@@ -683,3 +689,171 @@ also requires the impression counter that does not exist.
   still exist only in the dashboard. `supabase/migrations/` is set up and the
   signup migration is written, but it is blocked on reading the trigger body —
   see `supabase/README.md` step 1. Nothing should be pushed before that.
+
+---
+
+## 7. Authentication — what exists today **(today)**
+
+Built 2026-09-09. Unlike most of this document, this section describes shipped
+code, not target state. Read it before touching auth; do not redesign against
+the assumptions the rest of the spec was written under.
+
+### 7.1 The model, and its one big constraint
+
+`lib/supabase.tsx` calls plain `createClient` with no options. Three
+consequences follow from that single line, and most auth decisions here are
+downstream of them:
+
+1. **Sessions live in `localStorage`, not cookies.** `@supabase/ssr` is not
+   installed. Nothing about the session reaches the server on its own.
+2. **Therefore no server-side auth is currently possible.** Not in a
+   `proxy.ts`, not in a server component, not in a route handler reading
+   cookies. This is not an oversight to fix in passing — it is a property of
+   the client setup.
+3. **`flowType` defaults to `'implicit'`**, so password-reset links arrive as a
+   URL fragment (`#access_token=...&type=recovery`), not `?code=`. There is
+   nothing to exchange; the client parses the fragment itself.
+
+Note for anyone reaching for middleware: Next 16 renamed `middleware.ts` to
+`proxy.ts` and deprecated the old name. See
+`node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`.
+Either way it cannot see the session today — see the open item in 7.6.
+
+### 7.2 Password flows
+
+| Route | File | Notes |
+|---|---|---|
+| `/forgot-password` | `app/forgot-password/page.tsx` | One fixed message regardless of whether the address exists; 60s client cooldown |
+| `/reset-password` | `app/reset-password/page.tsx` | Where the emailed link lands. `checking` → `ready` \| `invalid` |
+| Change password | `components/profile/ChangePasswordSection.tsx` | In `/dashboard/profile`. Requires the current password |
+
+Rules live in `lib/passwords.tsx` — `MIN_PASSWORD_LENGTH`, `PASSWORD_RULE`,
+`validatePassword` — and are imported by signup, reset and change. Do not
+re-implement the minimum in a form; a minimum enforced in one place and not
+another is not a minimum.
+
+Three things in here are deliberate and easy to undo by accident:
+
+- **`/forgot-password` says the same sentence no matter what happens**,
+  including on error. Anything that varies by whether the email is registered
+  turns the form into an account-existence oracle. The same reasoning collapses
+  Supabase's credential errors to "Email or password is incorrect" in
+  `app/login/page.tsx`.
+- **Change password re-authenticates before updating.**
+  `supabase.auth.updateUser({ password })` does not ask for the old password —
+  it trusts the session. Without the `signInWithPassword` check first, a
+  hijacked session is enough to lock the real owner out permanently.
+- **`/reset-password` resolves three ways, and all three are handled**: the
+  auth event fires, `getSession()` already has one (the fragment was parsed
+  before the component mounted), or neither happens within
+  `SESSION_SETTLE_MS`. Subscribing without the `getSession` check hangs on
+  "checking"; deciding without the timeout shows "expired" on a good link. An
+  already-spent token fails at `updateUser` instead, which is why that error is
+  routed back to the same dead-link screen.
+
+### 7.3 Route guard
+
+`components/auth/AuthGuard.tsx` wraps `/dashboard` from
+`app/dashboard/layout.tsx`. Before it existed there was no guard anywhere —
+every hook did `if (!user) return;` and gave up silently, so a logged-out
+visitor got the layout's "Loading..." branch **forever**, with no error and no
+route back to login.
+
+- Uses `getUser()`, not `getSession()`. `getSession` reads localStorage and
+  will hand back an expired token, which is the exact case being caught.
+- Subscribes to `onAuthStateChange` for sign-out and cross-tab sign-out. There
+  was no such listener anywhere in the codebase before this.
+- Redirects to `/login?returnTo=...`, validated by `safeReturnTo` in
+  `lib/returnTo.tsx` — an unvalidated `returnTo` is an open redirect made
+  credible by starting on our own domain.
+- Renders nothing until the check resolves, so no dashboard query fires for
+  someone about to be bounced.
+
+**It is client-side and can be bypassed with devtools. It is not the security
+boundary.** RLS is. Treat it as the fix for a dead-end UX, sitting on top of a
+boundary enforced elsewhere.
+
+The layout also now distinguishes "still loading" from "signed in but no
+profile row" — the latter is a real failure (RLS denial, missing row) and gets
+an error state with Reload and Log out, not the infinite spinner it used to
+share with the loading branch.
+
+### 7.4 `is_admin` — fixed 2026-09-09, read before trusting any RLS policy
+
+**The `profiles` UPDATE policy restricted rows but not columns:**
+
+```
+"Users can update own profile"  UPDATE
+  qual: (auth.uid() = id)   with_check: (auth.uid() = id)
+```
+
+RLS gates rows, never columns. A policy allowing a user to update their own row
+allowed them to update *every column* of it, including `is_admin`. One line in
+the browser console made any signed-in user an administrator.
+
+The blast radius was every policy in the database that reads `is_admin`,
+including the `is_platform_admin()` helper `supabase/pending.sql` defines.
+Those policies were not weak — they were **unenforced**.
+
+Closed by `supabase/fix-admin-escalation.sql`, applied to the live project on
+2026-09-09:
+
+1. A `BEFORE UPDATE` trigger on `profiles` raising `42501` if `is_admin`
+   changes and the caller is not already an admin. Allows service_role, allows
+   connections with no JWT (SQL editor, migrations, the signup trigger), allows
+   an existing admin to promote or demote.
+2. The `profiles` INSERT policy, which had `with_check: true` — no restriction
+   at all — replaced with `id = (select auth.uid())`.
+
+A trigger rather than a column-level grant (the pattern `pending.sql` uses for
+`role_credentials.verified`) because a grant means enumerating all ~25 writable
+columns of `profiles`, and any column added later is silently un-granted.
+Reasoning is in the file header.
+
+**Not yet in `supabase/migrations/`** and cannot be until the baseline pull
+lands, so a `db reset` would not recreate it. Fold it in when the baseline
+exists.
+
+Consequence for the app: `is_admin` is now a server-controlled value.
+`hooks/useIsAdmin.tsx` reads it client-side and can still be forced true in
+devtools, but the admin tables (`employer_documents`, `sponsored_listings`,
+`general_requests`) enforce it in their own RLS, so a faked value shows the UI
+and every write is refused by Postgres.
+
+### 7.5 API routes
+
+Every route handler under `app/api/` authenticates its caller with
+`getUserFromRequest()` from `lib/apiAuth.tsx`, and takes the user id and email
+from the returned user rather than the request body. Enforced by the
+`sparx/require-route-auth` ESLint rule; public routes opt out with a
+`@public-route` comment naming what protects them instead. Full convention in
+the header of `lib/apiAuth.tsx` and in `CLAUDE.md`.
+
+This came out of two live bugs, both fixed 2026-09-09:
+`app/api/stripe/checkout/group-checkout/route.tsx` took `feeCents` from the
+request body and passed it into the Stripe line item — a one-cent group join
+for anyone editing a fetch — and both checkout routes took `userId` from the
+body, which the webhook then trusted when granting access.
+
+The webhook's writes are now error-checked. They were not, and the `group_join`
+branch wrote to `conversation_participants.payment_status`, **a column that did
+not exist** — so a completed payment granted nothing and logged nothing. The
+column is added in `supabase/branding-deals-setup.sql` section 5.
+
+### 7.6 Auth work not done
+
+- **Cookie-backed sessions via `@supabase/ssr`.** Scoped, agreed, not started.
+  This is the prerequisite for a real `proxy.ts` guard and for any server-side
+  admin gate. It changes the reset flow from implicit to PKCE (a `?code=`
+  exchange plus a callback route), so `/reset-password` needs rewriting as part
+  of it. Everything above marked "client-side only" stays that way until this
+  ships.
+- **Google / OAuth.** Still absent — there is no `signInWithOAuth` call
+  anywhere. Section 1 rule 4 remains accurate.
+- **Email deliverability.** The flows were written against SMTP being
+  configured separately, and the round trip has not been exercised end to end.
+  Worth confirming: click a real link, then click the same link a second time —
+  that is the already-used path.
+- **The paid group-join flow does not exist.** `group-checkout` has no caller;
+  grep returns only the route file. The route is correct and reachable, and
+  nothing reads `payment_status`.
