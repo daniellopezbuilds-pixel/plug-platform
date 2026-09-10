@@ -135,7 +135,7 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
       {/* The one scrolling region. Every dashboard page scrolls here, so no
           page needs its own scroll container. */}
-      <section className="flex-1 overflow-y-auto">
+      <section className="flex-1 overflow-y-auto scrollbar-dark">
         {/*
           Centred content column, applied once so no page carries its own
           wrapper.

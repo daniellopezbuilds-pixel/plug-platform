@@ -128,7 +128,7 @@ export default function AdminPage() {
     <div className="max-w-4xl mx-auto">
       <PageHeading title="Admin Panel" />
 
-      <div className="flex gap-2 mb-8 border-b border-zinc-800 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex gap-2 mb-8 border-b border-zinc-800 overflow-x-auto scrollbar-dark -mx-4 px-4 md:mx-0 md:px-0">
         <button
           onClick={() => setActiveTab("requests")}
           className={tabClass(activeTab === "requests")}

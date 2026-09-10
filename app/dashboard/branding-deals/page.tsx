@@ -14,6 +14,7 @@ import { PageHeading } from "@/components/layout/PageHeading";
 import { AdSubmissionSkeleton } from "@/components/ui/Skeleton";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { Spinner } from "@/components/ui/Spinner";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 
 // Edit this list to change the city options.
 const CALIFORNIA_CITIES = [
@@ -58,6 +59,43 @@ const STATUS_STYLES: Record<string, string> = {
 
 const inputClass =
   "w-full p-2.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
+
+/**
+ * A value the form computes or fixes, shown in a field position but not
+ * editable — State (always California) and Total (budget x days).
+ *
+ * Deliberately has NO box. Both of these previously used the same
+ * rounded/bordered/dark-filled treatment as the real inputs and differed only
+ * by one shade of border, so they read as inputs that would not accept typing.
+ * Removing the chrome entirely is unambiguous in a way that restyling it is
+ * not.
+ *
+ * py-2.5 matches the inputs' padding so the value sits on the same baseline as
+ * the fields beside it in a grid row.
+ */
+function ReadOnlyField({
+  label,
+  value,
+  hint,
+  large = false,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  large?: boolean;
+}) {
+  return (
+    <div>
+      <p className={labelClass}>{label}</p>
+      <p
+        className={`py-2.5 font-semibold text-white ${large ? "text-xl" : ""}`}
+      >
+        {value}
+      </p>
+      {hint && <p className="text-xs text-gray-500 -mt-1">{hint}</p>}
+    </div>
+  );
+}
 
 const labelClass = "block text-sm text-gray-400 mb-1";
 
@@ -255,11 +293,15 @@ export default function BrandingDealsPage() {
           xl: at lg the content area is only ~768px, which squeezes both
           columns rather than reading as two. */}
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-6 items-start">
-        <Card>
-          <h2 className="text-xl font-bold mb-5">New advertisement</h2>
+        <div>
+          <SectionHeading>New advertisement</SectionHeading>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Card>
+          {/* @container: every grid below reflows against this card's width,
+              not the viewport's. See the note on the column grid above. */}
+          <div className="@container space-y-4">
+            {/* Ad title, Link URL and the file input never share a row:
+                they hold long free text and truncate badly at half width. */}
             <div>
               <label htmlFor="title" className={labelClass}>Ad title</label>
               <input
@@ -288,9 +330,8 @@ export default function BrandingDealsPage() {
                 className={inputClass}
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-[1fr_auto_1.4fr] gap-4">
+          <div className="grid grid-cols-1 @xs:grid-cols-2 @lg:grid-cols-3 gap-4">
             <div>
               <label htmlFor="placement" className={labelClass}>Placement</label>
               <select
@@ -305,12 +346,7 @@ export default function BrandingDealsPage() {
               </select>
             </div>
 
-            <div>
-              <p className={labelClass}>State</p>
-              <p className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-gray-300">
-                California
-              </p>
-            </div>
+            <ReadOnlyField label="State" value="California" />
 
             <div>
               <label htmlFor="city" className={labelClass}>City</label>
@@ -331,7 +367,7 @@ export default function BrandingDealsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 @xs:grid-cols-2 gap-4">
             <div>
               <label htmlFor="start_date" className={labelClass}>Start date</label>
               <input
@@ -361,7 +397,7 @@ export default function BrandingDealsPage() {
           </div>
           {errors.dates && <p className="text-xs text-rose-400 -mt-2">{errors.dates}</p>}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 @xs:grid-cols-2 @lg:grid-cols-3 gap-4">
             <div>
               <label htmlFor="daily_budget" className={labelClass}>Daily budget</label>
               <input
@@ -398,24 +434,33 @@ export default function BrandingDealsPage() {
               )}
             </div>
 
-            <div>
-              <p className={labelClass}>Total</p>
-              <p className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xl font-bold text-white">
-                ${total.toLocaleString()}
-              </p>
-            </div>
+            <ReadOnlyField
+              label="Total"
+              value={`${total.toLocaleString()}`}
+              hint="Daily budget x run length"
+              large
+            />
           </div>
 
           <div>
             <label htmlFor="ad_image" className={labelClass}>Ad image</label>
             <p className="text-xs text-gray-400 mb-1.5">{AD_SPEC_TEXT}</p>
+            {/* Not inputClass. The native button is styled through file:*
+                so it matches the rest of the form in every browser, and
+                min-w-0 + w-full keep a long filename inside the card instead
+                of widening it.
+
+                text-sm here despite the 16px rule elsewhere: that rule exists
+                because iOS Safari zooms when a field takes keyboard focus, and
+                a file input opens the photo picker instead. Nothing to zoom
+                into, and the smaller text is what fits a filename at 295px. */}
             <input
               id="ad_image"
               key={fileInputKey}
               type="file"
               accept="image/png,image/jpeg,image/webp"
               onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
-              className={inputClass}
+              className="block w-full min-w-0 p-2.5 rounded-lg bg-zinc-900 border border-zinc-700 text-sm text-gray-300 focus:border-accent focus:outline-none transition file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-zinc-700"
             />
             {errors.image && <p className="text-xs text-rose-400 mt-1">{errors.image}</p>}
             {fileInfo && <p className="text-xs text-green-400 mt-1">✓ {fileInfo}</p>}
@@ -437,19 +482,27 @@ export default function BrandingDealsPage() {
             {submitting ? "Submitting..." : "Submit for review"}
           </button>
         </div>
-        </Card>
+          </Card>
+        </div>
 
         <aside className="xl:sticky xl:top-0">
-          <h2 className="text-xs uppercase tracking-widest text-gray-400 mb-3">Your submissions</h2>
+          <SectionHeading>Your submissions</SectionHeading>
 
           {loading ? (
             <AdSubmissionSkeleton />
           ) : ads.length === 0 ? (
             <p className="text-gray-400">Nothing submitted yet.</p>
           ) : (
+            // No max-height below xl: there the column is stacked under the
+            // form in normal page flow, and capping it would nest a scroll
+            // area inside the page scroll for no reason. From xl the column is
+            // sticky beside the form, and the cap is what keeps it inside the
+            // viewport — dvh rather than vh so mobile browser chrome is
+            // accounted for, and 7rem covers the heading above it plus a gap
+            // at the bottom.
             <div
               ref={listRef}
-              className="max-h-[calc(100vh-14rem)] overflow-y-auto pr-1 space-y-3"
+              className="xl:max-h-[calc(100dvh-7rem)] overflow-y-auto scrollbar-dark pr-1 space-y-3"
             >
               {ads.map((ad) => (
                 <Card key={ad.id} className="p-4">

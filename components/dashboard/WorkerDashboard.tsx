@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { StatsRow } from "./StatsRow";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 
 export function WorkerDashboard({
   xp,
@@ -21,7 +22,7 @@ export function WorkerDashboard({
       />
 
       <Card className="mb-8">
-        <h2 className="text-2xl font-bold mb-5">Recent Activity</h2>
+        <SectionHeading>Recent Activity</SectionHeading>
         <ul className="space-y-3 text-gray-300">
           <li>• Welcome to Sparx Plug.</li>
           <li>• Complete your profile.</li>
@@ -30,7 +31,7 @@ export function WorkerDashboard({
       </Card>
 
       <Card>
-        <h2 className="text-2xl font-bold mb-5">Quick Actions</h2>
+        <SectionHeading>Quick Actions</SectionHeading>
         <div className="flex flex-wrap gap-4">
           <Link href="/dashboard/profile" className="bg-accent text-on-accent px-5 py-3 rounded-lg font-semibold">
             Complete Profile

@@ -110,7 +110,7 @@ export default function MessagesPage() {
               New
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-2">
+          <div className="flex-1 overflow-y-auto scrollbar-dark p-2">
             {convLoading ? (
               <InlineLoader message="Loading conversations" />
             ) : (

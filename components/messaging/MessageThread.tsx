@@ -40,7 +40,7 @@ export function MessageThread({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto space-y-3 p-4">
+      <div className="flex-1 overflow-y-auto scrollbar-dark space-y-3 p-4">
         {messages.map((msg) => {
           const isMine = msg.sender_id === currentUserId;
           const isDeleted = Boolean(msg.deleted_at);

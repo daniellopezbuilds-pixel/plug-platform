@@ -113,7 +113,7 @@ export function ReactionBar({
           </button>
 
           {listOpen && (
-            <div className="absolute bottom-full left-0 mb-2 bg-zinc-800 border border-zinc-700 rounded-lg p-2 min-w-[180px] max-h-48 overflow-y-auto z-10 shadow-lg space-y-1">
+            <div className="absolute bottom-full left-0 mb-2 bg-zinc-800 border border-zinc-700 rounded-lg p-2 min-w-[180px] max-h-48 overflow-y-auto scrollbar-dark z-10 shadow-lg space-y-1">
               {summary.reactors.map((reactor, i) => {
                 const isMe = reactor.id === currentUserId;
                 const name = isMe ? "You" : reactor.full_name || "User";

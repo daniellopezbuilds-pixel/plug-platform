@@ -51,7 +51,7 @@ export function Sidebar({
     // overflow-y-auto so a tall sidebar (employer nav plus the mode switcher on
     // a short screen) scrolls inside itself rather than being clipped.
     <aside
-      className={`w-64 shrink-0 h-full overflow-y-auto border-r border-zinc-800 p-6 flex flex-col grid-bg
+      className={`w-64 shrink-0 h-full overflow-y-auto scrollbar-dark border-r border-zinc-800 p-6 flex flex-col grid-bg
         fixed inset-y-0 left-0 z-50 bg-black transition-transform duration-200 ease-out
         md:static md:z-auto md:translate-x-0 md:transition-none
         ${open ? "translate-x-0" : "-translate-x-full"}`}

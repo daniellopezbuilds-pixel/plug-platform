@@ -15,6 +15,7 @@ import { SIGNUP_TYPES } from "@/lib/signupRoles";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { PageLoader } from "@/components/ui/Loading";
 import { InlineLoader } from "@/components/ui/Loading";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
@@ -483,7 +484,7 @@ export default function ProfilePage() {
         )}
 
         <div className="border-t border-zinc-800 pt-6 mt-2">
-          <h2 className="text-xl font-bold text-white mb-4">Company Branding</h2>
+          <SectionHeading>Company Branding</SectionHeading>
 
           <div className="mb-5">
             <label className="block text-sm text-gray-400 mb-2">Company Logo</label>
@@ -574,10 +575,11 @@ export default function ProfilePage() {
       <ChangePasswordSection />
 
       <div className="mt-10 border-t border-zinc-800 pt-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-white">Your Reputation</h2>
-          <ReviewSummary averageRating={averageRating} count={count} />
-        </div>
+        <SectionHeading
+          actions={<ReviewSummary averageRating={averageRating} count={count} />}
+        >
+          Your Reputation
+        </SectionHeading>
 
         {(hiredCount > 0 || jobsLandedCount > 0) && (
           <div className="flex flex-wrap gap-2 mb-6">

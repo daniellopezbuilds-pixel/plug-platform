@@ -79,3 +79,56 @@ body {
     radial-gradient(ellipse at top, #171717 0%, #060606 70%);
   background-size: 24px 24px, 24px 24px, 100% 100%;
 }
+/* ---------------------------------------------------------------------------
+ * Dark scrollbars.
+ *
+ * Every scrollable panel in this app sits on a black or zinc-950 surface, and
+ * the browser default is a light grey bar that reads as a rendering bug
+ * against it.
+ *
+ * Two mechanisms, because no single one is supported everywhere:
+ *   - scrollbar-width / scrollbar-color   Firefox, and Chrome 121+
+ *   - ::-webkit-scrollbar                 Safari, and older Chrome
+ * Browsers that support both take the standard properties and ignore the
+ * pseudo-elements, so the two never fight; they are kept in step by hand.
+ *
+ * Colours are zinc-700 (#3f3f46) thumb on a zinc-900 (#18181b) track, going to
+ * zinc-600 (#52525b) on hover — the same steps the borders in the UI use.
+ * ------------------------------------------------------------------------- */
+
+.scrollbar-dark {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 #18181b;
+}
+
+.scrollbar-dark::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-dark::-webkit-scrollbar-track {
+  background-color: #18181b;
+  border-radius: 4px;
+}
+
+.scrollbar-dark::-webkit-scrollbar-thumb {
+  background-color: #3f3f46;
+  border-radius: 4px;
+}
+
+.scrollbar-dark::-webkit-scrollbar-thumb:hover {
+  background-color: #52525b;
+}
+
+/* Where both axes scroll, the square between them defaults to light too. */
+.scrollbar-dark::-webkit-scrollbar-corner {
+  background-color: #18181b;
+}
+
+/* The document scrollbar, for the pages that are not inside the dashboard
+ * shell — login, signup, the password screens. Same treatment, applied to the
+ * root so it does not need a wrapper element. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 #18181b;
+}

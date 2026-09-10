@@ -17,7 +17,7 @@ export function JobDetailModal({
 }) {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-lg p-6 max-h-[85vh] overflow-y-auto">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-lg p-6 max-h-[85vh] overflow-y-auto scrollbar-dark">
         <div className="flex items-start justify-between mb-1">
           <h2 className="text-2xl font-bold text-white">{job.title}</h2>
           {job.required_union_status && (

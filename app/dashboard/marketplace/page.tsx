@@ -8,6 +8,7 @@ import { PageHeading } from "@/components/layout/PageHeading";
 import { PageWithRail } from "@/components/layout/PageWithRail";
 import { SponsoredRail } from "@/components/ads/SponsoredRail";
 import { CardSkeleton } from "@/components/ui/Skeleton";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 
 export default function MarketplacePage() {
   const {
@@ -53,9 +54,9 @@ export default function MarketplacePage() {
       <PageWithRail rail={<SponsoredRail placement="marketplace" />}>
         {incomingRequests.length > 0 && (
           <section className="mb-10">
-            <h2 className="text-2xl font-bold text-white mb-4">
+            <SectionHeading>
               Connection Requests ({incomingRequests.length})
-            </h2>
+            </SectionHeading>
             <div className="space-y-4">
               {incomingRequests.map((req) => (
                 <ConnectionRequestCard
@@ -70,7 +71,7 @@ export default function MarketplacePage() {
         )}
 
         <section>
-          <h2 className="text-2xl font-bold text-white mb-4">Discover</h2>
+          <SectionHeading>Discover</SectionHeading>
 
           <div className="flex flex-wrap gap-3 mb-8">
             <input

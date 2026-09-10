@@ -40,7 +40,7 @@ export function NewConversationPanel({
           </p>
         ) : (
           <>
-            <div className="max-h-60 overflow-y-auto space-y-2 mb-4">
+            <div className="max-h-60 overflow-y-auto scrollbar-dark space-y-2 mb-4">
               {contacts.map((contact) => (
                 <label
                   key={contact.id}

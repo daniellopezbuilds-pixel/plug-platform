@@ -10,6 +10,7 @@ import { getBrandingPublicUrl } from "@/lib/branding";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import { PageLoader } from "@/components/ui/Loading";
+import { SectionHeading } from "@/components/ui/SectionHeading";
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -139,7 +140,7 @@ export default function PublicProfilePage() {
 
       {isEmployer && companyDescription && (
         <div className="mb-6">
-          <h2 className="text-xl font-bold text-white mb-2">About the Company</h2>
+          <SectionHeading>About the Company</SectionHeading>
           <p className="text-gray-300 whitespace-pre-wrap mb-3">{companyDescription}</p>
           {companyWebsite && (
             
