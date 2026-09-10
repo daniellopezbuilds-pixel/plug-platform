@@ -16,8 +16,9 @@ import { supabase } from "@/lib/supabase";
  * 2026-09-09 the "Users can update own profile" RLS policy restricted rows but
  * not columns, so any signed-in user could set is_admin = true on themselves
  * from the browser console — which made this hook, and every is_admin() policy
- * in the database, meaningless. supabase/fix-admin-escalation.sql closed that
- * with a BEFORE UPDATE trigger on profiles.
+ * in the database, meaningless. A BEFORE UPDATE trigger on profiles closed
+ * that; see supabase/archive/fix-admin-escalation.sql for the reasoning, and
+ * the baseline migration for the shipped definition.
  *
  * So is_admin is now a server-controlled value, and the admin tables
  * (employer_documents, sponsored_listings, general_requests) enforce it in

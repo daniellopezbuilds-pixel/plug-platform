@@ -1,30 +1,39 @@
-// Account modes — which dashboard an account can show.
+// Account modes — which dashboard an account is currently showing.
 //
 // Spec: docs/signup-and-brand-spec.md section 2.
 //
-// This file deliberately understands BOTH vocabularies at once, because it
-// ships ahead of 20260909120000_signup_roles_and_account_mode.sql:
+// TWO SEPARATE QUESTIONS, DELIBERATELY NOT COLLAPSED
 //
-//   before the migration  profiles.account_type holds 'worker' | 'employer' | null
-//   after  the migration  profiles.account_type holds 'company' | 'individual' | 'brand'
+//   account_type  what the account signed up as.  company | individual | brand
+//   mode          which dashboard is showing.     worker  | employer   | brand
 //
-// Keeping both mappings here means the component change is safe to merge now
-// and needs no follow-up edit when the migration lands.
+// account_type decides which mode you LAND IN, and it is what type-specific
+// features will gate on later. It does NOT restrict which dashboard you can
+// view. Every non-brand account can switch between Worker and Employer freely,
+// whatever it signed up as.
+//
+// That is a product decision, not an oversight. The trade does not split
+// cleanly into people who hire and people who work: a C-10 contractor between
+// jobs looks for work, and an electrician with more work than they can take
+// hires someone. An account type that locked the dashboard would make the
+// switcher a lie for a large part of the user base. Feature gating happens on
+// roles (account_roles), never on mode.
+//
+// Brand is the one exception. A brand does no electrical work, so Worker and
+// Employer are meaningless for it — it gets one mode and no switcher.
 
-export type AccountMode = "company" | "individual" | "brand";
+/** What the account signed up as. Mirrors profiles.account_type. */
+export type AccountType = "company" | "individual" | "brand";
 
-/** Pre-migration values. Removed once the migration is applied. */
-export type LegacyMode = "worker" | "employer";
+/** Which dashboard is showing. Mirrors profiles.active_role / active_mode. */
+export type Mode = "worker" | "employer" | "brand";
 
-export type Mode = AccountMode | LegacyMode;
-
-export const LEGACY_MODES: readonly Mode[] = ["worker", "employer"];
+/** The two modes every non-brand account can switch between. */
+export const SWITCHABLE_MODES: readonly Mode[] = ["worker", "employer"];
 
 export const MODE_LABELS: Record<Mode, string> = {
   worker: "Worker",
   employer: "Employer",
-  company: "Company",
-  individual: "Individual",
   brand: "Brand",
 };
 
@@ -35,26 +44,28 @@ export function modeLabel(mode: string): string {
 /**
  * The modes this account is allowed to switch between.
  *
- * Company and individual accounts each have exactly one mode, so the switcher
- * hides itself for them. Brand workspaces on company accounts are still an
- * open decision (spec section 6) — `hasBrandWorkspace` is the seam for it and
- * is always false until that is settled.
+ * Non-brand accounts get both, regardless of account_type — see the note at
+ * the top of this file. Callers render no switcher below two modes, so brand
+ * accounts get none.
+ *
+ * Written to be correct both before and after
+ * 20260909120000_signup_roles_and_account_mode.sql. Before it, account_type
+ * holds the string 'both' on every row (the column default, never
+ * overwritten); after it, 'company' | 'individual' | 'brand'. Only 'brand' is
+ * matched, and it means the same thing in both vocabularies, so the migration
+ * cannot change what this returns for anyone.
+ *
+ * Brand workspaces on company accounts are still an open decision (spec
+ * section 6) — `hasBrandWorkspace` is the seam for it and is always false
+ * until that is settled.
  */
 export function availableModes(
   accountType: string | null | undefined,
   opts: { hasBrandWorkspace?: boolean } = {}
 ): Mode[] {
-  switch (accountType) {
-    case "company":
-      return opts.hasBrandWorkspace ? ["company", "brand"] : ["company"];
-    case "individual":
-      return ["individual"];
-    case "brand":
-      return ["brand"];
-    default:
-      // 'worker', 'employer', or null — the migration has not run yet. The
-      // dashboard still gates on active_role, so both legacy modes stay
-      // available and the switcher renders exactly as it does today.
-      return [...LEGACY_MODES];
-  }
+  if (accountType === "brand") return ["brand"];
+
+  return opts.hasBrandWorkspace
+    ? [...SWITCHABLE_MODES, "brand"]
+    : [...SWITCHABLE_MODES];
 }

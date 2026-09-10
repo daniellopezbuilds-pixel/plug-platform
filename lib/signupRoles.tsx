@@ -9,8 +9,9 @@
 // and in ad targeting — this file maps the one signup choice onto it.
 //
 // KEEP IN SYNC: roleKeyFor() returns keys that must match the roles table seed
-// in supabase/pending.sql. Note c10 -> 'contractor'; the signup key and the
-// role key are deliberately different words for the same thing.
+// in supabase/migrations/20260909120000_signup_roles_and_account_mode.sql.
+// Note c10 -> 'contractor'; the signup key and the role key are deliberately
+// different words for the same thing.
 
 export type SignupTypeKey = "c10" | "electrician" | "instructor" | "brand";
 

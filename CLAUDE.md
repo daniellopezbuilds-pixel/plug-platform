@@ -45,11 +45,19 @@ a real server-side guard possible — is scoped but not started.
 
 ### Database
 
-Schema changes are **not** made in the Supabase dashboard. See
-`supabase/README.md`; the baseline pull is still outstanding, which is why
-`supabase/pending.sql`, `supabase/branding-deals-setup.sql` and
-`supabase/fix-admin-escalation.sql` are hand-run files rather than migrations.
-`docs/schema-inventory.md` is authoritative for columns and foreign keys.
+Schema changes are **not** made in the Supabase dashboard. The baseline landed
+2026-09-10 and the three former hand-run files are folded into
+`supabase/migrations/`; the originals are in `supabase/archive/`, kept for their
+reasoning and not to be re-run. Only
+`20260909120000_signup_roles_and_account_mode.sql` is unapplied.
+
+Read `supabase/README.md` before pushing anything — the baseline is a raw
+`pg_dump`, not `db pull` output, so it is a faithful record but not a replayable
+migration, and it does not carry storage bucket rows, grants or extensions.
+
+`docs/schema-inventory.md` is authoritative for columns and foreign keys; the
+baseline is authoritative for everything else (defaults, CHECK constraints, RLS
+policies, triggers, function bodies).
 
 ### Reading this codebase
 

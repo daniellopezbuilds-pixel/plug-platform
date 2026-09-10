@@ -1,3 +1,30 @@
+-- ############################################################################
+-- ARCHIVED 2026-09-10. Do not run. Kept for the reasoning only.
+--
+-- Applied to the live project 2026-09-09 and now fully captured in the
+-- baseline, supabase/migrations/20260908000000_remote_schema.sql:
+--
+--   profiles_guard_admin_escalation()   function, body identical
+--   COMMENT ON FUNCTION                 same text
+--   profiles_guard_admin_escalation     BEFORE UPDATE trigger on profiles
+--   "users insert their own profile"    the only INSERT policy on profiles,
+--                                       with_check (id = (SELECT auth.uid()))
+--
+-- The section 3 verification therefore passes against the baseline: the
+-- trigger row is present and there is exactly one INSERT policy. The old
+-- "Enable insert for authenticated users only" policy is gone.
+--
+-- No migration file re-runs any of this -- the baseline already contains it,
+-- so a replay would be a no-op at best and a redefinition at worst.
+--
+-- One open question from section 2 is now answered. The file reasoned that the
+-- signup trigger was almost certainly SECURITY DEFINER but could not verify
+-- it. The baseline shows handle_new_user() is
+-- `LANGUAGE plpgsql SECURITY DEFINER`, so the INSERT policy could not have
+-- broken signup. The rollback at the bottom is not needed.
+-- ############################################################################
+
+
 -- =============================================================================
 -- Fix: privilege escalation via profiles.is_admin
 --

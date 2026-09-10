@@ -18,10 +18,11 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
  *
  * Every write here is error-checked. They were not before, and the group_join
  * branch in particular was writing to a column that did not exist
- * (conversation_participants.payment_status, added in
- * supabase/branding-deals-setup.sql section 5) — so a completed payment
- * granted nothing and left no trace. A silent failure in a webhook is the
- * worst kind: Stripe has taken the money and the app has no idea.
+ * (conversation_participants.payment_status, added in section 3 of
+ * supabase/migrations/20260909110000_branding_deals_columns.sql) — so a
+ * completed payment granted nothing and left no trace. A silent failure in a
+ * webhook is the worst kind: Stripe has taken the money and the app has no
+ * idea.
  */
 export async function POST(req: NextRequest) {
   const body = await req.text();

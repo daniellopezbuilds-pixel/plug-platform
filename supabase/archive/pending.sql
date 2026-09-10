@@ -1,3 +1,28 @@
+-- ############################################################################
+-- ARCHIVED 2026-09-10. Do not run. Superseded by
+-- supabase/migrations/20260909120000_signup_roles_and_account_mode.sql.
+--
+-- This file was never applied. It moved into migrations/ once the baseline
+-- landed and unblocked its two open items. Two things changed on the way, both
+-- because the baseline made them visible:
+--
+--  1. Section 4a mapped every row wrong. profiles.account_type is declared
+--     DEFAULT 'both' and handle_new_user() never wrote the column, so
+--     coalesce(account_type, role, 'worker') returned 'both' for
+--     every row and filed the whole table under 'individual'. The
+--     migration uses nullif(account_type, 'both') instead.
+--
+--  2. Section 6 is written, against the real trigger body rather than a sketch.
+--     The sketch said "stop writing role"; that would have broken messaging,
+--     because is_messaging_blocked() reads profiles.role from inside an RLS
+--     policy. The migration keeps writing it.
+--
+-- Section 7 also drops is_platform_admin() in favour of the baseline's
+-- existing public.is_admin(), which is what this file said to do if an
+-- equivalent turned up.
+-- ############################################################################
+
+
 -- =============================================================================
 -- Signup schema: roles, credentials, and the account_type / active_mode collapse
 --

@@ -1,3 +1,29 @@
+-- ############################################################################
+-- ARCHIVED 2026-09-10. Do not run. Superseded by
+-- supabase/migrations/20260909110000_branding_deals_columns.sql.
+--
+-- The STATUS block below is STALE. It records `source` and `payment_status` as
+-- outstanding; the baseline shows all of it applied:
+--
+--   sponsored_listings.city                      present
+--   sponsored_listings.review_notes              present
+--   sponsored_listings.source  default internal  present
+--   conversation_participants.payment_status     present
+--   storage "authenticated users upload ad images"  present
+--
+-- The COMMENT statements are the exception -- they never reached the live
+-- database. The baseline captured exactly one public-schema comment, on
+-- profiles_guard_admin_escalation(). The comments are carried into the
+-- migration above and are the only part of this file that still changes
+-- anything.
+--
+-- Section 2 ("DO NOT RUN") is not carried over. Section 4 raises a real open
+-- question -- the bucket has no file_size_limit or allowed_mime_types, so the
+-- 4:1 / 2MB rules in lib/ads.tsx are browser-side only. Still a judgement call,
+-- still not made.
+-- ############################################################################
+
+
 -- =============================================================================
 -- Branding deals — run this by hand in the Supabase SQL editor.
 --

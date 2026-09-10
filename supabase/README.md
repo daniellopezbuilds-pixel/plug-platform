@@ -1,180 +1,198 @@
 # Database migrations
 
-Until now the schema has lived only in the Supabase dashboard. Nothing about
-it was in version control — no tables, no RLS policies, no signup trigger.
-This directory is where that changes.
+Until 2026-09-10 the schema lived only in the Supabase dashboard. Nothing about
+it was in version control — no tables, no RLS policies, no signup trigger. The
+baseline changed that.
 
 The CLI is pinned as a devDependency (`supabase@2.117.0`), so use the `npm run
 db:*` scripts rather than a globally installed `supabase`.
 
-Project ref: `ztjlyucyoiagdwafgppf`
+Project ref: `ztjlyucyoiagdwafgppf` (linked; `supabase/.temp/project-ref` is set)
 
 ---
 
-## Status as of 2026-09-09
+## Status as of 2026-09-10
 
 | | |
 |---|---|
 | Tooling | Done |
-| Baseline captured | **No.** `supabase/.temp/` has no `project-ref`; no `*_remote_schema.sql` exists |
-| Signup migration written | Yes — `20260909120000_...sql` |
-| Migration structurally verified | Yes, against the live schema. See "Verification" below |
-| Migration section 6 (signup trigger) | **Blocked.** Needs the current trigger body |
-| RLS conflict check vs baseline | **Blocked.** Needs the baseline |
+| Baseline captured | **Yes** — `migrations/20260908000000_remote_schema.sql`, 4821 lines |
+| Baseline replayable as a migration | **No.** Raw `pg_dump`, not `db pull` output. See below |
+| Signup migration written | Yes — `20260909120000_signup_roles_and_account_mode.sql` |
+| Migration section 6 (signup trigger) | **Written.** Unblocked by the baseline |
+| RLS conflict check vs baseline | **Done.** No conflicts. See "Conflict check" |
+| Hand-run files folded in | Yes — see "Migration inventory" |
+| Anything pushed to the live database | **No** |
 
 ---
 
-## Step 1 — capture the baseline (not done yet)
+## Migration inventory
 
-**This has to be run by a human.** `db pull` needs the database password, which
-is not in `.env.local` and is not something the CLI can derive from the anon or
-service-role keys. Linking also needs an interactive browser login.
+| File | State | Notes |
+|---|---|---|
+| `20260908000000_remote_schema.sql` | Already applied (it *is* production) | Never push this at the live project |
+| `20260909110000_branding_deals_columns.sql` | Already applied, except its comments | Records the hand-run branding-deals script |
+| `20260909120000_signup_roles_and_account_mode.sql` | **Not applied** | The only file that changes anything |
 
-From the Claude Code prompt, prefix with `!` so the output lands in the session:
+The three former hand-run scripts now live in `supabase/archive/`, each with a
+header saying where its content went. They are kept for their reasoning, not to
+be run.
 
-```
-! npx supabase login
-! npm run db:link
-! npm run db:pull
-```
-
-`db:link` will prompt for the database password (Supabase dashboard → Project
-Settings → Database → Database password; reset it there if it was never saved).
-
-`db:pull` writes `supabase/migrations/<timestamp>_remote_schema.sql` containing
-the real current schema — tables, defaults, indexes, constraints, **RLS
-policies, and the signup trigger**. Those last two are the reason this step
-cannot be skipped or hand-written: a baseline that silently omits RLS is worse
-than no baseline, because a future `db reset` would recreate the tables wide
-open.
-
-### Verifying the pull
-
-`docs/schema-inventory.md` lists every table and column read directly off the
-live database's PostgREST schema on 2026-09-09. Diff the pull against it. The
-inventory is authoritative for **columns and foreign keys** and silent about
-everything else, so:
-
-- Columns or FKs in the pull that disagree with the inventory → something
-  changed since 2026-09-09, or the pull hit the wrong project.
-- Anything in the pull that the inventory does not mention (defaults, indexes,
-  RLS policies, triggers, functions, storage policies) → expected. That is the
-  material the inventory could not see.
-
-Confirm the pull actually contains:
-
-- [ ] the `auth.users` signup trigger and its function body
-- [ ] `alter table ... enable row level security` for each table that has it on
-- [ ] one `create policy` per policy currently in the dashboard
-- [ ] storage bucket policies for `sponsored-listings`, `branding`, `resumes`
-
-If any of those are missing, the pull did not capture what it needed to.
-`db pull` covers the `public` schema by default; storage and auth objects may
-need `--schema storage,auth` or a manual export.
-
-### Fast path if `db pull` is a problem
-
-The full pull is the right end state, but four queries in the dashboard SQL
-editor unblock the two blocked items above without it. Paste the results back.
-
-```sql
--- 1. The signup trigger and its function body.
---    Unblocks section 6 of the signup migration.
-select t.tgname,
-       pg_get_triggerdef(t.oid)     as trigger_def,
-       pg_get_functiondef(t.tgfoid) as function_def
-from pg_trigger t
-where t.tgrelid = 'auth.users'::regclass
-  and not t.tgisinternal;
-
--- 2. Every RLS policy. Unblocks the conflict check.
-select schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check
-from pg_policies
-where schemaname in ('public', 'storage')
-order by schemaname, tablename, policyname;
-
--- 3. Functions the new migration could collide with.
---    Expect zero rows. Any row here needs a decision before pushing.
-select n.nspname, p.proname, pg_get_function_identity_arguments(p.oid) as args
-from pg_proc p
-join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = 'public'
-  and p.proname in ('is_admin', 'is_platform_admin', 'set_updated_at',
-                    'role_credentials_touch_updated_at', 'handle_new_user');
-
--- 4. CHECK constraints on profiles.
---    A constraint pinning account_type to 'worker'/'employer' would make the
---    section 4 backfill fail. See "Known risks" below.
-select conname, pg_get_constraintdef(oid) as definition
-from pg_constraint
-where conrelid = 'public.profiles'::regclass
-  and contype = 'c';
-```
+- `fix-admin-escalation.sql` — applied 2026-09-09, fully present in the
+  baseline (guard function, its comment, the `BEFORE UPDATE` trigger, and the
+  replacement INSERT policy). No migration re-runs it.
+- `branding-deals-setup.sql` — its DDL is in the baseline; only its `COMMENT`
+  statements never reached the database, and those are in `20260909110000`.
+- `pending.sql` — never applied, became `20260909120000`.
 
 ---
 
-## Verification — what has and has not been checked
+## The baseline: what it is, and what it is not
 
-Run against the live database on 2026-09-09 via the PostgREST schema. All
-passed:
+`20260908000000_remote_schema.sql` is a **raw `pg_dump`** of the whole database,
+not the output of `supabase db pull`. That makes it an excellent record and a
+poor migration.
 
-- `public.profiles` exists; `id` is `uuid`, matching the `uuid` FK columns in
-  the three new tables
-- `account_type`, `role`, `active_role` all exist, all `text`, all nullable —
-  so the collapse is a re-value with a CHECK, and the backfill's `coalesce`
-  is required rather than defensive
-- `is_admin` exists and is `boolean` — `is_platform_admin()` depends on it
-- `profiles.active_mode` does **not** exist — `add column` is safe
-- `roles`, `account_roles`, `role_credentials` do **not** exist — `create
-  table` is safe, and their RLS policies cannot conflict with anything,
-  because the tables are new
+### What it does contain
 
-**Not checked, because it needs the baseline:** whether any existing RLS policy
-conflicts with the new ones, and whether the functions in query 3 above already
-exist. The migration touches no existing policy — it only creates policies on
-its own three new tables and alters columns on `profiles` — so a conflict would
-have to come from a name collision, not from overlapping rules.
+- 16 `public` tables — the 15 in spec section 0.1, plus the dead `workers` table
+- 63 `CREATE POLICY` statements: 49 on `public.*`, 14 on `storage.objects`
+- `ENABLE ROW LEVEL SECURITY` for every table that has it on
+- `handle_new_user()` and the `on_auth_user_created` trigger on `auth.users` —
+  the item that blocked section 6 of the signup migration
+- `is_admin()`, `can_message()`, `is_conversation_participant()`,
+  `is_messaging_blocked()`, the notification functions, `generate_profile_number()`
+- `profiles_guard_admin_escalation()` with its comment and trigger
+- 15 `public` functions; 10 triggers on `public` tables plus the one on
+  `auth.users`
+- CHECK constraints, including three on `sponsored_listings` that spec section
+  0.4 did not know about (`status`, `placement`, `payment_status` are all
+  constrained, not free text)
 
-### Known risks before pushing
+### What the baseline does not carry
 
-1. **The signup trigger (blocking).** Section 6 of the migration is a stub. The
-   trigger writes `profiles.role` from signup metadata; with sections 1–5
-   applied and the trigger unchanged, every new signup takes the
-   `account_type` default of `'individual'` regardless of what the form sent.
-   Existing rows stay correct; new ones silently do not.
-2. **A CHECK constraint on `profiles.account_type`.** If one exists pinning it
-   to `'worker'`/`'employer'`, the section 4a backfill fails outright. Loud,
-   not silent — but it stops the migration. Query 4 tells you in advance.
-3. **Function name collisions.** Mitigated: both new functions are namespaced
-   and use `create`, not `create or replace`, so a collision aborts rather than
-   redefining a function existing policies depend on.
+Read this before ever running `db reset` against it.
+
+1. **`\restrict` / `\unrestrict`.** Lines 5 and 4820 are psql meta-commands
+   emitted by pg_dump 17.11. The CLI applies migrations over a Postgres
+   connection, not through psql, so these are syntax errors. They must be
+   stripped before the file can execute anywhere.
+2. **`CREATE SCHEMA public` / `auth` / `storage`, and the managed schemas
+   themselves** — 23 `auth` tables and 8 `storage` tables. Supabase's own
+   bootstrap creates all of these. Replaying this file into a fresh project
+   collides with it.
+3. **Storage bucket rows.** `storage.buckets` contents are *data*, and this is a
+   schema-only dump — zero `INSERT`/`COPY` statements in the file. The buckets
+   `sponsored-listings`, `branding`, `resumes` and `employer-documents` would
+   not exist after a reset, while every storage policy referencing them by
+   `bucket_id` would. Uploads fail with the policies looking correct.
+4. **Grants.** Zero `GRANT` statements — the dump was taken without privileges.
+   Note that `20260909120000` ends with a `revoke`/`grant` pair on
+   `role_credentials`; that one is in the migration and is unaffected.
+5. **Extensions.** No `CREATE EXTENSION`. `gen_random_uuid()` is core in PG 17
+   so the defaults still resolve, but nothing else is guaranteed.
+6. **Column comments.** Only one public-schema comment survived
+   (`profiles_guard_admin_escalation`). This is how we know the branding-deals
+   comments were never applied.
+7. **Not schema at all:** SMTP settings, email templates, redirect URLs, auth
+   provider config. Relevant to the open email-deliverability item in spec
+   section 7.6 — none of it is in version control and a reset would not restore
+   it.
+
+**The fix, when someone can run it:** a real `npm run db:pull`, which emits a
+CLI-shaped migration without the meta-commands and managed-schema bootstrap.
+Until then treat this file as documentation that happens to be valid SQL, and
+seed the storage buckets by hand on any fresh project.
 
 ---
 
-## Step 2 — the signup migration (written, not applied)
+## Conflict check — done 2026-09-10
 
-`20260909120000_signup_roles_and_account_mode.sql`
+The four dashboard queries this file used to list are all answered by the
+baseline. Recording the answers so nobody runs them again:
 
-Adds `roles`, `account_roles`, `role_credentials`; collapses
-`role`/`account_type`/`active_role` into `account_type` + `active_mode`;
-backfills from the existing columns; defines RLS for the three new tables.
+| Question | Answer |
+|---|---|
+| Signup trigger body | Captured. `handle_new_user()`, `SECURITY DEFINER`, `search_path 'public'`. Inserts only `(id, email, full_name, role, xp)` |
+| RLS policies | 63, all captured |
+| Function collisions with the new migration | `is_admin` **exists**; `is_platform_admin`, `set_updated_at`, `role_credentials_touch_updated_at` do not |
+| CHECK constraint on `profiles.account_type` | **None.** The section 4a backfill cannot fail on one |
 
-**It is not ready to push.** Section 6 of the file is a blocked stub: the
-signup trigger has to be rewritten as part of this change, and its current body
-was not readable when the migration was written. Push before fixing that and
-every new signup silently lands on the `account_type` default instead of what
-the form submitted.
+Two consequences fed back into `20260909120000`:
 
-Ordering: migrations apply in filename order. This file is timestamped
-`20260909120000` on the assumption the baseline pull sorts before it. If your
-pull produced a later timestamp, rename this file.
+- **`is_platform_admin()` is not created.** The baseline's `public.is_admin()`
+  is an equivalent `SECURITY DEFINER` helper already referenced by roughly a
+  dozen policies. `pending.sql` said to drop its own version if an equivalent
+  turned up; it did.
+- **`roles`, `account_roles`, `role_credentials` do not exist**, so their
+  policies cannot collide with anything.
 
-### Before pushing
+### Still worth doing, not done here
+
+`public.is_admin()` is not marked `STABLE`, so it defaults to `VOLATILE` and may
+be re-evaluated per row inside a policy. That is a planner cost, not a
+correctness bug. Fixing it means `create or replace` on a function a dozen
+policies depend on, which is not something to bundle into an unrelated
+migration.
+
+---
+
+## Known risks before pushing
+
+The two blocking risks are resolved. What is left:
+
+1. **The signup trigger is rewritten, and untested.** Section 6 of
+   `20260909120000` replaces `handle_new_user()`. There is no local database
+   (no Docker), so it has never executed. Test one real signup immediately
+   after pushing and confirm the new row has `account_type`, `active_mode`,
+   `role`, `active_role`, and a matching `account_roles` row.
+2. **Section 4b moves nobody.** `active_mode` is copied across from
+   `active_role`, which is the same question under a new name, so no user
+   changes dashboards when this lands. It is worth knowing that an earlier
+   draft did the opposite — it set `active_mode` from `account_type` and would
+   have pinned each account to one dashboard. If you are reading a stale copy
+   of this migration, that is the difference to look for.
+3. **The `'both'` backfill is the whole migration's correctness.** Every
+   existing row has `account_type = 'both'` (the column default, never
+   overwritten). `20260909120000` maps it by falling through to `role`. If
+   `role` is ever null for a row, that row becomes `'individual'`. Worth a count
+   before pushing:
+
+   ```sql
+   select account_type, role, count(*)
+   from public.profiles
+   group by 1, 2 order by 3 desc;
+   ```
+
+4. **`profiles.role` is load-bearing in an RLS policy.** Found in the baseline:
+   `is_messaging_blocked()` reads it, and the "Participants can send messages"
+   policy on `public.messages` calls that function. The follow-up migration that
+   drops `role` has to rewrite the function in the same change, or message
+   sending breaks at the database level. This is recorded in section 5 of the
+   migration.
+
+---
+
+## Before pushing
 
 ```
 ! npm run db:status        # compare local migrations against remote history
-! npm run db:push --dry-run
+! npx supabase db push --dry-run
 ```
+
+`db:status` should show `20260908000000` and `20260909110000` as applied on the
+remote and `20260909120000` as pending. **If it does not**, do not push — the
+first two are already in the live database and re-running them is not what you
+want. Mark them applied without executing:
+
+```
+! npx supabase migration repair --status applied 20260908000000
+! npx supabase migration repair --status applied 20260909110000
+```
+
+`20260909110000` is idempotent (`add column if not exists`, `drop policy if
+exists`), so running it would in fact be harmless — but repairing is the honest
+record. `20260908000000` must never be executed against the live project.
 
 ---
 

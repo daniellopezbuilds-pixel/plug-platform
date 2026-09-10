@@ -149,7 +149,8 @@ export default function SignupPage() {
     //
     // account_type and roles are derived from the one signup choice rather
     // than asked for separately, so the backfill documented in
-    // supabase/pending.sql keeps the source it expects.
+    // supabase/migrations/20260909120000_signup_roles_and_account_mode.sql
+    // section 6 keeps the source it expects.
     //
     // raw_user_meta_data is CLIENT-WRITABLE. Anything read back out of it is
     // user-claimed, never verified. The backfill that eventually moves these

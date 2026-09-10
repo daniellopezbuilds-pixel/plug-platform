@@ -19,9 +19,15 @@ Read this before designing against the sections below. Tables, columns, types
 and foreign keys were verified against the live database on 2026-09-09 and are
 listed in full in `docs/schema-inventory.md`.
 
-Defaults, indexes, CHECK constraints, **RLS policies** and **triggers** are not
-captured anywhere yet — they exist only in the Supabase dashboard until
-`npm run db:pull` runs. See `supabase/README.md`.
+Defaults, indexes, CHECK constraints, **RLS policies** and **triggers** are now
+captured too, in the baseline at
+`supabase/migrations/20260908000000_remote_schema.sql` (2026-09-10). That file
+is authoritative for everything the inventory could not see. Note two things it
+corrects below: `sponsored_listings.payment_status` is CHECK-constrained rather
+than free text (section 0.4), and `profiles.account_type` defaults to `'both'`,
+which no code path overwrites (section 0.2). What the baseline still does not
+carry — storage bucket rows, grants, extensions — is listed in
+`supabase/README.md`.
 
 ### 0.1 Tables in use
 
@@ -255,7 +261,8 @@ Nothing verifies any signup field in this phase. `role_credentials.verified`
 exists so the column is there when an admin review flow is built; it stays
 `false`, and any backfill reading `signup_fields` out of `raw_user_meta_data`
 must keep it that way — that metadata is client-writable and user-claimed. See
-the backfill rule in `supabase/pending.sql` section 6.
+the backfill rule in section 6 of
+`supabase/migrations/20260909120000_signup_roles_and_account_mode.sql`.
 
 The fuller per-role credential sets — including `apprentice` and `office`, and
 fields like licence expiry and hours logged — are what `role_credentials.fields`
@@ -304,21 +311,63 @@ billing contact, approval status).
 
 Collapse `role`, `account_type`, and `active_role` into two columns:
 
-- **`account_type`** — `company | individual | brand`. What the account is.
-- **`active_mode`** — which dashboard is currently showing.
+- **`account_type`** — `company | individual | brand`. What the account signed
+  up as.
+- **`active_mode`** — `worker | employer | brand`. Which dashboard is currently
+  showing.
 
-`account_type` already exists and already holds `'worker'` / `'employer'`, so
-this is a re-value plus a backfill, not a new column.
+**The two vocabularies are deliberately different, and the columns are
+deliberately independent.** `account_type` decides which mode a new account
+lands in, and it is what type-specific features will gate on later. It does
+**not** restrict which dashboard the account can view. Every non-brand account
+can switch between Worker and Employer whatever it signed up as.
+
+`account_type` already exists — it holds the string `'both'` on every row, the
+column default, which nothing has ever written over — so this is a re-value
+plus a backfill, not a new column.
+
+### Why both modes stay available to everyone
+
+An earlier draft of this section gave each account type exactly one mode:
+company accounts saw the employer dashboard, individual accounts saw the worker
+dashboard, and the switcher disappeared for both. That is now rejected.
+
+The trade does not split cleanly into people who hire and people who work. A
+C-10 contractor between jobs is looking for work. An electrician with more work
+than they can take on is hiring. The same person crosses in both directions,
+sometimes in the same week, and an account type fixed at signup cannot track
+that — it is the same "one choice can't hold three truths" problem that made
+signup single-select a compromise in section 1, arriving a second time.
+
+Locking the dashboard to the account type would also make the switcher a lie
+for a large share of the user base, and would put a CHECK constraint in the way
+of a control the product intends to keep.
+
+The thing that would have justified locking it — feature gating — does not
+depend on mode at all. Gating happens on roles (`account_roles`), which is the
+whole reason that is a join table. Mode is a view preference, not a permission.
+
+Brand is the one exception: a brand does no electrical work, so Worker and
+Employer are meaningless for it. One mode, no switcher.
 
 ### Migration shape
 
 ```
-employer -> company
-worker   -> individual
+account_type:   employer -> company        (falling back through role,
+                worker   -> individual      because every row reads 'both')
+
+active_mode:    copied across from active_role, unchanged
+                'brand' for brand accounts
 ```
 
-Applied to `account_type` and, as `active_mode`, to `active_role`. `role` is
-dropped once `app/dashboard/messages/page.tsx` stops reading it.
+`active_mode` is the direct successor to `active_role` — same question, same
+vocabulary, new name — so nobody moves dashboards when the migration lands, and
+nobody moves when the app later cuts over to reading it.
+
+`role` is dropped once `app/dashboard/messages/page.tsx` **and**
+`public.is_messaging_blocked()` stop reading it. That function is called from
+the `"Participants can send messages"` RLS policy, so the column is load-bearing
+in the database, not just in a page query.
 
 Call sites to update, all comparing against the literal `"employer"` or
 `"worker"`:
@@ -344,15 +393,20 @@ a `conversation_participants` column before dropping anything.
 
 ### Which modes an account can switch to
 
-| `account_type` | Available `active_mode` values |
-|---|---|
-| `company` | `company`, plus `brand` if a brand workspace is enabled |
-| `individual` | `individual` |
-| `brand` | `brand` |
+| `account_type` | Available `active_mode` values | Lands in |
+|---|---|---|
+| `company` | `worker`, `employer`, plus `brand` if a brand workspace is enabled | `employer` |
+| `individual` | `worker`, `employer` | `worker` |
+| `brand` | `brand` | `brand` |
 
-`RoleSwitch` currently renders a fixed two-button array. It becomes a list
-driven by the available modes for the account, and it should not render at all
-when there is only one.
+The only row that restricts anything is `brand`. The other two differ in where
+they *start*, not in where they can go.
+
+`RoleSwitch` renders a list driven by the available modes for the account, and
+does not render at all when there is only one — which is how brand accounts get
+no switcher without a special case in the component. `availableModes()` in
+`lib/accountModes.tsx` is the single place this table is expressed; nothing
+else should branch on `account_type` to decide what a user may view.
 
 ---
 
@@ -684,11 +738,15 @@ also requires the impression counter that does not exist.
 - **Contractor on an individual account.** Recommended yes — plenty of C-10
   holders are sole proprietors. If billing later assumes contractor means
   company, auto-suggest switching instead of blocking.
-- **Capture the baseline.** Columns and foreign keys are now verified
-  (`docs/schema-inventory.md`), but the RLS policies and the signup trigger
-  still exist only in the dashboard. `supabase/migrations/` is set up and the
-  signup migration is written, but it is blocked on reading the trigger body —
-  see `supabase/README.md` step 1. Nothing should be pushed before that.
+- **~~Capture the baseline.~~ Done 2026-09-10.** The baseline is at
+  `supabase/migrations/20260908000000_remote_schema.sql`, and the signup
+  migration is no longer blocked — its trigger rewrite is written against the
+  real `handle_new_user()` body. Two things it revealed are worth carrying
+  forward: `profiles.account_type` has always been `'both'` for every row, and
+  `profiles.role` is read by `is_messaging_blocked()` from inside an RLS policy,
+  so dropping it is not just an app-side cutover. Still open: the baseline is a
+  raw `pg_dump` rather than `db pull` output, so it is a record rather than a
+  replayable migration. See `supabase/README.md`.
 
 ---
 
@@ -791,12 +849,17 @@ RLS gates rows, never columns. A policy allowing a user to update their own row
 allowed them to update *every column* of it, including `is_admin`. One line in
 the browser console made any signed-in user an administrator.
 
-The blast radius was every policy in the database that reads `is_admin`,
-including the `is_platform_admin()` helper `supabase/pending.sql` defines.
-Those policies were not weak — they were **unenforced**.
+The blast radius was every policy in the database that reads `is_admin` —
+directly, or through the `public.is_admin()` helper the baseline shows a dozen
+policies depend on. Those policies were not weak; they were **unenforced**.
 
-Closed by `supabase/fix-admin-escalation.sql`, applied to the live project on
-2026-09-09:
+(The signup migration was going to add a second helper, `is_platform_admin()`,
+because it could not see whether an equivalent already existed. The baseline
+showed one does, so it now calls `public.is_admin()` instead of keeping two
+functions that answer the same question.)
+
+Closed by `supabase/archive/fix-admin-escalation.sql`, applied to the live
+project on 2026-09-09:
 
 1. A `BEFORE UPDATE` trigger on `profiles` raising `42501` if `is_admin`
    changes and the caller is not already an admin. Allows service_role, allows
@@ -805,14 +868,23 @@ Closed by `supabase/fix-admin-escalation.sql`, applied to the live project on
 2. The `profiles` INSERT policy, which had `with_check: true` — no restriction
    at all — replaced with `id = (select auth.uid())`.
 
-A trigger rather than a column-level grant (the pattern `pending.sql` uses for
-`role_credentials.verified`) because a grant means enumerating all ~25 writable
-columns of `profiles`, and any column added later is silently un-granted.
-Reasoning is in the file header.
+A trigger rather than a column-level grant (the pattern the signup migration
+uses for `role_credentials.verified`) because a grant means enumerating all ~25
+writable columns of `profiles`, and any column added later is silently
+un-granted. Reasoning is in the file header.
 
-**Not yet in `supabase/migrations/`** and cannot be until the baseline pull
-lands, so a `db reset` would not recreate it. Fold it in when the baseline
-exists.
+**In version control since 2026-09-10.** The baseline captured all of it —
+`profiles_guard_admin_escalation()`, its comment, the `BEFORE UPDATE` trigger,
+and the replacement INSERT policy, which is now the only INSERT policy on
+`profiles`. The fix file itself is archived at
+`supabase/archive/fix-admin-escalation.sql` for its reasoning and should not be
+re-run; no migration replays it, because the baseline already contains it.
+
+The baseline also settles the one thing that file could not verify. Its section
+2 reasoned that the signup trigger was "almost certainly" `SECURITY DEFINER`,
+and therefore that tightening the INSERT policy could not break signup.
+`handle_new_user()` is indeed `LANGUAGE plpgsql SECURITY DEFINER`. The rollback
+at the bottom of that file is not needed.
 
 Consequence for the app: `is_admin` is now a server-controlled value.
 `hooks/useIsAdmin.tsx` reads it client-side and can still be forced true in
@@ -838,7 +910,8 @@ body, which the webhook then trusted when granting access.
 The webhook's writes are now error-checked. They were not, and the `group_join`
 branch wrote to `conversation_participants.payment_status`, **a column that did
 not exist** — so a completed payment granted nothing and logged nothing. The
-column is added in `supabase/branding-deals-setup.sql` section 5.
+column is added in section 3 of
+`supabase/migrations/20260909110000_branding_deals_columns.sql`.
 
 ### 7.6 Auth work not done
 

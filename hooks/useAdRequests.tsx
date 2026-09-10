@@ -33,9 +33,10 @@ export function useAdRequests() {
 
     const { data, error } = await supabase
       .from("sponsored_listings")
-      // select("*") rather than an explicit column list on purpose: city and
-      // review_notes may not exist yet (see supabase/branding-deals-setup.sql),
-      // and naming them here would 400 the whole admin tab until that is run.
+      // select("*") rather than an explicit column list on purpose. city and
+      // review_notes do now exist — the baseline confirms both — but naming
+      // columns here 400s the whole admin tab the moment one is missing, so
+      // the wildcard stays as insurance against the next additive column.
       .select("*, profiles!submitted_by(full_name, profile_number)")
       .eq("status", "pending")
       .order("created_at", { ascending: true });
