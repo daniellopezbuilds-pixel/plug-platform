@@ -32,7 +32,26 @@ Project ref: `ztjlyucyoiagdwafgppf` (linked; `supabase/.temp/project-ref` is set
 |---|---|---|
 | `20260908000000_remote_schema.sql` | Already applied (it *is* production) | Never push this at the live project |
 | `20260909110000_branding_deals_columns.sql` | Already applied, except its comments | Records the hand-run branding-deals script |
-| `20260909120000_signup_roles_and_account_mode.sql` | **Not applied** | The only file that changes anything |
+| `20260909120000_signup_roles_and_account_mode.sql` | Applied 2026-09-10 | Broke signups; see the hotfix below |
+| `20260910120000_fix_generate_profile_number_search_path.sql` | Run by hand during the incident | Idempotent — push it to record it |
+| `20260910130000_pin_search_path_baseline_functions.sql` | **Not applied** | The other nine unpinned functions. Not urgent |
+
+**Incident 2026-09-10.** `20260909120000` pinned `handle_new_user()` to an empty
+`search_path`. Its own references were all qualified, but the
+`set_profile_number` trigger it fires — `generate_profile_number()`, from the
+baseline — has no pinned `search_path` and does `from profiles` unqualified. It
+inherited the empty path, raised `42P01`, and every signup rolled back. Fixed by
+pinning the callee.
+
+Ten baseline functions had that shape in total (an earlier note here said nine —
+that was a miscount). The other nine are pinned in `20260910130000`; none is
+reachable from a signup, so that one is not urgent. All ten are `SECURITY
+DEFINER`, so an unpinned `search_path` is a privilege-escalation shape in its own
+right, not only a fragility.
+
+**Watch for this pattern.** Pinning a caller to an empty `search_path` changes
+name resolution for everything it calls. The error surfaces in the caller and
+the cause is in the callee.
 
 The three former hand-run scripts now live in `supabase/archive/`, each with a
 header saying where its content went. They are kept for their reasoning, not to
