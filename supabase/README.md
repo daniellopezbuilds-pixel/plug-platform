@@ -7,7 +7,17 @@ baseline changed that.
 The CLI is pinned as a devDependency (`supabase@2.117.0`), so use the `npm run
 db:*` scripts rather than a globally installed `supabase`.
 
-Project ref: `ztjlyucyoiagdwafgppf` (linked; `supabase/.temp/project-ref` is set)
+Two projects. **Staging is the default linked project** — link back to it after
+any production push. The full loop, and why step 8 matters, is in `CLAUDE.md`
+under "Database".
+
+| | Project ref |
+|---|---|
+| Production | `ztjlyucyoiagdwafgppf` |
+| Staging | `fhdnzbuafxncbqpqovhx` — local dev points here |
+
+`npm run db:linked` marks which one is currently linked. Run it before
+every push; `db push` names no environment in its output.
 
 ---
 
@@ -16,13 +26,13 @@ Project ref: `ztjlyucyoiagdwafgppf` (linked; `supabase/.temp/project-ref` is set
 | | |
 |---|---|
 | Tooling | Done |
-| Baseline captured | **Yes** — `migrations/20260908000000_remote_schema.sql`, 4821 lines |
-| Baseline replayable as a migration | **No.** Raw `pg_dump`, not `db pull` output. See below |
-| Signup migration written | Yes — `20260909120000_signup_roles_and_account_mode.sql` |
-| Migration section 6 (signup trigger) | **Written.** Unblocked by the baseline |
+| Baseline captured | **Yes** — `migrations/20260908000000_remote_schema.sql`, 1701 lines |
+| Baseline replayable as a migration | **Yes**, since the trim. See "Made replayable" |
+| Migration section 6 (signup trigger) | **Written**, applied, and hotfixed. See the incident note |
 | RLS conflict check vs baseline | **Done.** No conflicts. See "Conflict check" |
 | Hand-run files folded in | Yes — see "Migration inventory" |
-| Anything pushed to the live database | **No** |
+| Production | Migrations applied through `20260910120000` |
+| Staging | Fresh project, being brought up. See "Bringing up a fresh project" |
 
 ---
 
@@ -30,7 +40,7 @@ Project ref: `ztjlyucyoiagdwafgppf` (linked; `supabase/.temp/project-ref` is set
 
 | File | State | Notes |
 |---|---|---|
-| `20260908000000_remote_schema.sql` | Already applied (it *is* production) | Never push this at the live project |
+| `20260908000000_remote_schema.sql` | Applied on production; runs for real on staging | Repair, never push, at production. See "Before pushing" |
 | `20260909110000_branding_deals_columns.sql` | Already applied, except its comments | Records the hand-run branding-deals script |
 | `20260909120000_signup_roles_and_account_mode.sql` | Applied 2026-09-10 | Broke signups; see the hotfix below |
 | `20260910120000_fix_generate_profile_number_search_path.sql` | Run by hand during the incident | Idempotent — push it to record it |
@@ -76,7 +86,7 @@ poor migration.
 
 - 16 `public` tables — the 15 in spec section 0.1, plus the dead `workers` table
 - 63 `CREATE POLICY` statements: 49 on `public.*`, 14 on `storage.objects`
-- `ENABLE ROW LEVEL SECURITY` for every table that has it on
+- `ENABLE ROW LEVEL SECURITY` for all 16 `public` tables
 - `handle_new_user()` and the `on_auth_user_created` trigger on `auth.users` —
   the item that blocked section 6 of the signup migration
 - `is_admin()`, `can_message()`, `is_conversation_participant()`,
@@ -88,40 +98,106 @@ poor migration.
   0.4 did not know about (`status`, `placement`, `payment_status` are all
   constrained, not free text)
 
-### What the baseline does not carry
+### Made replayable 2026-09-10
 
-Read this before ever running `db reset` against it.
+The file began as a raw `pg_dump` and would not execute — a fresh staging
+project failed on line 5 with `42601` at the `\restrict` meta-command. It has
+since been trimmed, in place, to the 1701 lines that are actually ours:
 
-1. **`\restrict` / `\unrestrict`.** Lines 5 and 4820 are psql meta-commands
-   emitted by pg_dump 17.11. The CLI applies migrations over a Postgres
-   connection, not through psql, so these are syntax errors. They must be
-   stripped before the file can execute anywhere.
-2. **`CREATE SCHEMA public` / `auth` / `storage`, and the managed schemas
-   themselves** — 23 `auth` tables and 8 `storage` tables. Supabase's own
-   bootstrap creates all of these. Replaying this file into a fresh project
-   collides with it.
-3. **Storage bucket rows.** `storage.buckets` contents are *data*, and this is a
+**Removed** (260 sections): the `\restrict` / `\unrestrict` meta-commands;
+`CREATE SCHEMA` for `auth`, `public` and `storage`; the `COMMENT ON SCHEMA
+public`; and every `auth.*` and `storage.*` table, type, function, index,
+constraint and comment. Supabase's own bootstrap creates all of it before
+migrations run.
+
+**Kept**: everything in `public`, unchanged — 16 tables, 15 functions, 49
+policies, 9 triggers, all constraints and RLS. Plus three things that live in
+Supabase's schemas but are ours: the 14 `storage.objects` policies, `CREATE
+TRIGGER on_auth_user_created ON auth.users`, and the `profiles.id ->
+auth.users(id)` foreign key.
+
+The kept storage policies call `storage.foldername()`, `public.is_admin()` and
+`public.can_message()`. The first is part of Supabase's storage bootstrap; the
+other two are defined earlier in this same file.
+
+### What `db push` may and may not do to Supabase-managed objects
+
+The first attempt also kept `ALTER TABLE storage.objects ENABLE ROW LEVEL
+SECURITY` and failed on it with `42501 must be owner of table objects`.
+`storage.objects` is owned by `supabase_storage_admin`, and `ENABLE ROW LEVEL
+SECURITY` strictly requires ownership. It was redundant anyway — Supabase
+enables RLS on that table itself.
+
+**`CREATE POLICY` on the same table is fine.** Supabase grants the `postgres`
+role what it needs to manage policies there; that is what makes the dashboard
+policy editor work for everyone. This is established empirically, not by
+reading the docs: in the failed push the `ALTER` was statement 177 and the 14
+storage policies were statements 163–176, so all of them executed before it.
+The `auth.users` trigger and the `auth.users` foreign key sit far earlier in the
+file and cleared too.
+
+So the working rule for this project: **policies and triggers on Supabase-owned
+tables push fine; `ALTER TABLE` against them does not.** Anything that changes
+the table itself needs the dashboard or a support path.
+
+Production already has this version recorded as applied and will never execute
+it, so the edit is a no-op there.
+
+### What the baseline still does not carry
+
+1. **Storage bucket rows.** `storage.buckets` contents are *data*, and this is a
    schema-only dump — zero `INSERT`/`COPY` statements in the file. The buckets
    `sponsored-listings`, `branding`, `resumes` and `employer-documents` would
    not exist after a reset, while every storage policy referencing them by
    `bucket_id` would. Uploads fail with the policies looking correct.
-4. **Grants.** Zero `GRANT` statements — the dump was taken without privileges.
-   Note that `20260909120000` ends with a `revoke`/`grant` pair on
-   `role_credentials`; that one is in the migration and is unaffected.
-5. **Extensions.** No `CREATE EXTENSION`. `gen_random_uuid()` is core in PG 17
-   so the defaults still resolve, but nothing else is guaranteed.
-6. **Column comments.** Only one public-schema comment survived
+2. **Grants.** Zero `GRANT` statements — the dump was taken without privileges.
+   On a normal Supabase project this is fine: `ALTER DEFAULT PRIVILEGES` grants
+   new `public` tables to `anon`, `authenticated` and `service_role`
+   automatically. Verify it on any fresh project rather than assuming — see the
+   staging checklist. Note that `20260909120000` ends with a `revoke`/`grant`
+   pair on `role_credentials`; that one is in the migration and is unaffected.
+3. **Extensions.** No `CREATE EXTENSION`. `gen_random_uuid()` is core from
+   PG 13 on and the file uses it in 15 defaults, so it resolves on any current
+   Supabase project, but nothing else is guaranteed.
+4. **Column comments.** Only one public-schema comment survived
    (`profiles_guard_admin_escalation`). This is how we know the branding-deals
    comments were never applied.
-7. **Not schema at all:** SMTP settings, email templates, redirect URLs, auth
+5. **Not schema at all:** SMTP settings, email templates, redirect URLs, auth
    provider config. Relevant to the open email-deliverability item in spec
    section 7.6 — none of it is in version control and a reset would not restore
    it.
 
-**The fix, when someone can run it:** a real `npm run db:pull`, which emits a
-CLI-shaped migration without the meta-commands and managed-schema bootstrap.
-Until then treat this file as documentation that happens to be valid SQL, and
-seed the storage buckets by hand on any fresh project.
+### Bringing up a fresh project
+
+Migrations alone do not produce a working environment. After `db push`:
+
+1. **Create the four storage buckets** — nothing in version control does this,
+   and the policies reference them by `bucket_id`:
+
+   | Bucket | Public reads |
+   |---|---|
+   | `sponsored-listings` | yes (`getAdPublicUrl` depends on it) |
+   | `branding` | yes |
+   | `resumes` | no |
+   | `employer-documents` | no |
+
+   Production has `file_size_limit = null` and `allowed_mime_types = any` on
+   `sponsored-listings`; the 4:1 / 2MB rules in `lib/ads.tsx` are browser-side
+   only. Match production, or tighten both at once.
+
+2. **Confirm the table grants landed:**
+
+   ```sql
+   select has_table_privilege('authenticated', 'public.profiles', 'select') as auth_can_read,
+          has_table_privilege('anon',          'public.jobs',     'select') as anon_can_read;
+   ```
+
+   Both false means default privileges are not configured and every request will
+   fail on permissions rather than RLS — a confusing failure worth ruling out
+   early.
+
+3. **Configure auth separately:** SMTP, email templates, redirect URLs. None of
+   it is in this directory.
 
 ---
 
@@ -195,23 +271,31 @@ The two blocking risks are resolved. What is left:
 ## Before pushing
 
 ```
-! npm run db:status        # compare local migrations against remote history
+! npm run db:linked             # WHICH PROJECT AM I LINKED TO
+! npm run db:status             # local migrations vs that project's history
 ! npx supabase db push --dry-run
 ```
 
-`db:status` should show `20260908000000` and `20260909110000` as applied on the
-remote and `20260909120000` as pending. **If it does not**, do not push — the
-first two are already in the live database and re-running them is not what you
-want. Mark them applied without executing:
+The baseline behaves in opposite ways on the two projects, so read `db:status`
+against the environment you are actually pointed at:
+
+**Production** already has `20260908000000` recorded as applied and **must never
+execute it** — the tables are already there. If history is ever lost, repair it
+rather than pushing it:
 
 ```
 ! npx supabase migration repair --status applied 20260908000000
-! npx supabase migration repair --status applied 20260909110000
 ```
 
-`20260909110000` is idempotent (`add column if not exists`, `drop policy if
-exists`), so running it would in fact be harmless — but repairing is the honest
-record. `20260908000000` must never be executed against the live project.
+**Staging** must execute it. That is why the file was trimmed to be replayable
+(see "Made replayable" above). A fresh project runs the whole chain from
+`20260908000000` forward.
+
+A version marked applied that did not actually run is worse than either. That
+happened on staging on 2026-09-10: history claimed all five migrations were
+applied against an empty database. `db:status` looked healthy and nothing
+existed. If the two ever disagree, trust the database — query for a table you
+expect — and repair history to match it, not the reverse.
 
 ---
 
@@ -219,11 +303,18 @@ record. `20260908000000` must never be executed against the live project.
 
 | Command | What it does |
 |---|---|
+| `npm run db:linked` | **Which project am I linked to.** Run before every push |
+| `npm run db:link:staging` | Link to staging — the default, and where you link back to |
+| `npm run db:link:prod` | Link to production, and print a reminder to link back |
 | `npm run db:pull` | Pull remote schema changes into a new migration |
 | `npm run db:diff -- -f <name>` | Generate a migration from local DB drift |
-| `npm run db:push` | Apply pending migrations to the linked project |
+| `npm run db:push` | Apply pending migrations to **the linked project** |
 | `npm run db:status` | Show applied vs pending migrations |
 | `npm run db:lint` | Lint SQL (needs a local database) |
+
+There is no bare `db:link`. It existed and meant production, which is the one
+target that should never be reachable from a command that does not say so. The
+project refs live in `package.json` and nowhere else.
 
 `db:lint` and `supabase start` need Docker, which is not installed on this
 machine. Without it, migrations in this directory are unexecuted SQL — review
