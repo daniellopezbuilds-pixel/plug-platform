@@ -26,15 +26,37 @@ import { createClient } from "@supabase/supabase-js";
  *
  * WHY THIS IS A RULE AND NOT A SUGGESTION
  *
- * Everything under app/api/ is a public internet endpoint, and nothing else in
- * this app gates it. There is no proxy.ts. Sessions live in localStorage, not
- * cookies, so nothing arrives at the server on its own. A route that does not
- * check its caller has not been checked by anything.
+ * Everything under app/api/ is a public internet endpoint. A route that does not
+ * check its caller has not been checked by anything: proxy.ts matches
+ * /dashboard only, and deliberately — an API route is not a page and must not
+ * depend on a matcher for its authentication.
  *
  * Both Stripe checkout routes were written without this and both were
  * exploitable: each took `userId` from the request body and trusted it, and
  * group-checkout took the PRICE from the body as well, so anyone could join a
  * paid group chat for one cent by editing a fetch.
+ *
+ * WHY THIS STAYS BEARER-BASED NOW THAT SESSIONS ARE COOKIES
+ *
+ * The original reason for the Authorization header was that there was no
+ * alternative: sessions lived in localStorage, so nothing reached the server on
+ * its own. That is no longer true — a route handler could now build a
+ * createServerClient and read the session cookie. It should not, for two
+ * reasons:
+ *
+ *   1. CSRF. The auth cookie cannot be httpOnly (the browser client has to read
+ *      it) and is sameSite: lax, so it rides along on requests this app did not
+ *      initiate. A bearer token has to be attached deliberately by code that
+ *      already had it, which makes these routes structurally immune rather than
+ *      conditionally safe. These routes create Stripe charges; "conditionally"
+ *      is not good enough.
+ *   2. The convention, the ESLint rule, its two opt-outs and "never take the id
+ *      from the body" are settled and were paid for with two live bugs.
+ *      Changing the mechanism reopens all of it for no gain.
+ *
+ * If cookie auth is ever genuinely wanted here, the shape is this function
+ * falling back to a cookie-bound client when no Authorization header is
+ * present — but answer the CSRF question first, in writing.
  *
  * ENFORCEMENT
  *
@@ -52,10 +74,8 @@ import { createClient } from "@supabase/supabase-js";
  *
  * Verifies the caller's Supabase access token on a route handler.
  *
- * Sessions in this app live in localStorage, not cookies (lib/supabase.tsx
- * uses the default createClient), so a route handler cannot read the session
- * off the request the way a cookie-based setup would. The client has to send
- * the token explicitly:
+ * The token is sent explicitly rather than read from the session cookie — see
+ * the CSRF reasoning above. getSession() is where the browser gets it from:
  *
  *   const { data: { session } } = await supabase.auth.getSession();
  *   fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } })

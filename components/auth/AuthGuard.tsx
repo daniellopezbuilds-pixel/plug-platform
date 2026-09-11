@@ -14,22 +14,26 @@ import { ScreenLoader } from "@/components/ui/Loading";
  * `app/dashboard/layout.tsx`'s "Loading..." branch forever, with no error and
  * no way back to login. Same for a session that expired mid-visit.
  *
- * WHAT THIS IS AND IS NOT
+ * NO LONGER THE ONLY GUARD, AND STILL NOT THE BOUNDARY
  *
- * This is a client-side guard. It runs in the browser, and a determined user
- * can bypass it with devtools. It is not the security boundary and must never
- * be treated as one — the boundary is RLS in Postgres, which is enforced on
- * every query regardless of what the browser believes.
+ * proxy.ts now runs first and server-side: a visitor with no session cookie is
+ * redirected to /login before any dashboard HTML is served, which is something
+ * devtools cannot switch off. This component used to be the only thing standing
+ * here, and it was bypassable.
  *
- * A server-side guard is not currently possible here: lib/supabase.tsx uses
- * plain createClient, so sessions live in localStorage rather than cookies and
- * never reach the server. Making a real proxy.ts guard possible means adopting
- * @supabase/ssr and moving to cookie-backed sessions. That is scoped as its
- * own piece of work.
+ * It is still not redundant, because the proxy only sees a request. These do
+ * not produce one:
  *
- * So what this actually buys: a logged-out or expired visitor lands on /login
- * with somewhere to go, instead of a dead page. That is a UX fix on top of an
- * enforced boundary, not a replacement for one.
+ *   - a session that expires while the tab sits open
+ *   - sign-out in another tab
+ *   - a token revoked server-side mid-visit
+ *
+ * In all three the user is already past the proxy, looking at a rendered
+ * dashboard, and only the onAuthStateChange listener below notices.
+ *
+ * Neither guard is the security boundary. That is RLS in Postgres, enforced on
+ * every query regardless of what the browser believes. The proxy protects the
+ * navigation; RLS protects the data.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [checked, setChecked] = useState(false);

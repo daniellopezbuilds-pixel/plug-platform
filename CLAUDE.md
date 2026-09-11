@@ -24,24 +24,49 @@ Every route handler under `app/api/` calls `getUserFromRequest(req)` from
 `lib/apiAuth.tsx` first, returns 401 on null, and takes the user id and email
 **from the returned user, never from the request body**.
 
-There is no `proxy.ts`, and sessions live in localStorage rather than cookies,
-so nothing reaches the server on its own — a route that does not check its
-caller has not been checked by anything. Both Stripe checkout routes were
+`proxy.tsx` matches `/dashboard` only and must not be extended to cover
+`app/api/` — a route that does not check its caller has not been checked by
+anything, and authentication belongs in the handler rather than in a path
+pattern a refactor can move out from under it. Both Stripe checkout routes were
 written without this and both were exploitable.
 
+Authentication here is by `Authorization: Bearer <access_token>`, **not** by the
+session cookie, even though sessions are now cookie-backed and a handler could
+read one. The cookie cannot be `httpOnly` and is `sameSite: lax`, so cookie auth
+on routes that create Stripe charges would be conditionally safe against CSRF
+where bearer tokens are structurally immune.
+
 Enforced by the `sparx/require-route-auth` ESLint rule. A genuinely public
-route opts out with a `@public-route` comment naming what protects it instead.
-Full rationale is in the header of `lib/apiAuth.tsx`.
+route opts out with a `@public-route` comment naming what protects it instead
+(three today: the Stripe webhook, keep-alive, and `/auth/callback`). Full
+rationale is in the header of `lib/apiAuth.tsx`.
 
 ### Auth boundaries
 
-`components/auth/AuthGuard.tsx` guards `/dashboard`, and it is **client-side
-only** — a UX fix, not a security boundary. The boundary is RLS in Postgres.
-Never gate anything on a client value alone, and never on `user_metadata`,
-which is client-writable.
+Sessions are cookie-backed via `@supabase/ssr` (`lib/supabase.tsx` uses
+`createBrowserClient`). `flowType` is therefore `'pkce'` and **not
+configurable**, so every emailed auth link lands on `app/auth/callback/route.tsx`
+to be verified — there are no `#access_token` fragments any more.
 
-Moving to cookie-backed sessions via `@supabase/ssr` — which is what would make
-a real server-side guard possible — is scoped but not started.
+Two guards, neither of them the boundary:
+
+- **`proxy.tsx`** — server-side, 307s an unauthenticated visitor away from
+  `/dashboard` before any HTML is sent, and additionally requires
+  `profiles.is_admin` for `/dashboard/admin`. Cannot be bypassed from the
+  browser.
+- **`components/auth/AuthGuard.tsx`** — client-side, still needed for the cases
+  that produce no request: mid-session expiry, cross-tab sign-out.
+
+**The boundary is RLS in Postgres.** Every dashboard query still runs in the
+browser; the proxy protects navigation, RLS protects data. Never gate anything
+on a client value alone, and never on `user_metadata`, which is client-writable.
+
+Cookies did not improve XSS exposure — the auth cookie is script-readable
+exactly as localStorage was.
+
+Anything written into `user_metadata` rides in the JWT, which rides in the
+session cookie, which is sent on **every** request. Cap free-text fields that
+reach it; see `maxLengthFor()` in `lib/signupRoles.tsx`.
 
 ### Database
 

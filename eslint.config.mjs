@@ -16,9 +16,10 @@ const HTTP_METHODS = new Set([
  * Route handlers must authenticate the caller.
  *
  * Everything under app/api/ is a public internet endpoint. Nothing else in
- * this app gates them: there is no proxy.ts, and sessions live in localStorage
- * rather than cookies, so a route handler that does not check the caller
- * itself has not been checked by anything.
+ * this app gates them: proxy.ts matches /dashboard only, so a route handler
+ * that does not check the caller itself has not been checked by anything.
+ * Widening that matcher would not change this rule — authentication belongs in
+ * the handler, not in a path pattern someone can refactor out from under it.
  *
  * That is not hypothetical. Both Stripe checkout routes took `userId` from the
  * request body and trusted it, and group-checkout took the PRICE from the body

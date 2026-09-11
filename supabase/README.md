@@ -197,7 +197,73 @@ Migrations alone do not produce a working environment. After `db push`:
    early.
 
 3. **Configure auth separately:** SMTP, email templates, redirect URLs. None of
-   it is in this directory.
+   it is in this directory. See "Auth URL and email template configuration"
+   below — since cookie-backed sessions shipped, two of those are required
+   rather than merely nice to have.
+
+---
+
+## Auth URL and email template configuration
+
+**Required in both projects, per project, and absent from version control.**
+Cookie-backed sessions (`@supabase/ssr`) forced the auth flow to PKCE, so every
+emailed link now has to land on `/auth/callback` instead of carrying a token in
+a URL fragment. Two pieces of dashboard state make that work, and the app cannot
+supply either.
+
+### 1. Redirect URLs
+
+Auth → URL Configuration → Redirect URLs must include the callback for each
+origin the app runs on:
+
+```
+http://localhost:3000/auth/callback
+https://<production domain>/auth/callback
+```
+
+Without the entry, Supabase refuses the `redirectTo` and falls back to the Site
+URL, so the user lands on the home page with an unconsumed token and no session.
+
+### 2. Email templates — use `{{ .TokenHash }}`, not `{{ .ConfirmationURL }}`
+
+Auth → Email Templates. Both the **Confirm signup** and **Reset password**
+templates need their link rewritten to point at the callback with a token hash:
+
+```html
+<!-- Reset password -->
+<a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password">
+  Reset your password
+</a>
+
+<!-- Confirm signup -->
+<a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email&next=/dashboard">
+  Confirm your email
+</a>
+```
+
+**Why this matters and is not cosmetic.** The default
+`{{ .ConfirmationURL }}` sends a PKCE `?code=`, and exchanging a code requires
+the code verifier that the browser stored when the email was requested. That
+verifier is a cookie, so it exists in exactly one browser — meaning a reset
+requested on a laptop cannot be completed on a phone. Electricians do that
+constantly. `{{ .TokenHash }}` is verified with `verifyOtp()` and needs nothing
+stored on the device, so the link works anywhere.
+
+`app/auth/callback/route.tsx` handles both shapes deliberately, so reverting a
+template does not break links — it silently makes them same-browser-only, which
+is the kind of regression that surfaces as scattered support complaints rather
+than an error. If reset links start "not working for some people", check here
+first.
+
+### Consequence for testing
+
+Staging has no SMTP and the built-in sender is rate limited, so the full round
+trip is hard to exercise there. `auth.admin.generateLink({ type: 'recovery' })`
+produces a usable link without sending mail — and note it produces a
+**token_hash** link, so it tests the `verifyOtp` path, which is the one the
+templates above use. The `?code=` path only appears via a real email request
+from a real browser. Reset emails remain effectively untested until production,
+the same caveat that already applies to everything email-dependent here.
 
 ---
 

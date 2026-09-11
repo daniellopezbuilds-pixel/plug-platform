@@ -752,38 +752,67 @@ also requires the impression counter that does not exist.
 
 ## 7. Authentication — what exists today **(today)**
 
-Built 2026-09-09. Unlike most of this document, this section describes shipped
-code, not target state. Read it before touching auth; do not redesign against
+Built 2026-09-09, substantially revised 2026-09-11 when sessions moved to
+cookies. Unlike most of this document, this section describes shipped code, not
+target state. Read it before touching auth; do not redesign against
 the assumptions the rest of the spec was written under.
 
-### 7.1 The model, and its one big constraint
+### 7.1 The model **(rewritten 2026-09-11 — sessions are now cookie-backed)**
 
-`lib/supabase.tsx` calls plain `createClient` with no options. Three
+`lib/supabase.tsx` calls `createBrowserClient` from `@supabase/ssr`. Three
 consequences follow from that single line, and most auth decisions here are
-downstream of them:
+downstream of them. All three are the inverse of what this section said before
+2026-09-11, so discard any reasoning built on the old version:
 
-1. **Sessions live in `localStorage`, not cookies.** `@supabase/ssr` is not
-   installed. Nothing about the session reaches the server on its own.
-2. **Therefore no server-side auth is currently possible.** Not in a
-   `proxy.ts`, not in a server component, not in a route handler reading
-   cookies. This is not an oversight to fix in passing — it is a property of
-   the client setup.
-3. **`flowType` defaults to `'implicit'`**, so password-reset links arrive as a
-   URL fragment (`#access_token=...&type=recovery`), not `?code=`. There is
-   nothing to exchange; the client parses the fragment itself.
+1. **Sessions live in cookies, not `localStorage`.** The session reaches the
+   server on every request.
+2. **Therefore server-side auth is possible**, and `proxy.tsx` does it — see
+   7.3. A route handler or server component could too, though no server
+   component in this app reads data yet (only `app/layout.tsx` is one, and there
+   are no server actions anywhere).
+3. **`flowType` is `'pkce'`** — `createBrowserClient` hardcodes it, it is not an
+   option. Emailed links therefore carry `?token_hash=` or `?code=` in the query
+   string, never a `#access_token=` fragment, and something server-side has to
+   verify them. That is `app/auth/callback/route.tsx`; see 7.2.
 
-Note for anyone reaching for middleware: Next 16 renamed `middleware.ts` to
-`proxy.ts` and deprecated the old name. See
+What this did **not** change: the auth cookie cannot be `httpOnly`, because the
+browser client has to read it. It is as script-readable as `localStorage` was.
+Cookies bought server-side readability, not XSS protection. RLS is still the
+boundary.
+
+Next 16 renamed `middleware.ts` to `proxy.ts` and deprecated the old name. See
 `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`.
-Either way it cannot see the session today — see the open item in 7.6.
+The file here is `proxy.tsx` — Next resolves the `.tsx` extension, confirmed in
+the build output, so the repo-wide `.tsx` convention holds.
 
 ### 7.2 Password flows
 
 | Route | File | Notes |
 |---|---|---|
-| `/forgot-password` | `app/forgot-password/page.tsx` | One fixed message regardless of whether the address exists; 60s client cooldown |
-| `/reset-password` | `app/reset-password/page.tsx` | Where the emailed link lands. `checking` → `ready` \| `invalid` |
+| `/forgot-password` | `app/forgot-password/page.tsx` | One fixed message regardless of whether the address exists; 60s client cooldown. `redirectTo` points at `/auth/callback?next=/reset-password` |
+| `/auth/callback` | `app/auth/callback/route.tsx` | Where every emailed link lands. Verifies `?token_hash=` (via `verifyOtp`) or `?code=` (via `exchangeCodeForSession`), writes the session cookie, then redirects |
+| `/reset-password` | `app/reset-password/page.tsx` | Where the callback sends a verified recovery. `checking` → `ready` \| `invalid` |
 | Change password | `components/profile/ChangePasswordSection.tsx` | In `/dashboard/profile`. Requires the current password |
+
+**The callback is the load-bearing new piece.** Without it password reset is
+dead — the token is in the query string and nothing consumes it, so no session
+is ever created and `/reset-password` can only report an expired link. Signup
+confirmation degrades rather than dies: Supabase still confirms the address, but
+the user arrives signed out.
+
+Both token shapes are handled on purpose. `token_hash` + `verifyOtp` needs
+nothing stored on the device, so a reset requested on a laptop can be finished on
+a phone; `?code=` (PKCE) requires the code-verifier cookie and therefore only
+works in the browser that asked. The email templates are set to send
+`{{ .TokenHash }}` for that reason — **dashboard state, per project, not in
+version control**, documented in `supabase/README.md`. Reverting a template does
+not break links, it silently makes them same-browser-only.
+
+**Reset-password no longer races.** It used to resolve three ways — an auth
+event, an already-parsed session, or a 2.5s timeout — because the client parsed
+the URL fragment asynchronously after mount. The callback now establishes the
+session before the page is requested, so one `getUser()` settles it and
+`SESSION_SETTLE_MS` is gone.
 
 Rules live in `lib/passwords.tsx` — `MIN_PASSWORD_LENGTH`, `PASSWORD_RULE`,
 `validatePassword` — and are imported by signup, reset and change. Do not
@@ -801,24 +830,71 @@ Three things in here are deliberate and easy to undo by accident:
   `supabase.auth.updateUser({ password })` does not ask for the old password —
   it trusts the session. Without the `signInWithPassword` check first, a
   hijacked session is enough to lock the real owner out permanently.
-- **`/reset-password` resolves three ways, and all three are handled**: the
-  auth event fires, `getSession()` already has one (the fragment was parsed
-  before the component mounted), or neither happens within
-  `SESSION_SETTLE_MS`. Subscribing without the `getSession` check hangs on
-  "checking"; deciding without the timeout shows "expired" on a good link. An
-  already-spent token fails at `updateUser` instead, which is why that error is
-  routed back to the same dead-link screen.
+- **An already-spent recovery token fails at `updateUser`, not at session
+  setup**, which is why that error is routed back to the same dead-link screen
+  rather than shown raw. Still true after the PKCE move: the callback happily
+  verifies a token and hands over a session, and only the password write
+  discovers it was already used.
 
-### 7.3 Route guard
+- **`/reset-password` does not check that the session is a *recovery* session.**
+  Any valid session renders the form, so a signed-in user can set a new password
+  there without entering the old one — bypassing the re-authentication that
+  `ChangePasswordSection` deliberately requires for exactly the hijacked-session
+  case. This predates cookie-backed sessions and was not introduced by it, but it
+  is the same threat model and is worth closing: it needs a recovery marker the
+  client cannot forge, which means the callback setting an httpOnly cookie and
+  the proxy checking it. Not done.
+
+### 7.3 Route guards — server-side since 2026-09-11
+
+**`proxy.tsx` is the first guard here a browser cannot switch off.** Matcher
+`/dashboard/:path*`. It reads the session cookie, refreshes it if needed, and
+returns a 307 to `/login?returnTo=…` when there is no user — before any
+dashboard HTML is served. Verified over HTTP against the built app, not just
+assumed:
+
+| Request | Result |
+|---|---|
+| `/dashboard`, no cookie | 307 → `/login?returnTo=%2Fdashboard` |
+| `/dashboard/jobs?x=1`, no cookie | 307, query string preserved in `returnTo` |
+| `/dashboard`, malformed auth cookie | 307, fails closed |
+| `/dashboard`, valid session | 200 |
+| `/dashboard/admin`, valid session, `is_admin = false` | 307 → `/dashboard` |
+| `/dashboard/admin`, valid session, `is_admin = true` | 200 |
+
+It uses `getClaims()` rather than `getUser()`: on a project with asymmetric JWT
+signing keys that verifies locally against a cached JWKS with no network call,
+and on the legacy shared-secret projects it falls back internally to `getUser()`.
+Never less correct, sometimes faster, and free later if signing keys are
+migrated.
+
+**It is still not the security boundary.** Every dashboard page is a client
+component querying Supabase from the browser, so RLS protects the data; the proxy
+protects the navigation. Next's own guidance says the same — a proxy is for
+optimistic checks, see
+`node_modules/next/dist/docs/01-app/02-guides/data-security.md`.
+
+The matcher is deliberately narrow. `/login`, `/signup`, `/reset-password` and
+`/auth/callback` must stay out of it — the callback by definition has no session
+yet, and guarding it would make every email link unusable. API routes are
+excluded on principle, not by oversight: see 7.5.
+
+#### AuthGuard is still needed
 
 `components/auth/AuthGuard.tsx` wraps `/dashboard` from
-`app/dashboard/layout.tsx`. Before it existed there was no guard anywhere —
+`app/dashboard/layout.tsx`. The proxy only sees requests, and these produce
+none: a session expiring while the tab sits open, sign-out in another tab, a
+token revoked mid-visit. In all three the user is already looking at a rendered
+dashboard and only `onAuthStateChange` notices.
+
+Before it existed there was no guard anywhere —
 every hook did `if (!user) return;` and gave up silently, so a logged-out
 visitor got the layout's "Loading..." branch **forever**, with no error and no
 route back to login.
 
-- Uses `getUser()`, not `getSession()`. `getSession` reads localStorage and
-  will hand back an expired token, which is the exact case being caught.
+- Uses `getUser()`, not `getSession()`. `getSession` reads local storage — a
+  cookie now, localStorage before 2026-09-11 — and will hand back an expired
+  token either way, which is the exact case being caught.
 - Subscribes to `onAuthStateChange` for sign-out and cross-tab sign-out. There
   was no such listener anywhere in the codebase before this.
 - Redirects to `/login?returnTo=...`, validated by `safeReturnTo` in
@@ -827,9 +903,10 @@ route back to login.
 - Renders nothing until the check resolves, so no dashboard query fires for
   someone about to be bounced.
 
-**It is client-side and can be bypassed with devtools. It is not the security
-boundary.** RLS is. Treat it as the fix for a dead-end UX, sitting on top of a
-boundary enforced elsewhere.
+**It is client-side and can be bypassed with devtools.** That used to matter a
+great deal, because it was the only guard; since `proxy.tsx` landed, a bypass
+gets you a page the server already refused to send. Neither is the security
+boundary — RLS is.
 
 The layout also now distinguishes "still loading" from "signed in but no
 profile row" — the latter is a real failure (RLS denial, missing row) and gets
@@ -892,14 +969,50 @@ devtools, but the admin tables (`employer_documents`, `sponsored_listings`,
 `general_requests`) enforce it in their own RLS, so a faked value shows the UI
 and every write is refused by Postgres.
 
+**Since 2026-09-11 it is also checked server-side.** `proxy.tsx` reads
+`profiles.is_admin` for `/dashboard/admin` specifically and redirects a
+non-admin to `/dashboard` — not to `/login`, because they are signed in
+perfectly well and a login form would be a lie. What that closes is the
+rendered admin panel, which a forced `useIsAdmin` always produced; the writes
+were already refused. UI integrity, not data safety.
+
+It is inside the `/dashboard/admin` branch rather than at the top of the proxy
+because a proxy runs on prefetches too, and Next explicitly warns against
+database reads there. One query on a rarely-hit prefix is the trade.
+
+The read is only trustworthy *because* of the trigger above. Before 2026-09-09 a
+user could set `is_admin` on themselves, so a server-side read of it would have
+been as worthless as the client-side one.
+
+No service role is involved: the proxy's client is authenticated as the user by
+their own cookie, and RLS lets a user read their own profile row.
+
 ### 7.5 API routes
 
 Every route handler under `app/api/` authenticates its caller with
 `getUserFromRequest()` from `lib/apiAuth.tsx`, and takes the user id and email
 from the returned user rather than the request body. Enforced by the
 `sparx/require-route-auth` ESLint rule; public routes opt out with a
-`@public-route` comment naming what protects them instead. Full convention in
-the header of `lib/apiAuth.tsx` and in `CLAUDE.md`.
+`@public-route` comment naming what protects them instead. There are now three:
+the Stripe webhook (signature), keep-alive (cron ping), and `/auth/callback`
+(accepts only a single-use server-issued token, which it verifies). Full
+convention in the header of `lib/apiAuth.tsx` and in `CLAUDE.md`.
+
+**This stays bearer-based now that sessions are cookies, deliberately.** The
+original reason for the `Authorization` header was that there was no
+alternative. There is one now — a route handler could read the session cookie —
+and it is still the wrong choice:
+
+- The auth cookie cannot be `httpOnly` and is `sameSite: lax`, so it rides along
+  on requests this app did not initiate. A bearer token has to be attached by
+  code that already had it, which makes these routes structurally immune to CSRF
+  rather than conditionally safe. These routes create Stripe charges.
+- The convention, the rule, its opt-outs and "never take the id from the body"
+  are settled, and were paid for with two live exploits. Changing the mechanism
+  reopens all of it for nothing.
+
+`proxy.tsx` does not and should not cover `app/api/`. Authentication belongs in
+the handler, not in a path pattern a later refactor can move out from under it.
 
 This came out of two live bugs, both fixed 2026-09-09:
 `app/api/stripe/checkout/group-checkout/route.tsx` took `feeCents` from the
@@ -915,14 +1028,27 @@ column is added in section 3 of
 
 ### 7.6 Auth work not done
 
-- **Cookie-backed sessions via `@supabase/ssr`.** Scoped, agreed, not started.
-  This is the prerequisite for a real `proxy.ts` guard and for any server-side
-  admin gate. It changes the reset flow from implicit to PKCE (a `?code=`
-  exchange plus a callback route), so `/reset-password` needs rewriting as part
-  of it. Everything above marked "client-side only" stays that way until this
-  ships.
+- **~~Cookie-backed sessions via `@supabase/ssr`.~~ Done 2026-09-11.** Sections
+  7.1–7.5 are rewritten against it. What it delivered: a server-side route guard
+  (`proxy.tsx`), a server-side admin gate, and `/auth/callback`. What it did
+  **not** deliver, despite being the stated prerequisite for them:
+
+  - **No server-side data access.** Only `app/layout.tsx` is a server component
+    and there are no server actions, so there is no data-access layer to move
+    authorisation into. Cookie sessions made one possible; they did not create
+    one. Every dashboard query still runs in the browser under RLS.
+  - **Not an XSS improvement.** The auth cookie cannot be `httpOnly`.
+
+  One migration artefact is still live: `components/auth/LegacySessionMigration.tsx`
+  carries pre-deploy sessions out of localStorage so existing users are not all
+  signed out. Delete it, `legacySessionStorageKey()` in `lib/supabase.tsx`, and the
+  `LinkVintage` branch in `/reset-password` once the window has passed.
 - **Google / OAuth.** Still absent — there is no `signInWithOAuth` call
-  anywhere. Section 1 rule 4 remains accurate.
+  anywhere. Section 1 rule 4 remains accurate on scope, with one part of it now
+  already built: `/auth/callback` exists and handles the `?code=` exchange, so
+  OAuth needs provider config and a post-OAuth profile-completion screen rather
+  than a callback route from scratch. The dead-end warning still stands — a
+  completed OAuth with no profile row must not be reachable.
 - **Email deliverability.** The flows were written against SMTP being
   configured separately, and the round trip has not been exercised end to end.
   Worth confirming: click a real link, then click the same link a second time —
