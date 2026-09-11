@@ -8,6 +8,7 @@ import {
   SIGNUP_TYPES,
   accountTypeFor,
   legacyRoleFor,
+  maxLengthFor,
   roleKeysFor,
   signupType as signupTypeDefinition,
   type SignupTypeKey,
@@ -68,7 +69,14 @@ export default function SignupPage() {
     const collected: Record<string, string> = {};
 
     for (const field of signupTypeDefinition(chosenType).fields) {
-      const value = (fieldValues[field.key] ?? "").trim();
+      // Truncated as well as maxLength'd on the input: maxLength is a hint the
+      // browser enforces on typing and a paste can outrun it in some browsers,
+      // and this value is about to become part of every request header this
+      // user makes. See maxLengthFor() in lib/signupRoles.tsx.
+      const value = (fieldValues[field.key] ?? "")
+        .trim()
+        .slice(0, maxLengthFor(field));
+
       if (value !== "") collected[field.key] = value;
     }
 
@@ -160,6 +168,14 @@ export default function SignupPage() {
       email,
       password,
       options: {
+        // Confirmation is off on staging and ON in production, so this line is
+        // untestable locally and load-bearing there. Without it the confirmation
+        // link has no callback to land on: Supabase still confirms the address,
+        // but no session is created and the user arrives signed out with no
+        // explanation. See app/auth/callback/route.tsx.
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+          "/dashboard"
+        )}`,
         data: {
           full_name: fullName,
           contact_number: contactNumber.trim(),
@@ -405,10 +421,24 @@ export default function SignupPage() {
                     </label>
                     <textarea
                       rows={field.rows ?? 3}
+                      // Capped because this text ends up in user_metadata, which
+                      // rides in the access token, which rides in the session
+                      // cookie on every request. See maxLengthFor().
+                      maxLength={maxLengthFor(field)}
                       value={fieldValues[field.key] ?? ""}
                       onChange={(e) => setField(field.key, e.target.value)}
                       className={`${inputClass} resize-none`}
                     />
+                    {/* Only once they are close to it — a counter on an empty
+                        optional field reads as a requirement. */}
+                    {(fieldValues[field.key]?.length ?? 0) >
+                      maxLengthFor(field) * 0.8 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {maxLengthFor(field) -
+                          (fieldValues[field.key]?.length ?? 0)}{" "}
+                        characters left
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div key={field.key}>
@@ -417,6 +447,7 @@ export default function SignupPage() {
                     </label>
                     <input
                       type="text"
+                      maxLength={maxLengthFor(field)}
                       value={fieldValues[field.key] ?? ""}
                       onChange={(e) => setField(field.key, e.target.value)}
                       className={inputClass}

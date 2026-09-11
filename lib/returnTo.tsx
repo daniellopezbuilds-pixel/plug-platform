@@ -27,21 +27,18 @@ export function currentReturnTo(): string {
  * would bounce a freshly authenticated user off-site, which is a credible
  * phishing step because the link starts on our own domain.
  *
- * Only same-origin absolute paths are allowed through. Everything else falls
- * back to the dashboard:
+ * Only same-origin absolute paths are allowed through (see isSameOriginPath),
+ * and not the auth pages themselves. Everything else falls back to the
+ * dashboard:
  *
  *   "/dashboard/jobs?x=1"  -> allowed
- *   "https://evil.example" -> rejected, no leading slash
- *   "//evil.example"       -> rejected, protocol-relative URL
- *   "/\\evil.example"      -> rejected, backslash is treated as a slash by
- *                             some browsers
+ *   "https://evil.example" -> rejected, not a same-origin path
  *   "/login"               -> rejected, would bounce back here
  */
 export function safeReturnTo(value: string | null | undefined): string {
   if (!value) return DEFAULT_AFTER_LOGIN;
 
-  if (!value.startsWith("/")) return DEFAULT_AFTER_LOGIN;
-  if (value.startsWith("//") || value.startsWith("/\\")) return DEFAULT_AFTER_LOGIN;
+  if (!isSameOriginPath(value)) return DEFAULT_AFTER_LOGIN;
 
   // Sending someone back to an auth page after they just authenticated is a
   // loop, not a return.
@@ -50,4 +47,45 @@ export function safeReturnTo(value: string | null | undefined): string {
   }
 
   return value;
+}
+
+/**
+ * The same validation for ?next= on /auth/callback, with one deliberate
+ * difference: /reset-password is allowed.
+ *
+ * safeReturnTo rejects auth pages because bouncing a user who just logged in
+ * back to a login form is a loop. But the recovery callback's entire purpose is
+ * to land on /reset-password with a session in hand, so that exclusion is
+ * wrong here — routing it to /dashboard instead would silently turn "set a new
+ * password" into "you are now logged in", which is not what the user clicked.
+ *
+ * Still an allowlist rather than a free pass: only the auth destinations the
+ * callback actually has a reason to send someone to. An open ?next= is an open
+ * redirect whichever parameter name it hides behind.
+ */
+const CALLBACK_DESTINATIONS = /^\/(reset-password|dashboard)(\/|\?|$)/;
+
+export function safeAuthNext(value: string | null | undefined): string {
+  if (!value) return DEFAULT_AFTER_LOGIN;
+
+  if (!isSameOriginPath(value)) return DEFAULT_AFTER_LOGIN;
+  if (!CALLBACK_DESTINATIONS.test(value)) return DEFAULT_AFTER_LOGIN;
+
+  return value;
+}
+
+/**
+ * Shared shape check: an absolute same-origin path and nothing else.
+ *
+ *   "/dashboard/jobs?x=1"  -> true
+ *   "https://evil.example" -> false, no leading slash
+ *   "//evil.example"       -> false, protocol-relative URL
+ *   "/\\evil.example"      -> false, backslash is treated as a slash by some
+ *                            browsers
+ */
+function isSameOriginPath(value: string): boolean {
+  if (!value.startsWith("/")) return false;
+  if (value.startsWith("//") || value.startsWith("/\\")) return false;
+
+  return true;
 }

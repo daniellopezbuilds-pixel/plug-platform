@@ -13,87 +13,100 @@ const inputClass =
 
 const labelClass = "block text-sm text-gray-400 mb-1";
 
-/**
- * How long to wait for a recovery session before calling the link dead.
- *
- * The client parses the recovery token out of the URL asynchronously as it
- * initialises (detectSessionInUrl), and that can finish after this component
- * mounts. Deciding too early would show "link expired" on a link that was
- * about to work.
- */
-const SESSION_SETTLE_MS = 2500;
-
 type Status = "checking" | "ready" | "invalid";
+
+/**
+ * Whether the link in the address bar is one of the old implicit-flow ones.
+ *
+ * Remove this and the branch that sets it once the hour-long window of
+ * pre-migration links has passed — see the effect below.
+ */
+type LinkVintage = "current" | "pre-migration";
+
+/**
+ * Works out what the link in the address bar is worth, in one place.
+ *
+ * Kept out of the component because it is a decision about the URL and the
+ * session, not about rendering — the component's job is to show whichever of
+ * the three answers comes back.
+ */
+async function resolveLink(): Promise<{
+  status: Exclude<Status, "checking">;
+  vintage: LinkVintage;
+}> {
+  // A dead link arrives here with ?error= from the callback, rather than being
+  // dropped on a page that waits for a session it already knows is not coming.
+  if (new URLSearchParams(window.location.search).get("error")) {
+    return { status: "invalid", vintage: "current" };
+  }
+
+  /**
+   * Links sent before cookie-backed sessions shipped.
+   *
+   * Those were issued under the implicit flow and arrive as
+   * #access_token=...&type=recovery. The client is PKCE now, and auth-js rejects
+   * the mismatch outright instead of parsing the fragment
+   * (AuthPKCEGrantCodeExchangeError, "Not a valid PKCE flow url"), so no session
+   * appears and the generic expired screen would be what the user gets.
+   *
+   * That screen would be true but misleading: the link is not expired, it was
+   * issued by a version of the app that no longer exists, and the user may have
+   * requested it sixty seconds ago. Recovery tokens live one hour
+   * (auth.otp_expiry), so this branch is reachable for one hour after deploy and
+   * never again. Delete it then, along with LinkVintage.
+   */
+  const hash = window.location.hash;
+  if (hash.includes("access_token") || hash.includes("type=recovery")) {
+    return { status: "invalid", vintage: "pre-migration" };
+  }
+
+  // Past the callback there either is a session cookie or there is not. No
+  // fragment to wait for, so one question settles it.
+  const { data, error } = await supabase.auth.getUser();
+
+  return {
+    status: error || !data.user ? "invalid" : "ready",
+    vintage: "current",
+  };
+}
 
 export default function ResetPasswordPage() {
   const router = useRouter();
 
   const [status, setStatus] = useState<Status>("checking");
+  const [vintage, setVintage] = useState<LinkVintage>("current");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Establishing the recovery session.
+   * Deciding whether there is a recovery session to work with.
    *
-   * The reset link lands here as a URL fragment, not a query string:
-   * lib/supabase.tsx uses plain createClient, whose default flowType is
-   * 'implicit', so the token arrives as #access_token=...&type=recovery rather
-   * than as ?code=. There is nothing to exchange — the client picks the
-   * fragment up itself. (Moving to @supabase/ssr would switch this to PKCE and
-   * a ?code= exchange; this page would need rewriting at that point.)
+   * This used to be the hard part of the page. The token arrived as a URL
+   * fragment, the client parsed it asynchronously AFTER this component mounted,
+   * and the page had to resolve three ways — an auth event, a session that had
+   * already been parsed before the effect ran, or a 2.5s timeout deciding the
+   * link was dead — because subscribing alone hung on "checking" and deciding
+   * early showed "expired" on a link that was about to work.
    *
-   * Three ways this resolves, and all three have to be handled or the page
-   * goes blank on a bad link:
-   *
-   *   1. onAuthStateChange fires with a session — the normal path.
-   *   2. getSession() already has one, because the client finished parsing
-   *      before this effect ran. Subscribing alone would miss this and hang.
-   *   3. Neither happens inside SESSION_SETTLE_MS — expired link, already-used
-   *      link, or someone opening /reset-password directly.
+   * All of that is gone. app/auth/callback/route.tsx verifies the token and
+   * writes the session cookie before this page is requested at all, so by the
+   * time this effect runs the answer already exists and one getUser() settles
+   * it. The race had no winner worth keeping.
    */
   useEffect(() => {
-    let settled = false;
+    let active = true;
 
-    // Read before anything else: the client strips the fragment once it has
-    // parsed it. On failure Supabase sends #error=access_denied&
-    // error_code=otp_expired&error_description=..., which is the difference
-    // between "this link is expired" and "we have no idea what happened".
-    const params = new URLSearchParams(
-      window.location.hash.replace(/^#/, "")
-    );
-    const linkError = params.get("error_description");
+    resolveLink().then((resolved) => {
+      if (!active) return;
 
-    function markReady() {
-      if (settled) return;
-      settled = true;
-      setStatus("ready");
-    }
-
-    const { data: subscription } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        // Guarded on session rather than the event name: INITIAL_SESSION fires
-        // immediately with null, and treating that as an answer would race the
-        // fragment parse.
-        if (session) markReady();
-      }
-    );
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) markReady();
+      setVintage(resolved.vintage);
+      setStatus(resolved.status);
     });
 
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      setStatus("invalid");
-      if (linkError) setError(linkError);
-    }, SESSION_SETTLE_MS);
-
     return () => {
-      subscription.subscription.unsubscribe();
-      clearTimeout(timer);
+      active = false;
     };
   }, []);
 
@@ -113,10 +126,10 @@ export default function ResetPasswordPage() {
     setSubmitting(false);
 
     if (updateError) {
-      // A recovery token that was already spent fails here rather than at
-      // session setup, so this path needs the same dead-link treatment as the
-      // timeout above — otherwise the user is left staring at a raw
-      // "Auth session missing!" with nowhere to go.
+      // A recovery token that was already spent fails here rather than in the
+      // callback, so this path needs the same dead-link treatment as a bad link
+      // — otherwise the user is left staring at a raw "Auth session missing!"
+      // with nowhere to go.
       if (/session|token|expired|jwt/i.test(updateError.message)) {
         setStatus("invalid");
         setError(null);
@@ -157,16 +170,27 @@ export default function ResetPasswordPage() {
 
           {status === "invalid" && (
             <>
-              <h2 className="text-lg font-semibold mb-1">This link has expired</h2>
-              <p className="text-sm text-gray-400 mb-5">
-                Password reset links can only be used once, and they expire after
-                a while. Request a new one and it&apos;ll work.
-              </p>
-
-              {error && (
-                <p className="text-sm text-gray-400 bg-zinc-900 border border-zinc-800 rounded-lg p-3 mb-5">
-                  {error}
-                </p>
+              {vintage === "pre-migration" ? (
+                <>
+                  <h2 className="text-lg font-semibold mb-1">
+                    This link needs replacing
+                  </h2>
+                  <p className="text-sm text-gray-400 mb-5">
+                    It was sent by an earlier version of the site and can&apos;t
+                    be used any more, even if you only just received it. Request
+                    a new one and it&apos;ll work.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-lg font-semibold mb-1">
+                    This link has expired
+                  </h2>
+                  <p className="text-sm text-gray-400 mb-5">
+                    Password reset links can only be used once, and they expire
+                    after a while. Request a new one and it&apos;ll work.
+                  </p>
+                </>
               )}
 
               <Link

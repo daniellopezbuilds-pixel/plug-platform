@@ -24,6 +24,42 @@ export type SignupField = {
   rows?: number;
 };
 
+/**
+ * Length caps on signup fields, and why they are not cosmetic.
+ *
+ * Everything collected here is written into raw_user_meta_data. Supabase puts
+ * user_metadata into the access token, the access token lives in the session
+ * cookie, and that cookie is sent on EVERY request to this app. So a paragraph
+ * typed into "Additional information" does not just sit in a column — it
+ * inflates the headers of every page load and every query that user ever makes,
+ * and a long enough one pushes past proxy and server header limits, at which
+ * point their session stops working in ways that look nothing like a too-long
+ * textarea.
+ *
+ * Before cookie-backed sessions this was invisible, which is precisely why it
+ * needed fixing at the same time rather than being left to turn up in
+ * production.
+ *
+ * Note what does NOT fix this: @supabase/ssr's `encode: 'tokens-only'`, which
+ * keeps the user object out of the cookie. The access token still carries
+ * user_metadata, so that option halves the size without addressing the cause.
+ * Capping the input does.
+ *
+ * Enforced in two places, because maxLength on an input is a hint: the form
+ * sets it for feedback, and collectFields() in app/signup/page.tsx truncates
+ * before submit. Neither stops a determined user from writing their own
+ * user_metadata — updateUser is a public API and that metadata is
+ * client-writable by design — but a user who inflates their own cookie only
+ * breaks their own session. The caps exist for the honest user with a lot to
+ * say.
+ */
+export const MAX_FIELD_LENGTH = 120;
+export const MAX_TEXTAREA_LENGTH = 400;
+
+export function maxLengthFor(field: SignupField): number {
+  return field.type === "textarea" ? MAX_TEXTAREA_LENGTH : MAX_FIELD_LENGTH;
+}
+
 export type SignupType = {
   key: SignupTypeKey;
   label: string;

@@ -66,9 +66,18 @@ export default function ForgotPasswordPage() {
 
     setSubmitting(true);
 
+    // Points at the callback, not at /reset-password directly. The emailed link
+    // carries a token that has to be verified and turned into a session cookie
+    // before any page can offer a password form, and that happens server-side
+    // in app/auth/callback/route.tsx. ?next= is where the callback sends the
+    // user once it has — validated there by safeAuthNext.
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
-      { redirectTo: `${window.location.origin}/reset-password` }
+      {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+          "/reset-password"
+        )}`,
+      }
     );
 
     setSubmitting(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -12,6 +12,18 @@ const inputClass =
 
 const labelClass = "block text-sm text-gray-400 mb-1";
 
+/**
+ * Shown when app/auth/callback/route.tsx sends a dead link here — an expired
+ * signup confirmation, or a stale email-change link. Without it those users land
+ * on a bare login form with no idea why they were not signed in, which is the
+ * dead end AuthGuard was built to remove from the dashboard.
+ *
+ * Deliberately vague about which link failed: the user has one, and "request a
+ * new one" is the same answer either way.
+ */
+const LINK_INVALID_MESSAGE =
+  "That link has expired or has already been used. Log in, or request a new one.";
+
 export default function LoginPage() {
   const router = useRouter();
 
@@ -19,6 +31,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("error")) {
+      setNotice(LINK_INVALID_MESSAGE);
+    }
+  }, []);
 
   /**
    * Where AuthGuard bounced this visitor from, if it did.
@@ -84,6 +103,12 @@ export default function LoginPage() {
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
           <h2 className="text-lg font-semibold mb-5">Log in</h2>
+
+          {notice && (
+            <p className="text-sm text-gray-400 bg-zinc-900 border border-zinc-800 rounded-lg p-3 mb-5">
+              {notice}
+            </p>
+          )}
 
           <div className="space-y-3">
             <div>
