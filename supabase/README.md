@@ -46,6 +46,7 @@ every push; `db push` names no environment in its output.
 | `20260910120000_fix_generate_profile_number_search_path.sql` | Run by hand during the incident | Idempotent — push it to record it |
 | `20260910130000_pin_search_path_baseline_functions.sql` | **Not applied** | The other nine unpinned functions. Not urgent |
 | `20260915120000_ad_payment_columns.sql` | **Not applied** | `duration_months` + `stripe_session_id` on `sponsored_listings`, for the brand ad checkout. Fully additive; blocks the flow until pushed |
+| `20260916120000_ad_events.sql` | **Not applied** | New `ad_events` table — impression/click capture. New table only, touches nothing existing. Until pushed, every write is a silently swallowed 404 |
 
 **Incident 2026-09-10.** `20260909120000` pinned `handle_new_user()` to an empty
 `search_path`. Its own references were all qualified, but the

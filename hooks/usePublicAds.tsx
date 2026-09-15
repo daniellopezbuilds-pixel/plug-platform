@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { recordAdImpression } from "@/lib/adEvents";
 
 export type PublicAd = {
   id: string;
@@ -114,9 +115,38 @@ export function usePublicAds(placement: "jobs_board" | "marketplace" | "feed") {
     return () => clearInterval(timer);
   }, [ads.length, reducedMotion, paused]);
 
+  const currentAd = ads[index] ?? null;
+
+  /**
+   * Log an impression whenever a different ad takes the slot — the first one
+   * after loading, each rotation, and each pick from the dots.
+   *
+   * Here rather than in SponsoredRail or the three pages, for the same reason
+   * the rotation lives here: this is the one place that knows which ad is
+   * currently on screen, so the surfaces cannot drift apart in what they count.
+   *
+   * The ref makes this fire on CHANGE rather than on render. Two things would
+   * otherwise double-count: any re-render of a consumer, and React Strict Mode,
+   * which invokes effects twice in development. Rotation never yields the same
+   * id twice in a row — with fewer than two ads there is no rotation at all —
+   * so "same id as last time" only ever means a repeat, never a genuine second
+   * showing.
+   *
+   * Capture only; nothing reads it. See lib/adEvents.tsx.
+   */
+  const lastLoggedAdId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!currentAd) return;
+    if (lastLoggedAdId.current === currentAd.id) return;
+
+    lastLoggedAdId.current = currentAd.id;
+    recordAdImpression(currentAd.id);
+  }, [currentAd]);
+
   return {
     ads,
-    ad: ads[index] ?? null,
+    ad: currentAd,
     adIndex: index,
     adCount: ads.length,
     selectAd,

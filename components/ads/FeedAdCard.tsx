@@ -3,6 +3,7 @@
 import { getAdPublicUrl } from "@/lib/ads";
 import type { PublicAd } from "@/hooks/usePublicAds";
 import { AdRotationDots } from "@/components/ads/AdRotationDots";
+import { recordAdClick } from "@/lib/adEvents";
 
 export function FeedAdCard({
   ad,
@@ -39,7 +40,16 @@ export function FeedAdCard({
   return (
     <div className="max-w-[728px]">
       {ad.link_url ? (
-        <a href={ad.link_url} target="_blank" rel="noopener noreferrer">
+        // onClick, not onAuxClick or a navigation interceptor: the link opens
+        // in a new tab, so nothing is cancelled and nothing needs delaying.
+        // recordAdClick flushes immediately rather than batching. Capture only
+        // — see lib/adEvents.tsx.
+        <a
+          href={ad.link_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => recordAdClick(ad.id)}
+        >
           {content}
         </a>
       ) : (
