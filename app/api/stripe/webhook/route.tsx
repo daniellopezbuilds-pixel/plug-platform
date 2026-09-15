@@ -47,7 +47,71 @@ export async function POST(req: NextRequest) {
     const session = event.data.object as any;
     const type = session.metadata?.type;
 
-    if (type === "group_join") {
+    // Dispatch is on an explicit list, and anything unrecognised is logged
+    // rather than handled. It used to be `if (group_join) … else → messaging
+    // subscription`, which meant the subscription branch was also the default:
+    // the first new checkout type added anywhere would have silently granted a
+    // messaging subscription to whoever paid for something else. The messaging
+    // route sets no `type` at all, so undefined is its marker and has to stay
+    // spelled out here rather than being whatever is left over.
+    if (type === "ad_payment") {
+      const listingId = session.metadata?.listing_id;
+
+      if (!listingId) {
+        console.error(
+          "Stripe ad_payment event is missing listing_id metadata:",
+          session.id
+        );
+      } else {
+        // amount_total is what Stripe actually collected, in cents. Writing
+        // that rather than recomputing the rate x months makes amount_charged a
+        // receipt instead of a second opinion — if the two ever disagree, the
+        // card statement wins, and this is the number an admin reads at review.
+        const amountCharged =
+          typeof session.amount_total === "number"
+            ? session.amount_total / 100
+            : null;
+
+        const { data, error } = await supabaseAdmin
+          .from("sponsored_listings")
+          .update({
+            payment_status: "paid",
+            status: "pending",
+            is_paid_ad: true,
+            amount_charged: amountCharged,
+            stripe_session_id: session.id,
+          })
+          .eq("id", listingId)
+          // Only an unpaid row is advanced. Stripe redelivers events, and a
+          // replay days later must not drag an approved or rejected campaign
+          // back to 'pending' — which the status write above would otherwise
+          // do. A redelivery of an already-processed event therefore matches
+          // nothing, which is the correct outcome and is not an error.
+          .eq("payment_status", "unpaid")
+          .select("id");
+
+        if (error) {
+          // Paid and not marked. Logged with the Stripe session id so it can be
+          // reconciled by hand.
+          console.error(
+            "PAID BUT NOT MARKED — ad payment write failed:",
+            JSON.stringify({
+              sessionId: session.id,
+              listingId,
+              error: error.message,
+            })
+          );
+        } else if (!data || data.length === 0) {
+          // Either a redelivery (fine) or a listing that vanished (not fine),
+          // and this cannot tell them apart. Logged at a lower key than the
+          // failure above for that reason.
+          console.warn(
+            "Ad payment matched no unpaid listing — already processed, or the row is gone:",
+            JSON.stringify({ sessionId: session.id, listingId })
+          );
+        }
+      }
+    } else if (type === "group_join") {
       const userId = session.metadata?.user_id;
       const conversationId = session.metadata?.conversation_id;
 
@@ -77,8 +141,11 @@ export async function POST(req: NextRequest) {
           );
         }
       }
-    } else {
-      // Messaging subscription.
+    } else if (type === undefined) {
+      // Messaging subscription. /api/stripe/checkout sets no `type`, so the
+      // absence of one is its marker — matched explicitly rather than by
+      // falling through, so a future checkout route that forgets its `type`
+      // lands in the warning below instead of granting a subscription.
       const userId = session.metadata?.user_id;
 
       if (!userId) {
@@ -99,6 +166,13 @@ export async function POST(req: NextRequest) {
           );
         }
       }
+    } else {
+      // A completed payment nobody here knows what to do with. Money has
+      // changed hands, so this is an error and not a shrug.
+      console.error(
+        "PAID BUT UNHANDLED — unknown checkout metadata type:",
+        JSON.stringify({ sessionId: session.id, type })
+      );
     }
   }
 

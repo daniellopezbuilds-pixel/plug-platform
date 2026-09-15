@@ -56,6 +56,12 @@ export function usePublicAds(placement: "jobs_board" | "marketplace" | "feed") {
         .eq("placement", placement)
         .eq("is_active", true)
         .eq("status", "approved")
+        // An unpaid campaign never renders. Belt and braces: a row whose
+        // checkout was abandoned is already is_active false and status
+        // 'pending', so it fails the two filters above as well. This one is
+        // here so the rule survives someone approving a row by hand in the SQL
+        // editor without noticing it was never paid for.
+        .neq("payment_status", "unpaid")
         .order("created_at", { ascending: false });
 
       if (error || !data) {
