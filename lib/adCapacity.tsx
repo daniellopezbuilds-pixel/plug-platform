@@ -72,12 +72,25 @@ export async function countOverlappingAds(
  * The same count, packaged with the verdict.
  *
  * Note what this deliberately does not do: reserve anything. Two brands
- * checking out for the last slot at the same moment will both be told there is
- * room, and both will pay. At a cap of 5 on three surfaces, with every campaign
- * passing through human review before it runs, that is a reconciliation an
- * admin can make — and the alternative is a lock or an exclusion constraint
- * over a date range, which is a lot of machinery for a race nobody has lost
- * yet. Revisit when the surfaces are genuinely contended.
+ * checking out for the same window at the same moment are both told there is
+ * room, and both pay.
+ *
+ * AT A CAP OF ONE THAT IS NO LONGER AN EDGE CASE. Every sale is the last slot,
+ * so any two concurrent buyers of the same placement collide — and because
+ * countOverlappingAds excludes unpaid rows, a brand sitting on the Stripe page
+ * blocks nobody. The collision window is as long as the two checkouts overlap,
+ * which is minutes, not milliseconds.
+ *
+ * What keeps it survivable today: volume is zero, and every campaign passes
+ * through human review before it runs, so an admin sees both and refunds one.
+ * That is a reconciliation, not a fix, and it gets worse the moment two brands
+ * actually want the same surface.
+ *
+ * The fix, when it is wanted, is a soft reservation — let an unpaid row hold
+ * the slot for a short TTL and have this count it — rather than a lock or a
+ * date-range exclusion constraint. It is cheap, it matches how the rest of the
+ * flow already works, and it fails in the right direction: a stale reservation
+ * expires and the slot returns.
  */
 export async function checkAdCapacity(
   placement: AdPlacement,

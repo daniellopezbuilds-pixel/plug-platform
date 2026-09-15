@@ -30,11 +30,23 @@ export type AdDurationMonths = (typeof AD_DURATIONS_MONTHS)[number];
 /**
  * How many campaigns may hold one placement over any overlapping date window.
  *
- * Not a rendering limit — usePublicAds rotates through everything eligible.
- * It is an inventory limit: past this, a brand's ad is in the rotation so
- * rarely that selling another month of it would be dishonest.
+ * One: a placement is sold to a single advertiser for the dates it covers.
+ *
+ * THIS GATES SALES, NOT RENDERING, AND IT IS NOT A GUARANTEE OF EXCLUSIVITY.
+ * usePublicAds rotates through everything eligible, and two write paths insert
+ * listings without consulting this at all — the admin's direct create in
+ * hooks/useAds.tsx and the free request flow in hooks/useSubmitAdRequest.tsx.
+ * A paying brand can therefore still end up rotating against a house ad added
+ * afterwards. Do not call the spot "exclusive" in brand-facing copy until those
+ * two paths check capacity too.
+ *
+ * The corollary bites the other way as well. countOverlappingAds counts house
+ * ads (payment_status 'n/a') alongside paid ones, so at a cap of one, a single
+ * undated house ad — no start and no end, therefore overlapping every window —
+ * makes its placement permanently unsellable. Check for those first if nothing
+ * on a surface can be bought.
  */
-export const AD_PLACEMENT_CAP = 5;
+export const AD_PLACEMENT_CAP = 1;
 
 export function isAdPlacement(value: unknown): value is AdPlacement {
   return AD_PLACEMENTS.some((p) => p.value === value);

@@ -678,11 +678,15 @@ export default function BrandingDealsPage() {
                   <p className="font-semibold text-white mb-1">
                     This placement is fully booked
                   </p>
+                  {/* Deliberately says nothing about how many campaigns a
+                      placement holds. At a cap of one "its full 1 campaigns"
+                      is broken English, and any count at all implies the spot
+                      is shared. It is also cap-agnostic, so raising the cap
+                      later does not leave this sentence lying. */}
                   <p className="text-sm text-gray-400">
-                    {adPlacementLabel(placement)} is carrying its full{" "}
-                    {selectedCapacity?.cap} campaigns between {startDate} and{" "}
-                    {endDate}. Pick another placement, a later start date, or a
-                    shorter term.
+                    {adPlacementLabel(placement)} is already booked between{" "}
+                    {startDate} and {endDate}. Pick another placement, a later
+                    start date, or a shorter term.
                   </p>
                 </div>
               ) : (
