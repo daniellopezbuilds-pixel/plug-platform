@@ -8,6 +8,13 @@ export type PlacementCapacity = {
   taken: number;
   cap: number;
   full: boolean;
+  /**
+   * False when this placement has no Stripe Price configured — an operator
+   * problem, not a caller one. The form treats it like a fully-booked
+   * placement: the pay button is replaced rather than disabled, so nobody
+   * fills in a campaign that cannot be bought.
+   */
+  configured: boolean;
 };
 
 export type CapacityByPlacement = Record<string, PlacementCapacity>;

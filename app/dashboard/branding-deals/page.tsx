@@ -223,6 +223,18 @@ export default function BrandingDealsPage() {
   const selectedCapacity = capacity?.[placement] ?? null;
   const placementFull = selectedCapacity?.full ?? false;
 
+  /**
+   * The placement has no Stripe Price behind it, so checkout would 503.
+   *
+   * Only treated as unbuyable once the server has actually said so. Before the
+   * first capacity response `selectedCapacity` is null and this stays false —
+   * otherwise the form would flash "unavailable" on every load while the
+   * request is in flight, which is a worse lie than the one being fixed.
+   */
+  const placementUnconfigured = selectedCapacity
+    ? !selectedCapacity.configured
+    : false;
+
   // ---- Returning from Stripe --------------------------------------------
   //
   // window.location rather than useSearchParams: this is the only thing on the
@@ -335,10 +347,14 @@ export default function BrandingDealsPage() {
     if (fresh) {
       setCapacity(fresh);
 
-      if (fresh[placement]?.full) {
+      // Full, or not purchasable at all. Either way the pay button is about to
+      // be replaced by the panel that explains which, so no inline error is
+      // set — a red line under a button that is disappearing says less than the
+      // panel taking its place.
+      const state = fresh[placement];
+
+      if (state && (state.full || !state.configured)) {
         setUploading(false);
-        // No inline error: the pay button is about to be replaced by the
-        // fully-booked panel, which says more than a red line would.
         return;
       }
     } else if (freshError) {
@@ -478,14 +494,26 @@ export default function BrandingDealsPage() {
                     className={inputClass}
                   >
                     {AD_PLACEMENTS.map((p) => {
-                      const full = capacity?.[p.value]?.full ?? false;
+                      const state = capacity?.[p.value] ?? null;
+                      const full = state?.full ?? false;
+                      const unconfigured = state ? !state.configured : false;
                       return (
                         // Disabled rather than hidden: a brand should be able
                         // to see that the feed exists and is taken, not wonder
-                        // why the list is shorter than the rate card.
-                        <option key={p.value} value={p.value} disabled={full}>
+                        // why the list is shorter than the rate card. The same
+                        // goes for a placement with no price configured — a
+                        // silently shorter list looks like a product decision.
+                        <option
+                          key={p.value}
+                          value={p.value}
+                          disabled={full || unconfigured}
+                        >
                           {p.label} — {formatUsd(monthlyCentsFor(p.value))}/mo
-                          {full ? " — fully booked" : ""}
+                          {unconfigured
+                            ? " — unavailable"
+                            : full
+                            ? " — fully booked"
+                            : ""}
                         </option>
                       );
                     })}
@@ -629,10 +657,23 @@ export default function BrandingDealsPage() {
                 </p>
               )}
 
-              {/* The pay button is replaced outright when the placement is
-                  full, rather than being disabled beside an explanation. A
-                  greyed-out "Pay $299" invites a brand to keep clicking it. */}
-              {placementFull ? (
+              {/* The pay button is replaced outright when the campaign cannot
+                  be bought — whether because the placement is full or because
+                  it has no price configured — rather than being disabled beside
+                  an explanation. A greyed-out "Pay $299" invites a brand to
+                  keep clicking it. */}
+              {placementUnconfigured ? (
+                <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4">
+                  <p className="font-semibold text-white mb-1">
+                    {adPlacementLabel(placement)} is unavailable right now
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    This placement cannot be purchased at the moment. Nothing
+                    has been charged and nothing has been saved — try another
+                    placement, or check back shortly.
+                  </p>
+                </div>
+              ) : placementFull ? (
                 <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4">
                   <p className="font-semibold text-white mb-1">
                     This placement is fully booked

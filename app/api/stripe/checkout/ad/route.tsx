@@ -10,6 +10,7 @@ import {
   type AdPlacement,
 } from "@/lib/adPricing";
 import { checkAdCapacity } from "@/lib/adCapacity";
+import { adPriceIdFor } from "@/lib/adPriceIds";
 
 /**
  * Brand advertisement checkout.
@@ -41,18 +42,6 @@ import { checkAdCapacity } from "@/lib/adCapacity";
  * from a validated allow-list. group-checkout took a price from the body once
  * and it cost a one-cent exploit; see the header of lib/apiAuth.tsx.
  */
-
-/**
- * Explicit rather than a template-string lookup into process.env. Three named
- * reads can be grepped, and a missing one fails at the check below instead of
- * resolving to undefined through an expression nobody can search for.
- * Populated by scripts/create-ad-prices.mjs.
- */
-const PRICE_ID_BY_PLACEMENT: Record<AdPlacement, string | undefined> = {
-  feed: process.env.STRIPE_AD_PRICE_FEED,
-  jobs_board: process.env.STRIPE_AD_PRICE_JOBS_BOARD,
-  marketplace: process.env.STRIPE_AD_PRICE_MARKETPLACE,
-};
 
 const MAX_TITLE_LENGTH = 120;
 const MAX_CITY_LENGTH = 80;
@@ -161,7 +150,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const priceId = PRICE_ID_BY_PLACEMENT[listing.placement];
+    // Still checked here even though /api/ads/capacity reports configuration to
+    // the form and the pay button is replaced when a placement is unbuyable.
+    // That is a courtesy to the brand; this is the guarantee. Nothing stops a
+    // caller posting straight to this route.
+    const priceId = adPriceIdFor(listing.placement);
 
     if (!priceId) {
       // Misconfiguration, not a caller error. Fail loudly rather than reaching
@@ -282,6 +275,23 @@ async function createListing(
 
   if (!isAdDurationMonths(durationMonths)) {
     return { error: "Choose a run length of 1, 3 or 6 months.", status: 400 };
+  }
+
+  // Before the insert, not after. The price check further down used to be the
+  // first thing that noticed a missing STRIPE_AD_PRICE_* var, by which point
+  // this function had already written an unpaid row — so a misconfigured
+  // environment quietly accumulated orphaned campaigns, one per click, that
+  // their owners could see and could never pay for.
+  if (!adPriceIdFor(placement)) {
+    console.error(
+      "No Stripe price configured for placement '" +
+        placement +
+        "' — run scripts/create-ad-prices.mjs and set the STRIPE_AD_PRICE_* vars"
+    );
+    return {
+      error: "That placement is unavailable right now.",
+      status: 503,
+    };
   }
 
   const title = typeof body.title === "string" ? body.title.trim() : "";

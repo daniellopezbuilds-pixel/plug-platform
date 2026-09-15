@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/apiAuth";
 import { checkAdCapacity } from "@/lib/adCapacity";
+import { configuredPlacements } from "@/lib/adPriceIds";
 import {
   AD_PLACEMENTS,
   AD_PLACEMENT_CAP,
@@ -71,14 +72,27 @@ export async function GET(req: NextRequest) {
   }
 
   // Keyed by placement so the form can index straight into it.
-  const placements: Record<string, { taken: number; cap: number; full: boolean }> =
-    {};
+  // Whether a placement can be bought at all, which is a different question
+  // from whether it has room. A missing STRIPE_AD_PRICE_* var used to surface
+  // only as a 500 from the checkout route — after the brand had filled in the
+  // form and uploaded an image. Reporting it here lets the form replace the pay
+  // button up front, the same way it does for a fully-booked placement.
+  //
+  // Only a boolean crosses the wire. The price ids themselves stay server-side;
+  // see lib/adPriceIds.tsx.
+  const configured = configuredPlacements();
+
+  const placements: Record<
+    string,
+    { taken: number; cap: number; full: boolean; configured: boolean }
+  > = {};
 
   for (const { placement, capacity } of results) {
     placements[placement] = {
       taken: capacity!.count,
       cap: capacity!.cap,
       full: capacity!.full,
+      configured: configured[placement] ?? false,
     };
   }
 
@@ -86,6 +100,9 @@ export async function GET(req: NextRequest) {
     startDate: from,
     endDate,
     cap: AD_PLACEMENT_CAP,
+    // True when at least one placement is buyable. The form uses it to tell
+    // "this surface is sold out" apart from "advertising is switched off".
+    configured: Object.values(configured).some(Boolean),
     placements,
   });
 }
