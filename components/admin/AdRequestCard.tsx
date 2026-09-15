@@ -4,6 +4,7 @@ import { useState } from "react";
 import { getAdPublicUrl } from "@/lib/ads";
 import type { AdRequest } from "@/hooks/useAdRequests";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { adEndDate } from "@/lib/adPricing";
 
 export function AdRequestCard({
   request,
@@ -41,8 +42,33 @@ export function AdRequestCard({
   );
   const [submitting, setSubmitting] = useState(false);
 
+  /**
+   * A campaign that arrived through Stripe: the money is already taken and the
+   * term is already sold.
+   *
+   * Its payment fields stop being inputs here. An admin typing over
+   * amount_charged would be overwriting the figure the Stripe webhook wrote
+   * from what was actually collected, and switching payment_status back to
+   * unpaid would drop the campaign out of this very queue — the review list
+   * excludes unpaid rows — leaving a paid brand with no way to reach it and no
+   * trace of why.
+   *
+   * Dates stay half-editable. Review can take a day or two, so the start date
+   * is still movable, but the end date follows from it and the term that was
+   * bought rather than being typed. Someone who paid for three months gets
+   * three months whenever the campaign actually starts.
+   */
+  const isPrepaid =
+    request.source === "brand" &&
+    request.payment_status === "paid" &&
+    request.duration_months != null;
+
+  const effectiveEndDate = isPrepaid
+    ? adEndDate(startDate, request.duration_months as number)
+    : endDate;
+
   async function handleApprove() {
-    if (!startDate || !endDate) {
+    if (!startDate || !effectiveEndDate) {
       alert("Start and end dates are required.");
       return;
     }
@@ -51,10 +77,20 @@ export function AdRequestCard({
 
     const { error } = await onApprove(request.id, {
       start_date: startDate,
-      end_date: endDate,
-      is_paid_ad: isPaidAd,
-      payment_status: isPaidAd ? paymentStatus : "n/a",
-      amount_charged: isPaidAd && amountCharged ? parseFloat(amountCharged) : null,
+      end_date: effectiveEndDate,
+      // Approving a prepaid campaign must not restate what it cost. These are
+      // passed straight back so the update is a no-op on the payment columns.
+      is_paid_ad: isPrepaid ? true : isPaidAd,
+      payment_status: isPrepaid
+        ? request.payment_status
+        : isPaidAd
+        ? paymentStatus
+        : "n/a",
+      amount_charged: isPrepaid
+        ? request.amount_charged
+        : isPaidAd && amountCharged
+        ? parseFloat(amountCharged)
+        : null,
     });
 
     setSubmitting(false);
@@ -161,30 +197,59 @@ export function AdRequestCard({
         </div>
         <div>
           <label className="block text-xs text-gray-400 mb-1">End Date</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-base sm:text-sm"
-          />
+          {isPrepaid ? (
+            <p className="p-2.5 text-white text-base sm:text-sm">
+              {effectiveEndDate}
+              <span className="text-gray-400">
+                {" "}
+                — {request.duration_months} month
+                {request.duration_months === 1 ? "" : "s"} from the start date
+              </span>
+            </p>
+          ) : (
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-base sm:text-sm"
+            />
+          )}
         </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-4">
-        <button
-          type="button"
-          onClick={() => setIsPaidAd(!isPaidAd)}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
-            isPaidAd
-              ? "bg-transparent border-accent text-white"
-              : "bg-zinc-800 border-zinc-700 text-gray-400"
-          }`}
-        >
-          {isPaidAd ? "Paid Ad" : "House Ad (free)"}
-        </button>
-      </div>
+      {!isPrepaid && (
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            type="button"
+            onClick={() => setIsPaidAd(!isPaidAd)}
+            className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
+              isPaidAd
+                ? "bg-transparent border-accent text-white"
+                : "bg-zinc-800 border-zinc-700 text-gray-400"
+            }`}
+          >
+            {isPaidAd ? "Paid Ad" : "House Ad (free)"}
+          </button>
+        </div>
+      )}
 
-      {isPaidAd && (
+      {isPrepaid && (
+        <div className="mb-4 rounded-lg border border-green-800 bg-green-950/30 p-3">
+          <p className="text-xs font-semibold text-green-400 mb-1">
+            Paid through Stripe
+          </p>
+          <p className="text-xs text-gray-300">
+            {request.amount_charged != null
+              ? `$${Number(request.amount_charged).toLocaleString()}`
+              : "Amount not recorded"}{" "}
+            collected up front for {request.duration_months} month
+            {request.duration_months === 1 ? "" : "s"}. Rejecting this campaign
+            does not refund it — issue the refund in Stripe as well.
+          </p>
+        </div>
+      )}
+
+      {!isPrepaid && isPaidAd && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           <div>
             <label className="block text-xs text-gray-400 mb-1">Payment Status</label>

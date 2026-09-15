@@ -19,8 +19,13 @@ export type Ad = {
   start_date: string | null;
   end_date: string | null;
   is_paid_ad: boolean;
+  /** 'n/a' | 'unpaid' | 'paid' — CHECK-constrained. 'unpaid' means the brand
+   *  started checkout and never finished; such a row renders nowhere and is
+   *  not reviewable. */
   payment_status: string;
   amount_charged: number | null;
+  /** 1, 3 or 6 for a paid brand campaign; null for house and job ads. */
+  duration_months: number | null;
   submitted_by: string | null;
   created_at: string;
 };
@@ -152,51 +157,19 @@ export function useAds(filters?: {
   }
 
   /**
-   * Brand self-service submission, as opposed to createAd above which is the
-   * admin path and publishes immediately.
+   * There is deliberately no createBrandAd here any more.
    *
-   * Always lands as status 'pending' and is_active false: a brand ad is
-   * reviewed before it runs. usePublicAds filters on both, and RLS keeps
-   * pending rows away from anon, so nothing here renders until an admin
-   * approves it.
+   * A brand submission used to be a client insert with amount_charged computed
+   * in the browser from a daily budget the brand typed. Campaigns are now sold
+   * at flat monthly rates and paid for up front, so the row and the Stripe
+   * Checkout Session have to be created together, from the same numbers, by
+   * something the brand cannot edit. That is app/api/stripe/checkout/ad, and
+   * hooks/useAdCheckout.tsx is what the form calls.
+   *
+   * Do not reintroduce a client-side insert path for brand ads: it would create
+   * campaigns that no payment is attached to, and the admin queue filters on
+   * payment_status rather than on how a row arrived.
    */
-  async function createBrandAd(input: {
-    title: string;
-    image_path: string;
-    link_url: string;
-    placement: "jobs_board" | "marketplace" | "feed";
-    city: string;
-    start_date: string;
-    end_date: string;
-    daily_budget: number;
-    run_days: number;
-    submitted_by: string;
-  }) {
-    const { error } = await supabase.from("sponsored_listings").insert({
-      title: input.title,
-      image_path: input.image_path,
-      link_url: input.link_url || null,
-      placement: input.placement,
-      city: input.city,
-      source: "brand",
-      start_date: input.start_date,
-      end_date: input.end_date,
-      is_active: false,
-      status: "pending",
-      is_paid_ad: true,
-      payment_status: "unpaid",
-      // Matches the total shown on the form, which is rounded — charging a
-      // different figure to the one the brand agreed to would be worse than
-      // losing the fraction.
-      amount_charged: Math.round(input.daily_budget * input.run_days),
-      submitted_by: input.submitted_by,
-    });
-
-    if (error) return { error: error.message };
-
-    await load();
-    return { error: null };
-  }
 
   async function updateAd(
     id: string,
@@ -267,7 +240,6 @@ export function useAds(filters?: {
     hasMore,
     loadMore,
     createAd,
-    createBrandAd,
     updateAd,
     toggleActive,
     deleteAd,

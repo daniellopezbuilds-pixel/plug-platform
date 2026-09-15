@@ -17,7 +17,11 @@ export type AdRequest = {
   end_date: string | null;
   is_paid_ad: boolean;
   payment_status: string;
+  /** Written by the Stripe webhook from what was actually collected, so for a
+   *  brand campaign this is a receipt rather than a quote. */
   amount_charged: number | null;
+  /** 1, 3 or 6 for a paid brand campaign; null for house and job ads. */
+  duration_months: number | null;
   submitted_by: string;
   created_at: string;
   /** Embedded submitter, via the submitted_by foreign key. Null for house ads. */
@@ -39,6 +43,15 @@ export function useAdRequests() {
       // the wildcard stays as insurance against the next additive column.
       .select("*, profiles!submitted_by(full_name, profile_number)")
       .eq("status", "pending")
+      // An unpaid campaign never reaches review. A brand that starts checkout
+      // and closes the tab leaves a pending row behind; it is theirs to finish
+      // paying for (the resume button on /dashboard/branding-deals), not an
+      // admin's to approve.
+      //
+      // .neq rather than a paid-only filter on purpose: house ads and the free
+      // /dashboard/requests submissions carry payment_status 'n/a' and must
+      // still appear here.
+      .neq("payment_status", "unpaid")
       .order("created_at", { ascending: true });
 
     if (error || !data) {
