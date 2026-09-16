@@ -1,15 +1,15 @@
 -- =============================================================================
 -- Badge system v1: account type labels, three badges, and the review flow
 --
--- STATUS: NOT YET APPLIED. Staging first -- see the loop in CLAUDE.md, and run
--- `npm run db:linked` before every push.
+-- STATUS: APPLIED 2026-09-16, to staging and then production.
 --
--- HEADS UP: THREE earlier migrations are also unapplied -- 20260910130000
--- (search_path pinning), 20260915120000 (ad payment columns) and 20260916120000
--- (ad_events). `db push` applies everything pending, so pushing this pushes all
--- three as well, and 20260910120000 replays idempotently on top. Read their
--- headers first. If you want this one alone, push it on its own branch or
--- accept the other three going out together -- there is no partial push.
+-- THE FILE BELOW IS WHAT RAN. Do not edit it to add something that was left
+-- out -- the version is recorded as applied and will never run again, so an
+-- edit here changes no database and leaves this file describing a table it did
+-- not build. That already happened once: badges.icon was added to the create
+-- table in this file after it had been applied, which is why staging returned
+-- 400 on every badge query. The column now arrives in
+-- 20260916140000_badge_icons.sql, where it can actually run.
 --
 -- Spec: the badge plan agreed in the 2026-09-16 thread. There is no badge
 -- document in docs/ -- if one turns up, reconcile against it before pushing.

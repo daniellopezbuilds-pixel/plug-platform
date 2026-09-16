@@ -23,6 +23,7 @@ export type BadgeCatalogEntry = {
   label: string;
   description: string;
   category: string;
+  icon: string | null;
   requires_review: boolean;
 };
 
@@ -54,7 +55,7 @@ export function useMyBadges() {
     const [catalogResult, heldResult] = await Promise.all([
       supabase
         .from("badges")
-        .select("key, label, description, category, requires_review")
+        .select("key, label, description, category, icon, requires_review")
         .eq("active", true)
         .order("sort_order", { ascending: true }),
       supabase
