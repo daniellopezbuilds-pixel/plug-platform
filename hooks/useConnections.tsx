@@ -17,6 +17,7 @@ export type IncomingRequest = {
     full_name: string | null;
     profile_number: string | null;
     trade: string | null;
+    signup_type: string | null;
   } | null;
 };
 
@@ -74,7 +75,8 @@ export function useConnections() {
           id,
           full_name,
           profile_number,
-          trade
+          trade,
+          signup_type
         )
       `
       )

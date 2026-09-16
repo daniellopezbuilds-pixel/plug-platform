@@ -18,6 +18,7 @@ export type ApplicationWithJob = {
       full_name: string | null;
       company_logo_path: string | null;
       employer_verified: boolean | null;
+      signup_type: string | null;
     } | null;
   } | null;
 };
@@ -60,7 +61,8 @@ export function useApplications() {
           profiles (
             full_name,
             company_logo_path,
-            employer_verified
+            employer_verified,
+            signup_type
           )
         )
       `

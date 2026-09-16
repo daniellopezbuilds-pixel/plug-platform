@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "./StatusBadge";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { getBrandingPublicUrl } from "@/lib/branding";
+import { NameMeta } from "@/components/ui/NameMeta";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
 
 export function ApplicationCard({
@@ -39,6 +40,11 @@ export function ApplicationCard({
                 {employer.employer_verified && (
                   <span className="text-green-400 text-xs font-semibold">✓ Verified</span>
                 )}
+                <NameMeta
+                  profileId={job?.user_id}
+                  signupType={employer.signup_type}
+                  inline
+                />
               </p>
             )}
           </div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePostComments } from "@/hooks/usePostComments";
 import { InlineLoader } from "@/components/ui/Loading";
+import { NameMeta } from "@/components/ui/NameMeta";
 
 export function CommentSection({
   postId,
@@ -52,6 +53,11 @@ export function CommentSection({
                   >
                     {comment.author?.full_name || "User"}
                   </button>
+                  <NameMeta
+                    profileId={comment.author_id}
+                    signupType={comment.author?.signup_type}
+                    inline
+                  />
                   <span className="text-gray-300 text-sm">{comment.content}</span>
                 </div>
                 {isMe && (

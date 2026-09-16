@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/Card";
+import { NameMeta } from "@/components/ui/NameMeta";
 import type { IncomingRequest } from "@/hooks/useConnections";
 
 export function ConnectionRequestCard({
@@ -16,7 +17,13 @@ export function ConnectionRequestCard({
     <Card>
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-bold text-white">{requester?.full_name || "Unknown"}</h3>
+          <h3 className="font-bold text-white">
+            {requester?.full_name || "Unknown"}
+            <NameMeta
+              profileId={requester?.id}
+              signupType={requester?.signup_type}
+            />
+          </h3>
           <p className="text-gray-400 text-sm">
             {requester?.profile_number} {requester?.trade ? `• ${requester.trade}` : ""}
           </p>

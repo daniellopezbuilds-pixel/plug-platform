@@ -19,6 +19,7 @@ export type DirectoryProfile = {
   company_description: string | null;
   company_website: string | null;
   employer_verified: boolean | null;
+  signup_type: string | null;
 };
 
 export function useDirectory() {
@@ -42,7 +43,7 @@ export function useDirectory() {
     let query = supabase
       .from("profiles")
       .select(
-        "id, full_name, profile_number, trade, location, bio, union_status, union_verified, active_role, years_experience, resume_path, company_logo_path, company_description, company_website, employer_verified"
+        "id, full_name, profile_number, trade, location, bio, union_status, union_verified, active_role, years_experience, resume_path, company_logo_path, company_description, company_website, employer_verified, signup_type"
       );
 
     if (user) query = query.neq("id", user.id);

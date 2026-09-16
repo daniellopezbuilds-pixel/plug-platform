@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui/Card";
 import { UnionBadge } from "@/components/ui/UnionBadge";
 import { EmployerVerifiedBadge } from "@/components/ui/EmployerVerifiedBadge";
+import { NameMeta } from "@/components/ui/NameMeta";
 import { ReviewSummary } from "@/components/reviews/ReviewSummary";
 import { getResumeSignedUrl } from "@/lib/resume";
 import { getBrandingPublicUrl } from "@/lib/branding";
@@ -102,7 +103,10 @@ export function ProfileCard({
             />
           )}
           <div>
-            <h2 className="text-xl font-bold text-white">{profile.full_name || "Unnamed"}</h2>
+            <h2 className="text-xl font-bold text-white">
+              {profile.full_name || "Unnamed"}
+              <NameMeta profileId={profile.id} signupType={profile.signup_type} />
+            </h2>
             <p className="text-gray-400 text-sm">{profile.profile_number}</p>
           </div>
         </div>

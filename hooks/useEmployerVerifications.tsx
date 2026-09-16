@@ -8,6 +8,7 @@ export type PendingEmployer = {
   full_name: string | null;
   company_description: string | null;
   company_logo_path: string | null;
+  signup_type: string | null;
   document_id: string;
   document_label: string;
   document_path: string;
@@ -23,7 +24,7 @@ export function useEmployerVerifications() {
     const { data, error } = await supabase
       .from("employer_documents")
       .select(
-        "id, label, file_path, user_id, profiles!inner(id, full_name, company_description, company_logo_path, employer_verified)"
+        "id, label, file_path, user_id, profiles!inner(id, full_name, company_description, company_logo_path, employer_verified, signup_type)"
       )
       .eq("profiles.employer_verified", false)
       .order("created_at", { ascending: false });
@@ -39,6 +40,7 @@ export function useEmployerVerifications() {
       full_name: row.profiles.full_name,
       company_description: row.profiles.company_description,
       company_logo_path: row.profiles.company_logo_path,
+      signup_type: row.profiles.signup_type,
       document_id: row.id,
       document_label: row.label,
       document_path: row.file_path,

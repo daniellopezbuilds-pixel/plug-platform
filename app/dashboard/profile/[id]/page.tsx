@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { UnionBadge } from "@/components/ui/UnionBadge";
+import { NameMeta } from "@/components/ui/NameMeta";
 import { ReviewSummary } from "@/components/reviews/ReviewSummary";
 import { ReviewsList } from "@/components/reviews/ReviewsList";
 import { getBrandingPublicUrl } from "@/lib/branding";
@@ -24,6 +25,7 @@ export default function PublicProfilePage() {
   const [trade, setTrade] = useState("");
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
+  const [signupType, setSignupType] = useState<string | null>(null);
   const [unionStatus, setUnionStatus] = useState<string | null>(null);
   const [unionVerified, setUnionVerified] = useState(false);
   const [yearsExperience, setYearsExperience] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export default function PublicProfilePage() {
       setTrade(profile.trade || "");
       setBio(profile.bio || "");
       setLocation(profile.location || "");
+      setSignupType(profile.signup_type || null);
       setUnionStatus(profile.union_status || null);
       setUnionVerified(profile.union_verified || false);
       setYearsExperience(profile.years_experience?.toString() || null);
@@ -110,7 +113,14 @@ export default function PublicProfilePage() {
           />
         )}
         <div>
-          <h1 className="text-4xl font-bold text-white">{fullName || "User"}</h1>
+          <h1 className="text-4xl font-bold text-white">
+            {fullName || "User"}
+            <NameMeta
+              profileId={profileId}
+              signupType={signupType}
+              labelClassName="text-sm mt-1"
+            />
+          </h1>
           <p className="text-gray-400 text-sm mt-1">
             {profileNumber}
             {trade && ` · ${trade}`}

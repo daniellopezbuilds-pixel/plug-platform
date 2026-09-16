@@ -1,6 +1,7 @@
 "use client";
 
 import { UnionBadge } from "@/components/ui/UnionBadge";
+import { NameMeta } from "@/components/ui/NameMeta";
 import type { PendingUnionWorker } from "@/hooks/useUnionVerifications";
 
 export function UnionVerificationCard({
@@ -15,7 +16,10 @@ export function UnionVerificationCard({
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 flex items-center justify-between gap-4">
       <div>
-        <h3 className="text-white font-semibold">{worker.full_name || "Unnamed"}</h3>
+        <h3 className="text-white font-semibold">
+          {worker.full_name || "Unnamed"}
+          <NameMeta profileId={worker.id} signupType={worker.signup_type} />
+        </h3>
         <div className="flex items-center gap-2 mt-1">
           {worker.trade && <span className="text-gray-400 text-sm">{worker.trade}</span>}
           <UnionBadge status={worker.union_status} verified={false} />

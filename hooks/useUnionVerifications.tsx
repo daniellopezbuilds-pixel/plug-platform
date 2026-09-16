@@ -8,6 +8,7 @@ export type PendingUnionWorker = {
   full_name: string | null;
   trade: string | null;
   union_status: string;
+  signup_type: string | null;
 };
 
 export function useUnionVerifications() {
@@ -19,7 +20,7 @@ export function useUnionVerifications() {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, trade, union_status")
+      .select("id, full_name, trade, union_status, signup_type")
       .eq("union_verified", false)
       .not("union_status", "is", null);
 

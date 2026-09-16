@@ -8,7 +8,12 @@ export type Review = {
   rating: number;
   comment: string | null;
   created_at: string;
-  reviewer: { full_name: string | null; profile_number: string | null } | null;
+  reviewer: {
+    id: string;
+    full_name: string | null;
+    profile_number: string | null;
+    signup_type: string | null;
+  } | null;
 };
 
 export function useReviews(profileId: string | null) {
@@ -35,7 +40,7 @@ export function useReviews(profileId: string | null) {
         rating,
         comment,
         created_at,
-        reviewer:profiles!reviews_reviewer_id_fkey ( full_name, profile_number )
+        reviewer:profiles!reviews_reviewer_id_fkey ( id, full_name, profile_number, signup_type )
       `
       )
       .eq("reviewee_id", profileId)

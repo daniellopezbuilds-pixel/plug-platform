@@ -19,6 +19,7 @@ export type ApplicantWithJob = {
     union_verified: boolean | null;
     years_experience: number | null;
     resume_path: string | null;
+    signup_type: string | null;
   } | null;
 };
 
@@ -63,7 +64,8 @@ export function useApplicants() {
           union_status,
           union_verified,
           years_experience,
-          resume_path
+          resume_path,
+          signup_type
         )
       `
       )

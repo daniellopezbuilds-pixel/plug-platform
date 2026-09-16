@@ -25,7 +25,7 @@ export type AdRequest = {
   submitted_by: string;
   created_at: string;
   /** Embedded submitter, via the submitted_by foreign key. Null for house ads. */
-  profiles: { full_name: string | null; profile_number: string | null } | null;
+  profiles: { full_name: string | null; profile_number: string | null; signup_type: string | null } | null;
 };
 
 export function useAdRequests() {
@@ -41,7 +41,7 @@ export function useAdRequests() {
       // review_notes do now exist — the baseline confirms both — but naming
       // columns here 400s the whole admin tab the moment one is missing, so
       // the wildcard stays as insurance against the next additive column.
-      .select("*, profiles!submitted_by(full_name, profile_number)")
+      .select("*, profiles!submitted_by(full_name, profile_number, signup_type)")
       .eq("status", "pending")
       // An unpaid campaign never reaches review. A brand that starts checkout
       // and closes the tab leaves a pending row behind; it is theirs to finish

@@ -36,7 +36,7 @@ export type SignupType = {
 export const SIGNUP_TYPES: readonly SignupType[] = [
   {
     key: "c10",
-    label: "C-10 contractor",
+    label: "C-10 Contractor",
     description: "Licensed to contract — runs jobs and hires",
     fields: [
       { key: "license_number", label: "License number" },
@@ -55,7 +55,7 @@ export const SIGNUP_TYPES: readonly SignupType[] = [
   },
   {
     key: "instructor",
-    label: "Electrical instructor",
+    label: "Electrical Instructor",
     description: "Teaches or trains in the trade",
     fields: [
       { key: "certificate", label: "Certificate" },

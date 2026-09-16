@@ -5,6 +5,7 @@ import { getEmployerDocumentSignedUrl } from "@/lib/employerDocuments";
 import { getBrandingPublicUrl } from "@/lib/branding";
 import type { PendingEmployer } from "@/hooks/useEmployerVerifications";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { NameMeta } from "@/components/ui/NameMeta";
 
 export function EmployerVerificationCard({
   employer,
@@ -41,7 +42,10 @@ export function EmployerVerificationCard({
           />
         )}
         <div>
-          <h3 className="text-white font-semibold">{employer.full_name || "Unnamed"}</h3>
+          <h3 className="text-white font-semibold">
+            {employer.full_name || "Unnamed"}
+            <NameMeta profileId={employer.id} signupType={employer.signup_type} />
+          </h3>
           {employer.company_description && (
             <p className="text-gray-400 text-sm mt-1 max-w-md">{employer.company_description}</p>
           )}

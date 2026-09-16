@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ReactionBar } from "./ReactionBar";
 import { CommentSection } from "./CommentSection";
+import { NameMeta } from "@/components/ui/NameMeta";
 import type { Post } from "@/hooks/usePosts";
 import type { PostReactionSummary, ReactionType } from "@/hooks/usePostReactions";
 
@@ -35,6 +36,11 @@ export function PostCard({
           >
             {post.author?.full_name || "User"}
           </button>
+          <NameMeta
+            profileId={post.author_id}
+            signupType={post.author?.signup_type}
+            inline
+          />
           {post.author?.trade && (
             <span className="text-gray-400 font-normal text-sm"> · {post.author.trade}</span>
           )}

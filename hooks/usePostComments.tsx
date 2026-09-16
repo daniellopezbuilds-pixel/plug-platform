@@ -11,6 +11,7 @@ export type PostComment = {
   created_at: string;
   author: {
     full_name: string | null;
+    signup_type: string | null;
   } | null;
 };
 
@@ -23,7 +24,7 @@ export function usePostComments(postId: string) {
 
     const { data, error } = await supabase
       .from("post_comments")
-      .select("id, post_id, author_id, content, created_at, author:profiles(full_name)")
+      .select("id, post_id, author_id, content, created_at, author:profiles(full_name, signup_type)")
       .eq("post_id", postId)
       .order("created_at", { ascending: true });
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { UnionBadge } from "@/components/ui/UnionBadge";
+import { NameMeta } from "@/components/ui/NameMeta";
 import { ReviewSummary } from "@/components/reviews/ReviewSummary";
 import { ReviewsList } from "@/components/reviews/ReviewsList";
 import { getBrandingPublicUrl } from "@/lib/branding";
@@ -26,6 +27,7 @@ export function ProfilePreviewModal({
   const [trade, setTrade] = useState("");
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
+  const [signupType, setSignupType] = useState<string | null>(null);
   const [unionStatus, setUnionStatus] = useState<string | null>(null);
   const [unionVerified, setUnionVerified] = useState(false);
   const [yearsExperience, setYearsExperience] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export function ProfilePreviewModal({
       setTrade(profile.trade || "");
       setBio(profile.bio || "");
       setLocation(profile.location || "");
+      setSignupType(profile.signup_type || null);
       setUnionStatus(profile.union_status || null);
       setUnionVerified(profile.union_verified || false);
       setYearsExperience(profile.years_experience?.toString() || null);
@@ -104,7 +107,10 @@ export function ProfilePreviewModal({
                 />
               )}
               <div>
-                <h2 className="text-2xl font-bold text-white">{fullName || "User"}</h2>
+                <h2 className="text-2xl font-bold text-white">
+                  {fullName || "User"}
+                  <NameMeta profileId={userId} signupType={signupType} />
+                </h2>
                 <p className="text-gray-400 text-sm mt-1">
                   {profileNumber}
                   {trade && ` · ${trade}`}

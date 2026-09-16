@@ -15,6 +15,7 @@ export type Post = {
     full_name: string | null;
     trade: string | null;
     company_logo_path: string | null;
+    signup_type: string | null;
   } | null;
 };
 
@@ -35,7 +36,7 @@ export function usePosts() {
     const { data, error } = await supabase
       .from("posts")
       .select(
-        "id, author_id, post_type, content, job_title, job_location, created_at, author:profiles(full_name, trade, company_logo_path)"
+        "id, author_id, post_type, content, job_title, job_location, created_at, author:profiles(full_name, trade, company_logo_path, signup_type)"
       )
       .order("created_at", { ascending: false });
 

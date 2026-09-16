@@ -9,6 +9,7 @@ import { uploadResume, getResumeSignedUrl } from "@/lib/resume";
 import { uploadLogo, uploadBanner, getBrandingPublicUrl } from "@/lib/branding";
 import { uploadEmployerDocument, getEmployerDocumentSignedUrl } from "@/lib/employerDocuments";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
+import { BadgesSection } from "@/components/profile/BadgesSection";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import { SIGNUP_TYPES } from "@/lib/signupRoles";
@@ -569,6 +570,11 @@ export default function ProfilePage() {
           Save Profile
         </button>
       </div>
+
+      {/* Read-only, like Signup details above it: nothing here is user-editable.
+          Badges are awarded by the system or by an administrator, never by the
+          form that saves the profile. */}
+      <BadgesSection />
 
       {/* Outside the Save Profile block on purpose: it writes to auth, not to
           the profiles row, and has its own submit. */}

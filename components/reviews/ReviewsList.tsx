@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/Card";
+import { NameMeta } from "@/components/ui/NameMeta";
 import type { Review } from "@/hooks/useReviews";
 
 export function ReviewsList({ reviews }: { reviews: Review[] }) {
@@ -13,6 +14,10 @@ export function ReviewsList({ reviews }: { reviews: Review[] }) {
           <div className="flex items-center justify-between mb-2">
             <p className="font-semibold text-white text-sm">
               {review.reviewer?.full_name || "Unknown"}
+              <NameMeta
+                profileId={review.reviewer?.id}
+                signupType={review.reviewer?.signup_type}
+              />
             </p>
             <span className="text-white text-sm">
               {"★".repeat(review.rating)}

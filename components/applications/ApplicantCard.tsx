@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "./StatusBadge";
 import { UnionBadge } from "@/components/ui/UnionBadge";
+import { NameMeta } from "@/components/ui/NameMeta";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { getResumeSignedUrl } from "@/lib/resume";
 import type { ApplicantWithJob } from "@/hooks/useApplicants";
@@ -43,6 +44,10 @@ export function ApplicantCard({
         <div>
           <h2 className="text-xl font-bold text-white">
             {applicant.profiles?.full_name || "Unknown Worker"}
+            <NameMeta
+              profileId={applicant.worker_id}
+              signupType={applicant.profiles?.signup_type}
+            />
           </h2>
           <p className="text-gray-400 text-sm">
             {applicant.profiles?.profile_number || "SP-000000"}

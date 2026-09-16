@@ -4,6 +4,7 @@ import { useState } from "react";
 import { getAdPublicUrl } from "@/lib/ads";
 import type { AdRequest } from "@/hooks/useAdRequests";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { NameMeta } from "@/components/ui/NameMeta";
 import { adEndDate } from "@/lib/adPricing";
 
 export function AdRequestCard({
@@ -171,6 +172,11 @@ export function AdRequestCard({
           </p>
           <p className="text-gray-400 text-sm mt-1">
             {submitterName}
+            <NameMeta
+              profileId={request.submitted_by}
+              signupType={request.profiles?.signup_type}
+              inline
+            />
             {request.profiles?.profile_number
               ? ` (${request.profiles.profile_number})`
               : ""}
