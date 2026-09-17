@@ -4,6 +4,7 @@ import { NavLink } from "./NavLink";
 import { RoleSwitch } from "./RoleSwitch";
 import { NotificationBell } from "./NotificationBell";
 import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import type { Mode } from "@/lib/accountModes";
 import { signupTypeLabel } from "@/lib/signupRoles";
 
@@ -30,6 +31,17 @@ export function Sidebar({
   onClose: () => void;
 }) {
   const unreadCount = useUnreadMessagesCount();
+
+  // Renders the Admin entry, and nothing else. This is a convenience, NOT a
+  // boundary: the hook is a client-side read of is_admin and can be forced
+  // true in devtools. /dashboard/admin checks it again, and every admin table
+  // enforces is_admin in its own RLS, so a faked value buys the UI and no
+  // writes. A hidden link was never what was protecting anything.
+  //
+  // `loading` is deliberately not used to reserve space. Until the check
+  // resolves the entry is simply absent, which is what a non-admin sees
+  // permanently — no placeholder, no flash of a disabled item.
+  const { isAdmin } = useIsAdmin();
 
   // Brand accounts carry role 'employer' so the existing signup trigger works
   // unchanged, which means every activeRole branch below would otherwise show
@@ -165,6 +177,22 @@ export function Sidebar({
             </>
           )}
         </nav>
+
+        {/* Its own block below the nav rather than another item inside it, so
+            it reads as a separate area. Same divider treatment as the mode
+            switcher below, and the link itself is an ordinary NavLink, so the
+            active bar and tint match every other entry.
+
+            Outside <nav> rather than the last child of it because that list is
+            `space-y-*`, and a wrapper with its own margin-top there would be
+            fighting the generated one. */}
+        {isAdmin && (
+          <div className="mt-10 border-t border-zinc-800 pt-6">
+            <NavLink href="/dashboard/admin" onNavigate={onClose}>
+              Admin
+            </NavLink>
+          </div>
+        )}
 
         {!isBrand && modes.length > 1 && (
           <div className="mt-10 border-t border-zinc-800 pt-6">

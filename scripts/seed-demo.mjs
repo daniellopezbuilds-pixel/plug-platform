@@ -1023,6 +1023,25 @@ async function main() {
 
     if (error) die(`Creating ${account.email} failed: ${error.message}`);
 
+    // `email_confirm: true` above should make this non-null. Asserted rather
+    // than assumed, because the failure it guards against is silent and
+    // presents as something else entirely: the account is created, looks
+    // healthy in the dashboard, and then fails login with "Email or password
+    // is incorrect" — app/login/page.tsx collapses every auth error into that
+    // one sentence on purpose, so nothing anywhere points at confirmation.
+    // The last time this bit, it was diagnosed by hand and fixed with SQL.
+    //
+    // Cheap to check, and it fails on the first account rather than handing
+    // over six that cannot log in.
+    if (!data.user.email_confirmed_at) {
+      die(
+        `${account.email} was created without a confirmed email address.\n` +
+          "  email_confirm: true did not take effect. On a project with email\n" +
+          "  confirmation enabled this account cannot log in, and the login\n" +
+          "  screen will not tell you why."
+      );
+    }
+
     ids[account.key] = data.user.id;
     console.log(`  + ${account.email}`);
   }
