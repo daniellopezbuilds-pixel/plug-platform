@@ -16,6 +16,7 @@ import {
 import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, validatePassword } from "@/lib/passwords";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { GoogleButton, OrDivider } from "@/components/auth/GoogleButton";
+import { AuthLayout } from "@/components/auth/AuthLayout";
 import { ScreenLoader } from "@/components/ui/Loading";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 
@@ -464,17 +465,10 @@ export default function SignupPage() {
 
   if (confirmationSent) {
     return (
-      <main className="min-h-screen bg-black text-white flex items-center justify-center px-6 py-10">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold">
-              Sparx Plug <span className="text-accent-2-soft">Ecosystem</span>
-            </h1>
-            <p className="text-gray-400 text-sm mt-1">Connect. Build. Grow.</p>
-          </div>
-
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-            <h2 className="text-lg font-semibold mb-1">Check your email</h2>
+      <AuthLayout>
+        <>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 sm:p-8">
+            <h2 className="text-xl font-semibold mb-1">Check your email</h2>
             <p className="text-sm text-gray-400">
               We&apos;ve sent a confirmation link to{" "}
               <span className="text-white">{email.trim()}</span>. Click it to
@@ -489,14 +483,14 @@ export default function SignupPage() {
             </p>
           </div>
 
-          <p className="text-center text-sm text-gray-400 mt-5">
+          <p className="text-center text-sm text-gray-400 mt-6">
             Already confirmed?{" "}
             <Link href="/login" className="text-accent-2-soft hover:underline">
               Log in
             </Link>
           </p>
-        </div>
-      </main>
+        </>
+      </AuthLayout>
     );
   }
 
@@ -505,16 +499,9 @@ export default function SignupPage() {
   const activeType = chosenType ? signupTypeDefinition(chosenType) : null;
 
   return (
-    <main className="min-h-screen bg-black text-white flex items-center justify-center px-6 py-10">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold">
-            Sparx Plug <span className="text-accent-2-soft">Ecosystem</span>
-          </h1>
-          <p className="text-gray-400 text-sm mt-1">Connect. Build. Grow.</p>
-        </div>
-
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+    <AuthLayout>
+      <>
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 sm:p-8">
           {/* Progress */}
           <div className="mb-6">
             <div className="flex gap-1.5 mb-3">
@@ -528,8 +515,8 @@ export default function SignupPage() {
               ))}
             </div>
             <div className="flex items-baseline justify-between">
-              <h2 className="text-lg font-semibold">{stepTitles[currentStep]}</h2>
-              <span className="text-xs text-gray-400 shrink-0 ml-3">
+              <h2 className="text-xl font-semibold">{stepTitles[currentStep]}</h2>
+              <span className="text-xs text-gray-400 shrink-0 ml-3 font-technical">
                 {step + 1} of {steps.length}
               </span>
             </div>
@@ -768,7 +755,7 @@ export default function SignupPage() {
           </form>
         </div>
 
-        <p className="text-center text-sm text-gray-400 mt-5">
+        <p className="text-center text-sm text-gray-400 mt-6">
           Already have an account?{" "}
           <Link href="/login" className="text-accent-2-soft hover:underline">
             Log in
@@ -776,7 +763,7 @@ export default function SignupPage() {
         </p>
 
         <LegalLinks />
-      </div>
-    </main>
+      </>
+    </AuthLayout>
   );
 }

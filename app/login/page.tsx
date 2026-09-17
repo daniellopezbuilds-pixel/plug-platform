@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { DEFAULT_AFTER_LOGIN, safeReturnTo } from "@/lib/returnTo";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { GoogleButton, OrDivider } from "@/components/auth/GoogleButton";
+import { AuthLayout } from "@/components/auth/AuthLayout";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 
 const inputClass =
@@ -77,17 +78,17 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black text-white flex items-center justify-center px-6 py-10">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold">
-            Sparx Plug <span className="text-accent-2-soft">Ecosystem</span>
-          </h1>
-          <p className="text-gray-400 text-sm mt-1">Connect. Build. Grow.</p>
-        </div>
-
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-          <h2 className="text-lg font-semibold mb-5">Log in</h2>
+    <AuthLayout>
+      <>
+        {/* bg-zinc-950/80 rather than solid: the accent washes behind the shell
+            should read faintly through the card, or it sits on the background
+            instead of in it. p-8 from sm — the card reads small on a wide
+            screen at p-6, and the fields have not changed size. */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 sm:p-8">
+          <h2 className="text-xl font-semibold mb-1">Log in</h2>
+          <p className="text-sm text-gray-400 mb-6">
+            Welcome back. Pick up where you left off.
+          </p>
 
           {/* A real <form>, so Enter submits from ANY field.
               It used to be a bare <div> with an onKeyDown on the password
@@ -163,7 +164,7 @@ export default function LoginPage() {
           <GoogleButton redirectPath="/dashboard" onError={setError} />
         </div>
 
-        <p className="text-center text-sm text-gray-400 mt-5">
+        <p className="text-center text-sm text-gray-400 mt-6">
           Don&apos;t have an account?{" "}
           <Link href="/signup" className="text-accent-2-soft hover:underline">
             Sign up
@@ -171,7 +172,7 @@ export default function LoginPage() {
         </p>
 
         <LegalLinks />
-      </div>
-    </main>
+      </>
+    </AuthLayout>
   );
 }
