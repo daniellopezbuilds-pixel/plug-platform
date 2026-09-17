@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { isOnboarded } from "@/lib/onboarding";
 import { useActiveRole } from "@/hooks/useActiveRole";
 import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -26,9 +28,28 @@ export default function DashboardLayout({
 }
 
 function DashboardBody({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const { profile, loading, switchRole } = useActiveRole();
   const unreadCount = useUnreadMessagesCount();
   const [navOpen, setNavOpen] = useState(false);
+
+  // Onboarding gate. Google authenticates without onboarding: the signup
+  // trigger fires at the callback with metadata that has no signup_type, so the
+  // account arrives here as account_type 'individual' / role 'worker' with no
+  // account type of its own. Send it back to /signup to finish rather than
+  // letting it sit in a dashboard that is quietly wrong about who it belongs to.
+  //
+  // In an effect, not during render — a router call during render is a React
+  // error, and this only settles once `loading` is false.
+  //
+  // isOnboarded() is shared with /signup deliberately. That page redirects an
+  // onboarded session here, so if the two ever disagreed about one account it
+  // would bounce between them forever. Neither reimplements the check.
+  const needsOnboarding = !loading && !!profile && !isOnboarded(profile.signup_type);
+
+  useEffect(() => {
+    if (needsOnboarding) router.replace("/signup");
+  }, [needsOnboarding, router]);
 
   // Closing on navigation is handled by the nav links themselves (they call
   // onClose), not by watching the pathname here — an effect that setStates
@@ -62,6 +83,16 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return <ScreenLoader message="Loading your dashboard" />;
+  }
+
+  // Ordered after `loading` and before the `!profile` failure branch below on
+  // purpose: a profile that exists but has no account type is not an error, and
+  // showing the "we couldn't load your profile" screen to someone who simply
+  // has not finished signing up would be wrong. Renders a loader rather than
+  // the dashboard so no page query fires for someone about to leave — the same
+  // reasoning as AuthGuard rendering nothing until its check resolves.
+  if (needsOnboarding) {
+    return <ScreenLoader message="Finishing your account setup" />;
   }
 
   // Past AuthGuard there is definitely a signed-in user, so a missing profile

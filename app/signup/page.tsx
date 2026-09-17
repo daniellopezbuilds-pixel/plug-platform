@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { isOnboarded, resolveSignupType } from "@/lib/onboarding";
 import {
   SIGNUP_TYPES,
   accountTypeFor,
@@ -14,14 +15,55 @@ import {
 } from "@/lib/signupRoles";
 import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, validatePassword } from "@/lib/passwords";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { GoogleButton, OrDivider } from "@/components/auth/GoogleButton";
+import { ScreenLoader } from "@/components/ui/Loading";
+import { LegalLinks } from "@/components/legal/LegalLinks";
 
-const STEP_COUNT = 3;
+/**
+ * The steps, by name rather than by number.
+ *
+ * This used to be `STEP_COUNT = 3` with a bare index, and every check read
+ * `step === 1`. Google signup skips the middle step — name and email come from
+ * Google and there is no password to set — so an index-based model would mean
+ * "if google, skip 1" scattered across validation, the progress bar and the
+ * submit branch, each an opportunity to forget. Keying on the id instead means
+ * the shortened flow is one shorter array and the count, the labels and
+ * "am I on the last step" all follow from it.
+ */
+type StepId = "type" | "details" | "credentials";
+
+const EMAIL_STEPS: readonly StepId[] = ["type", "details", "credentials"];
+const GOOGLE_STEPS: readonly StepId[] = ["type", "credentials"];
+
+/**
+ * How a visitor arrived, which decides which steps run.
+ *
+ * "checking" is not a spinner for its own sake: an OAuth return lands here with
+ * the session in the URL fragment, and the client parses that asynchronously.
+ * Rendering the email form before that settles would flash the full three-step
+ * signup at someone who just authenticated with Google.
+ */
+type Mode = "checking" | "email" | "google";
+
+/**
+ * Matches app/reset-password/page.tsx, the other page that receives an implicit
+ * -flow fragment. Long enough for the client to parse and emit, short enough
+ * that someone opening /signup directly is not left waiting.
+ */
+const SESSION_SETTLE_MS = 2500;
 
 const inputClass =
   "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
 
 export default function SignupPage() {
   const router = useRouter();
+
+  const [mode, setMode] = useState<Mode>("checking");
+  /** Read-only, straight from the Google identity. Display only. */
+  const [googleIdentity, setGoogleIdentity] = useState<{
+    name: string;
+    email: string;
+  } | null>(null);
 
   const [step, setStep] = useState(0);
 
@@ -45,13 +87,108 @@ export default function SignupPage() {
 
   const isBrand = chosenType === "brand";
 
-  const stepTitles = [
-    "What best describes you?",
-    // A brand account is an organisation; step 2 collects the person who runs
-    // it, not the account holder's own identity.
-    isBrand ? "Who's managing this account?" : "Your details",
-    isBrand ? "About your brand" : "Your credentials",
-  ];
+  const steps = mode === "google" ? GOOGLE_STEPS : EMAIL_STEPS;
+  const currentStep = steps[step];
+
+  /**
+   * Resolving how this page was reached.
+   *
+   * Three outcomes, and all three have to be handled or an OAuth return either
+   * hangs or shows the wrong form:
+   *
+   *   1. No session — an ordinary visitor. The full email flow, unchanged.
+   *   2. A session with a signup_type — already onboarded. Nothing to do here,
+   *      so send them on. This is also what catches a returning Google user who
+   *      clicked the button on this page rather than on /login.
+   *   3. A session without one — authenticated with Google but never onboarded.
+   *      The shortened flow.
+   *
+   * The same three-way settle as app/reset-password/page.tsx, and for the same
+   * reason: lib/supabase.tsx is a bare createClient, so flowType is 'implicit'
+   * and the tokens arrive in the URL fragment. detectSessionInUrl parses it, but
+   * asynchronously — subscribing alone misses a session that was already parsed
+   * before this effect ran, and getSession alone races the parse. The timeout is
+   * what stops a visitor with no session waiting forever for an event that is
+   * never coming.
+   */
+  useEffect(() => {
+    let settled = false;
+
+    async function resolve(hasSession: boolean) {
+      if (settled) return;
+      settled = true;
+
+      if (!hasSession) {
+        setMode("email");
+        return;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setMode("email");
+        return;
+      }
+
+      // Both sources, same resolver the dashboard gate uses. If these two
+      // disagreed about one account it would bounce between the two pages.
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("signup_type")
+        .eq("id", user.id)
+        .single();
+
+      if (
+        isOnboarded(
+          resolveSignupType(user.user_metadata?.signup_type, profileRow?.signup_type)
+        )
+      ) {
+        router.replace("/dashboard");
+        return;
+      }
+
+      setGoogleIdentity({
+        name:
+          typeof user.user_metadata?.full_name === "string"
+            ? user.user_metadata.full_name
+            : typeof user.user_metadata?.name === "string"
+            ? user.user_metadata.name
+            : "",
+        email: user.email ?? "",
+      });
+      setMode("google");
+    }
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        // Guarded on the session, not the event name: INITIAL_SESSION fires
+        // immediately with null and treating that as an answer would race the
+        // fragment parse.
+        if (session) resolve(true);
+      }
+    );
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) resolve(true);
+    });
+
+    const timer = setTimeout(() => resolve(false), SESSION_SETTLE_MS);
+
+    return () => {
+      subscription.subscription.unsubscribe();
+      clearTimeout(timer);
+    };
+  }, [router]);
+
+  const stepTitles: Record<StepId, string> = {
+    type: "What best describes you?",
+    // A brand account is an organisation; this step collects the person who
+    // runs it, not the account holder's own identity.
+    details: isBrand ? "Who's managing this account?" : "Your details",
+    credentials: isBrand ? "About your brand" : "Your credentials",
+  };
 
   function setField(key: string, value: string) {
     setFieldValues((prev) => ({ ...prev, [key]: value }));
@@ -83,12 +220,12 @@ export default function SignupPage() {
   function goNext() {
     setError(null);
 
-    if (step === 0 && !chosenType) {
+    if (currentStep === "type" && !chosenType) {
       setError("Please choose one to continue.");
       return;
     }
 
-    if (step === 1) {
+    if (currentStep === "details") {
       if (!firstName.trim() || !lastName.trim()) {
         setError("Please enter your first and last name.");
         return;
@@ -109,7 +246,7 @@ export default function SignupPage() {
       }
     }
 
-    setStep((s) => Math.min(STEP_COUNT - 1, s + 1));
+    setStep((s) => Math.min(steps.length - 1, s + 1));
   }
 
   /**
@@ -124,11 +261,110 @@ export default function SignupPage() {
     e.preventDefault();
 
     if (isLastStep) {
-      handleSignup();
+      // Two different write paths, and they are not variations on each other.
+      // The email flow creates the auth user; the Google one already has one,
+      // created by the callback, and is filling in what Google could not tell
+      // us. See handleCompleteOAuth.
+      if (mode === "google") {
+        handleCompleteOAuth();
+      } else {
+        handleSignup();
+      }
       return;
     }
 
     goNext();
+  }
+
+  /**
+   * Finishes onboarding for an account that already exists because Google
+   * created it.
+   *
+   * NOT signUp. The auth user and its profiles row were both made at the
+   * callback, by on_auth_user_created firing with Google's metadata — which
+   * carries no signup_type, so the row landed as a plain 'individual'/'worker'.
+   * There is nothing to create here, only to correct.
+   *
+   * Two writes, in this order, and the order matters:
+   *
+   *   1. The API route, because profiles.signup_type CANNOT be written from the
+   *      browser. profiles_guard_signup_type raises 42501 for any non-admin
+   *      JWT, including a first write over NULL. The route holds service_role.
+   *   2. updateUser, for raw_user_meta_data. Everything that already reads
+   *      signup_type and signup_fields off the auth user keeps working —
+   *      useActiveRole's brand name, app/dashboard/profile/page.tsx — and it
+   *      refreshes the local session, so the dashboard sees the new values
+   *      without a reload.
+   *
+   * Route first: if the second call fails, the column is set and resolveSignupType
+   * still finds it, so the gate lets them through and the only loss is metadata
+   * that the profile editor can rewrite. The reverse order would leave metadata
+   * claiming an account type the database does not have.
+   */
+  async function handleCompleteOAuth() {
+    setError(null);
+
+    if (!chosenType) {
+      setError("Please choose one to continue.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      setSubmitting(false);
+      setError("Your session expired. Please sign in with Google again.");
+      return;
+    }
+
+    const response = await fetch("/api/onboarding/complete", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      // No user id in the body — the route takes it from the token. Sending one
+      // would be the exact shape of the two Stripe checkout bugs.
+      body: JSON.stringify({ signupType: chosenType, fields: collectFields() }),
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      setSubmitting(false);
+      setError(body?.error ?? "We couldn't finish setting up your account.");
+      return;
+    }
+
+    // Same seven keys the email path writes, so nothing downstream has to know
+    // which flow produced the account. updateUser merges, so Google's own
+    // metadata (name, avatar_url, sub) survives alongside these.
+    const { error: metadataError } = await supabase.auth.updateUser({
+      data: {
+        full_name: googleIdentity?.name ?? "",
+        contact_number: "",
+        role: legacyRoleFor(chosenType),
+        signup_type: chosenType,
+        account_type: accountTypeFor(chosenType),
+        roles: roleKeysFor(chosenType),
+        signup_fields: collectFields(),
+      },
+    });
+
+    setSubmitting(false);
+
+    if (metadataError) {
+      // Deliberately not fatal. The route already wrote the column, so the
+      // account is onboarded as far as the gate and the database are concerned,
+      // and blocking the user here would strand them outside a dashboard they
+      // can legitimately enter.
+      console.error("Onboarding metadata update failed:", metadataError.message);
+    }
+
+    router.push("/dashboard");
   }
 
   async function handleSignup() {
@@ -218,6 +454,14 @@ export default function SignupPage() {
     router.push("/dashboard");
   }
 
+  // Held until the OAuth fragment has had its chance to settle. Without this a
+  // Google return renders the full email form — type choice, name, email,
+  // password — for a moment before swapping to the two-step one, which reads as
+  // the sign-in having failed.
+  if (mode === "checking") {
+    return <ScreenLoader message="Checking your session" />;
+  }
+
   if (confirmationSent) {
     return (
       <main className="min-h-screen bg-black text-white flex items-center justify-center px-6 py-10">
@@ -256,7 +500,7 @@ export default function SignupPage() {
     );
   }
 
-  const isLastStep = step === STEP_COUNT - 1;
+  const isLastStep = step === steps.length - 1;
 
   const activeType = chosenType ? signupTypeDefinition(chosenType) : null;
 
@@ -274,7 +518,7 @@ export default function SignupPage() {
           {/* Progress */}
           <div className="mb-6">
             <div className="flex gap-1.5 mb-3">
-              {Array.from({ length: STEP_COUNT }).map((_, i) => (
+              {steps.map((_, i) => (
                 <div
                   key={i}
                   className={`h-1 flex-1 rounded-full transition ${
@@ -284,9 +528,9 @@ export default function SignupPage() {
               ))}
             </div>
             <div className="flex items-baseline justify-between">
-              <h2 className="text-lg font-semibold">{stepTitles[step]}</h2>
+              <h2 className="text-lg font-semibold">{stepTitles[currentStep]}</h2>
               <span className="text-xs text-gray-400 shrink-0 ml-3">
-                {step + 1} of {STEP_COUNT}
+                {step + 1} of {steps.length}
               </span>
             </div>
           </div>
@@ -297,8 +541,41 @@ export default function SignupPage() {
               a button with no type inside a form defaults to submit. */}
           <form onSubmit={handleFormSubmit}>
             {/* Step 1 — single select */}
-            {step === 0 && (
+            {currentStep === "type" && (
             <div className="space-y-2">
+              {/* ABOVE the cards, and only before anything is chosen.
+                  Leaving for Google discards this page's state, so the one
+                  moment it costs nothing is while there is nothing to lose.
+                  Putting it under the cards would invite a click right after
+                  picking a type, which would silently throw that choice away. */}
+              {mode === "email" && (
+                <>
+                  <GoogleButton redirectPath="/signup" onError={setError} />
+                  <p className="text-xs text-gray-400 pt-1">
+                    We&apos;ll ask what you do when you come back.
+                  </p>
+                  <OrDivider />
+                </>
+              )}
+
+              {/* Shown once Google has authenticated but before onboarding is
+                  finished. Read-only text, not inputs: these came from Google
+                  and are already on the account, so offering them as editable
+                  fields would imply this form could change them. */}
+              {mode === "google" && googleIdentity && (
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3 mb-2">
+                  <p className="text-xs text-gray-400">Signed in with Google</p>
+                  {googleIdentity.name && (
+                    <p className="text-sm font-semibold mt-1">
+                      {googleIdentity.name}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {googleIdentity.email}
+                  </p>
+                </div>
+              )}
+
               {SIGNUP_TYPES.map((type) => {
                 const selected = chosenType === type.key;
 
@@ -344,7 +621,7 @@ export default function SignupPage() {
           )}
 
           {/* Step 2 — details */}
-          {step === 1 && (
+          {currentStep === "details" && (
             <div className="space-y-3">
               {/* Labels only — the fields, validation and write path are the
                   same for every signup type. */}
@@ -415,7 +692,7 @@ export default function SignupPage() {
           )}
 
           {/* Step 3 — the chosen type's fields, rendered directly */}
-          {step === 2 && activeType && (
+          {currentStep === "credentials" && activeType && (
             <div className="space-y-3">
               <p className="text-xs text-gray-400">
                 All optional — add what you have, skip the rest.
@@ -474,10 +751,17 @@ export default function SignupPage() {
               className="flex-1 bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50"
             >
               <ButtonSpinner active={submitting} />
+              {/* "Create Account" would be a lie in Google mode — the auth user
+                  and its profile row were both created at the callback, and
+                  this submit only fills in what Google could not tell us. */}
               {submitting
-              ? "Creating account..."
+              ? mode === "google"
+                ? "Finishing setup..."
+                : "Creating account..."
               : isLastStep
-              ? "Create Account"
+              ? mode === "google"
+                ? "Finish setup"
+                : "Create Account"
               : "Continue"}
             </button>
           </div>
@@ -490,6 +774,8 @@ export default function SignupPage() {
             Log in
           </Link>
         </p>
+
+        <LegalLinks />
       </div>
     </main>
   );

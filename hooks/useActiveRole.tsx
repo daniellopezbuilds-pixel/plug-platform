@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { resolveSignupType } from "@/lib/onboarding";
 import type { Mode } from "@/lib/accountModes";
 
 type Profile = {
@@ -93,7 +94,7 @@ export function useActiveRole() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "active_role, role, account_type, full_name, profile_number, username, trade, bio, email, xp"
+        "active_role, role, account_type, signup_type, full_name, profile_number, username, trade, bio, email, xp"
       )
       .eq("id", user.id)
       .single();
@@ -123,11 +124,23 @@ export function useActiveRole() {
       setProfile({
         active_role: activeRole,
         account_type: data.account_type,
-        // Read off the auth user we already fetched above — no extra request.
-        signup_type:
-          typeof user.user_metadata?.signup_type === "string"
-            ? user.user_metadata.signup_type
-            : null,
+        // Metadata is read off the auth user already fetched above, and the
+        // column comes from the select, so neither source costs a request.
+        //
+        // Metadata still wins when it is recognised, which is what this hook
+        // has always returned. The column is new here: it is the one
+        // 20260916130000_badges.sql added — server-held and guarded — and until
+        // now this hook ignored it entirely. Adding it can only turn a null
+        // into a value, never change an answer the hook already gave.
+        //
+        // That gap is what a Google account falls through: the signup trigger
+        // writes the column from metadata Google does not supply, so both are
+        // null and isOnboarded() reads false, which is what the dashboard gate
+        // keys off.
+        signup_type: resolveSignupType(
+          user.user_metadata?.signup_type,
+          data.signup_type
+        ),
         brand_name:
           typeof user.user_metadata?.signup_fields?.brand_name === "string"
             ? user.user_metadata.signup_fields.brand_name.trim() || null

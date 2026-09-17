@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_AFTER_LOGIN, safeReturnTo } from "@/lib/returnTo";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { GoogleButton, OrDivider } from "@/components/auth/GoogleButton";
+import { LegalLinks } from "@/components/legal/LegalLinks";
 
 const inputClass =
   "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
@@ -150,6 +152,15 @@ export default function LoginPage() {
               {submitting ? "Logging in..." : "Log in"}
             </button>
           </form>
+
+          <OrDivider />
+
+          {/* Straight to /dashboard, not to /signup. A returning Google user has
+              a signup_type already and should not detour through the signup
+              form; a first-time one lands on the dashboard, fails the gate in
+              app/dashboard/layout.tsx, and is sent to /signup to finish. One
+              button, and the gate is what tells the two apart. */}
+          <GoogleButton redirectPath="/dashboard" onError={setError} />
         </div>
 
         <p className="text-center text-sm text-gray-400 mt-5">
@@ -158,6 +169,8 @@ export default function LoginPage() {
             Sign up
           </Link>
         </p>
+
+        <LegalLinks />
       </div>
     </main>
   );
