@@ -10,6 +10,7 @@ import { uploadLogo, uploadBanner, getBrandingPublicUrl } from "@/lib/branding";
 import { uploadEmployerDocument, getEmployerDocumentSignedUrl } from "@/lib/employerDocuments";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
 import { BadgesSection } from "@/components/profile/BadgesSection";
+import { PageWithRail } from "@/components/layout/PageWithRail";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import { SIGNUP_TYPES } from "@/lib/signupRoles";
@@ -335,9 +336,26 @@ export default function ProfilePage() {
     .filter((entry) => entry.value !== "");
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <PageHeading title="Edit Profile" />
+    <div>
+      {/* Badges move to the right rail from xl. They are the one thing on this
+          page you read rather than edit, so they are the natural rail content,
+          and pulling them out stops the form from being interrupted halfway
+          down by a read-only panel.
 
+          railFirst={false}: below xl they stack UNDER the form. Above it they
+          would push the thing you came here to do off a phone screen — the
+          opposite of the sponsored rail, which belongs at the top. */}
+      <PageWithRail
+        label="Badges"
+        heading={<PageHeading title="Edit Profile" />}
+        measure="reading"
+        // 672 = max-w-2xl, the width this form had before the rail existed.
+        readingWidth={672}
+        contentClassName="max-w-2xl mx-auto xl:mx-0"
+        railFirst={false}
+        rail={<BadgesSection />}
+      >
+      <div>
       <div className="space-y-5">
         <div>
           <label className="block text-sm text-gray-400 mb-2">Profile Number</label>
@@ -571,11 +589,6 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      {/* Read-only, like Signup details above it: nothing here is user-editable.
-          Badges are awarded by the system or by an administrator, never by the
-          form that saves the profile. */}
-      <BadgesSection />
-
       {/* Outside the Save Profile block on purpose: it writes to auth, not to
           the profiles row, and has its own submit. */}
       <ChangePasswordSection />
@@ -604,6 +617,8 @@ export default function ProfilePage() {
 
         <ReviewsList reviews={reviews} />
       </div>
+      </div>
+      </PageWithRail>
     </div>
   );
 }

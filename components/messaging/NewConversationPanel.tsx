@@ -24,7 +24,8 @@ export function NewConversationPanel({
     });
   }
 
-  function handleStart() {
+  function handleStart(e: React.FormEvent) {
+    e.preventDefault();
     if (selected.size === 0) return;
     onStart(Array.from(selected), selected.size > 1 ? title : undefined);
   }
@@ -34,6 +35,11 @@ export function NewConversationPanel({
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-md p-6">
         <h2 className="text-xl font-bold text-white mb-4">New Message</h2>
 
+        {/* A real <form> so Enter starts the conversation from the group-name
+            box. NOTE the explicit types on both buttons below: inside a form a
+            button with no type submits, which would have turned Cancel into a
+            second Start Conversation. */}
+        <form onSubmit={handleStart}>
         {contacts.length === 0 ? (
           <p className="text-gray-400 text-sm mb-4">
             You can only message people you're connected with, or employers/applicants tied to a job.
@@ -76,19 +82,21 @@ export function NewConversationPanel({
 
         <div className="flex gap-3">
           <button
-            onClick={handleStart}
+            type="submit"
             disabled={selected.size === 0}
             className="flex-1 bg-accent text-on-accent px-5 py-3 rounded-lg font-semibold disabled:opacity-50"
           >
             Start Conversation
           </button>
           <button
+            type="button"
             onClick={onClose}
             className="bg-zinc-800 text-gray-300 px-5 py-3 rounded-lg font-semibold hover:bg-zinc-800"
           >
             Cancel
           </button>
         </div>
+        </form>
       </div>
     </div>
   );

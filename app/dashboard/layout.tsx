@@ -100,16 +100,16 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
     // h-screen + overflow-hidden, not min-h-screen: this pins the shell to the
     // viewport so the sidebar cannot scroll away with the content. The only
     // scroll container is the <section> below.
-    // flex-col under md so the top bar stacks above the content; flex-row from
-    // md, where the sidebar returns to being a static column beside it.
-    <main className="h-screen overflow-hidden bg-black text-white flex flex-col md:flex-row">
+    // flex-col under lg so the top bar stacks above the content; flex-row from
+    // lg, where the sidebar returns to being a static column beside it.
+    <main className="h-screen overflow-hidden bg-black text-white flex flex-col lg:flex-row">
       <MobileTopBar onOpenNav={() => setNavOpen(true)} />
 
       {/* Tap-outside-to-close. Under the drawer (z-40 vs z-50) and only
           rendered while open, so it never intercepts taps on desktop. */}
       {navOpen && (
         <div
-          className="md:hidden fixed inset-0 z-40 bg-black/60"
+          className="lg:hidden fixed inset-0 z-40 bg-black/60"
           onClick={() => setNavOpen(false)}
           aria-hidden="true"
         />
@@ -140,16 +140,25 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
           Centred content column, applied once so no page carries its own
           wrapper.
 
-          PAGE_MAX_WIDTH caps the line length on wide monitors — without it,
-          content ran hard against the left edge with several hundred pixels of
-          dead space on the right at 1920.
+          1600px, RAISED FROM 1200. At 1920 the shell spends 256px on the
+          sidebar, leaving 1664 for this section; a 1200px cap left ~230px of
+          dead space on each side, which read as sparse once there was real
+          content in the pages rather than one or two rows. 1600 fills that
+          with 32px of breathing room either side and still stops a 2560
+          monitor from running text to the edges.
 
-          Padding is tighter under md — 375px cannot spare 40px a side. The
-          messages page sizes its chat panel against these numbers AND against
-          the mobile top bar height; see lib/layout.tsx. Change either and
-          change that.
+          WIDER IS NOT AUTOMATICALLY BETTER, and the cap alone does not make a
+          page good. A single column stretched to 1500px reads worse than one
+          at 700. Pages spend the extra width by adding columns — a rail, or
+          more cards per row — and reading surfaces cap themselves through
+          PageWithRail's `measure`. That component is where the decision lives.
+
+          Padding is tighter under lg — a phone cannot spare 40px a side. The
+          messages page sizes its chat panel against the VERTICAL padding here
+          AND against the mobile top bar height; see lib/layout.tsx. px is free
+          to change, py is not.
         */}
-        <div className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-10 md:py-10">
+        <div className="mx-auto w-full max-w-[1600px] px-4 py-6 lg:px-10 lg:py-10">
           {children}
         </div>
       </section>

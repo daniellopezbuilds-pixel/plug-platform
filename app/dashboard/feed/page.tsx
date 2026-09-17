@@ -7,8 +7,7 @@ import { CreatePostForm } from "@/components/feed/CreatePostForm";
 import { PostCard } from "@/components/feed/PostCard";
 import { ProfilePreviewModal } from "@/components/profile/ProfilePreviewModal";
 import { PageHeading } from "@/components/layout/PageHeading";
-import { PageWithRail } from "@/components/layout/PageWithRail";
-import { SponsoredRail } from "@/components/ads/SponsoredRail";
+import { PageWithSponsoredRail } from "@/components/ads/PageWithSponsoredRail";
 import { useState } from "react";
 import { PostSkeleton } from "@/components/ui/Skeleton";
 
@@ -29,8 +28,6 @@ export default function FeedPage() {
 
   return (
     <div>
-      <PageHeading title="Community Feed" />
-
       {/*
         The ad used to live in the stream: a card after the third post, or at
         the top of a short feed. Both are gone — the slot is in the rail now,
@@ -40,11 +37,24 @@ export default function FeedPage() {
         This also removed FEED_AD_AFTER_INDEX / FEED_AD_MIN_POSTS and the
         adInStream / adAtTop pair that existed only to place it.
       */}
-      <PageWithRail rail={<SponsoredRail placement="feed" />}>
-        {/* Capped to a reading measure while the rail is stacked above and
-            this column is full width. From xl the rail sits beside it and
-            already constrains the column, so the cap is dropped. */}
-        <div className="max-w-2xl xl:max-w-none">
+      {/* measure="reading": the container caps at 1600, which would leave the
+          post column around 1150px wide with the rail beside it. Posts are
+          prose and prose does not get better at 1150px — around 720 is 85-ish
+          characters, which is the top of the comfortable range. The pair is
+          centred and the slack goes to the outer edges.
+
+          The cap is passed as contentClassName, NOT wrapped around the children
+          here. On the flex item it stops the column growing; on an inner div it
+          only narrows the text and leaves 450px of empty column sitting against
+          the rail. See the note in PageWithRail. */}
+      <PageWithSponsoredRail
+        placement="feed"
+        heading={<PageHeading title="Community Feed" />}
+        measure="reading"
+        readingWidth={720}
+        contentClassName="max-w-2xl mx-auto xl:mx-0"
+      >
+        <div>
           <CreatePostForm onCreate={createPost} />
 
           {loading ? (
@@ -76,7 +86,7 @@ export default function FeedPage() {
             </div>
           )}
         </div>
-      </PageWithRail>
+      </PageWithSponsoredRail>
 
       {previewUserId && (
         <ProfilePreviewModal

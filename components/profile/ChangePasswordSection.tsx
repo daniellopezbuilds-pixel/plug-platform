@@ -32,7 +32,9 @@ export function ChangePasswordSection() {
     setDone(false);
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
     setError(null);
     setDone(false);
 
@@ -101,7 +103,10 @@ export function ChangePasswordSection() {
       <h2 className="text-xl font-bold text-white mb-1">Change password</h2>
       <p className="text-sm text-gray-400 mb-4">{PASSWORD_RULE}</p>
 
-      <div className="space-y-3 max-w-md">
+      {/* A real <form>, so Enter submits from any of the three boxes rather
+          than only from the last. Standalone — the profile page around it is
+          not a form, so nothing nests. */}
+      <form onSubmit={handleSubmit} className="space-y-3 max-w-md">
         <div>
           <label htmlFor="current-password" className={labelClass}>
             Current password
@@ -151,9 +156,6 @@ export function ChangePasswordSection() {
               setConfirm(e.target.value);
               clearFeedback();
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSubmit();
-            }}
             className={inputClass}
           />
         </div>
@@ -171,15 +173,14 @@ export function ChangePasswordSection() {
         )}
 
         <button
-          type="button"
-          onClick={handleSubmit}
+          type="submit"
           disabled={submitting}
           className="bg-accent text-on-accent px-5 py-2.5 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
           <ButtonSpinner active={submitting} />
           {submitting ? "Updating..." : "Update password"}
         </button>
-      </div>
+      </form>
     </div>
   );
 }

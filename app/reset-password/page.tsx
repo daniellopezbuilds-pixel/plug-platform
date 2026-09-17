@@ -97,7 +97,8 @@ export default function ResetPasswordPage() {
     };
   }, []);
 
-  async function handleSubmit() {
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
     setError(null);
 
     const invalid = validatePassword(password, confirm);
@@ -183,7 +184,9 @@ export default function ResetPasswordPage() {
               <h2 className="text-lg font-semibold mb-1">Set a new password</h2>
               <p className="text-sm text-gray-400 mb-5">{PASSWORD_RULE}</p>
 
-              <div className="space-y-3">
+              {/* A real <form>, so Enter submits from either password box
+                  rather than only from the second one. */}
+              <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
                   <label htmlFor="password" className={labelClass}>
                     New password
@@ -214,9 +217,6 @@ export default function ResetPasswordPage() {
                       setConfirm(e.target.value);
                       setError(null);
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSubmit();
-                    }}
                     className={inputClass}
                   />
                 </div>
@@ -228,15 +228,14 @@ export default function ResetPasswordPage() {
                 )}
 
                 <button
-                  type="button"
-                  onClick={handleSubmit}
+                  type="submit"
                   disabled={submitting}
                   className="w-full bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
                 >
                   <ButtonSpinner active={submitting} />
                   {submitting ? "Saving..." : "Save new password"}
                 </button>
-              </div>
+              </form>
             </>
           )}
         </div>

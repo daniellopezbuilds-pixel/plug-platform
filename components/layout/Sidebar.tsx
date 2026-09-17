@@ -25,7 +25,7 @@ export function Sidebar({
   profileNumber: string;
   onSwitchRole: (mode: Mode) => void;
   onLogout: () => void;
-  /** Drawer state. Ignored from md up, where the sidebar is always visible. */
+  /** Drawer state. Ignored from lg up, where the sidebar is always visible. */
   open: boolean;
   onClose: () => void;
 }) {
@@ -43,17 +43,29 @@ export function Sidebar({
   return (
     // Two layouts in one element.
     //
-    // Under md it is an off-canvas drawer: fixed to the viewport, above the
-    // overlay, slid out of frame by -translate-x-full until `open`. From md it
-    // reverts to a static flex child (md:static md:translate-x-0) and the
+    // Under lg it is an off-canvas drawer: fixed to the viewport, above the
+    // overlay, slid out of frame by -translate-x-full until `open`. From lg it
+    // reverts to a static flex child (lg:static lg:translate-x-0) and the
     // drawer classes stop applying, so desktop is exactly as it was.
     //
-    // overflow-y-auto so a tall sidebar (employer nav plus the mode switcher on
-    // a short screen) scrolls inside itself rather than being clipped.
+    // THE ASIDE ITSELF DOES NOT SCROLL. It is a fixed-height column with three
+    // bands: a pinned header, a scrolling nav, and a pinned footer. The footer
+    // holds Logout, and Logout has to be reachable at every height.
+    //
+    // It used to be `overflow-y-auto` on the aside, which did scroll but put the
+    // whole sidebar in one scrolling box. At 1024x768 — lg, so the full desktop
+    // sidebar, in the shortest desktop viewport — the employer nav plus the mode
+    // switcher overflows by about 80px, so Logout sat below the fold of a narrow
+    // strip with no indication it was there. The scrollbar that appeared also ate
+    // ~15px of the 208px content width, which is what made "Sparx Plug" wrap to
+    // two lines at that size and not at 1440.
+    //
+    // Moving the overflow to the nav band fixes both: the footer is always on
+    // screen, and the header never shares width with a scrollbar.
     <aside
-      className={`w-64 shrink-0 h-full overflow-y-auto scrollbar-dark border-r border-zinc-800 p-6 flex flex-col grid-bg
+      className={`w-64 shrink-0 h-full overflow-hidden border-r border-zinc-800 p-6 flex flex-col grid-bg
         fixed inset-y-0 left-0 z-50 bg-black transition-transform duration-200 ease-out
-        md:static md:z-auto md:translate-x-0 md:transition-none
+        lg:static lg:z-auto lg:translate-x-0 lg:transition-none
         ${open ? "translate-x-0" : "-translate-x-full"}`}
     >
       {/* Drawer-only close control. The overlay behind it also closes, but a
@@ -62,25 +74,41 @@ export function Sidebar({
         type="button"
         onClick={onClose}
         aria-label="Close navigation"
-        className="md:hidden absolute top-4 right-4 h-11 w-11 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-zinc-900 transition"
+        className="lg:hidden absolute top-4 right-4 h-11 w-11 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-zinc-900 transition"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
 
-      <div>
-        <div className="flex items-start justify-between mb-10 pr-12 md:pr-0">
+      {/* Pinned. Outside the scroll band so the wordmark never shares its
+          width with a scrollbar. */}
+      <div className="shrink-0">
+        <div className="flex items-start justify-between mb-10 pr-12 lg:pr-0">
           <h1 className="text-3xl font-bold leading-tight">
             Sparx Plug
             <span className="block text-lg text-accent-2-soft">Ecosystem</span>
           </h1>
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <NotificationBell />
           </div>
         </div>
+      </div>
 
-        <nav className="space-y-1 md:space-y-5">
+      {/* The one scrolling band.
+          min-h-0: a flex item will not shrink below its content height without
+          it, which would push the footer off the bottom again — the exact bug
+          this is fixing.
+
+          -mx-6 px-6: NavLink bleeds its active highlight to the sidebar edges
+          with the same pair, which it can do inside the aside's p-6 but not
+          inside a nested box that has no padding of its own. Setting overflow-y
+          also makes overflow-x compute to auto rather than visible, so those
+          24px turned into a horizontal scrollbar under the nav. Giving the band
+          the same negative-margin-plus-padding puts the bleed back inside a
+          padding box and the scrollbar goes away. */}
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-dark -mx-6 px-6">
+        <nav className="space-y-1 lg:space-y-5">
           <NavLink href="/dashboard" exact onNavigate={onClose}>
             Dashboard
           </NavLink>
@@ -150,7 +178,9 @@ export function Sidebar({
         )}
       </div>
 
-      <div className="mt-auto border-t border-zinc-800 pt-6">
+      {/* Pinned. The scrolling band above is flex-1, so this sits on the
+          bottom edge without mt-auto doing the work. */}
+      <div className="shrink-0 border-t border-zinc-800 mt-6 pt-6">
         <div className="mb-5">
           <p className="font-semibold">{fullName || "User"}</p>
           <p className="text-sm text-gray-400">
@@ -160,7 +190,7 @@ export function Sidebar({
             {typeLabel && ` · ${typeLabel}`}
           </p>
         </div>
-        <button onClick={onLogout} className="flex items-center min-h-11 md:min-h-0 text-rose-400 hover:text-rose-300 transition">
+        <button onClick={onLogout} className="flex items-center min-h-11 lg:min-h-0 text-rose-400 hover:text-rose-300 transition">
           Logout
         </button>
       </div>

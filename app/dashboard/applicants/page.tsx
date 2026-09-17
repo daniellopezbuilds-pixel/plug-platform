@@ -24,7 +24,9 @@ export default function ApplicantsPage() {
       {applicants.length === 0 ? (
         <p className="text-gray-400">No applicants yet.</p>
       ) : (
-        <div className="space-y-6">
+        /* Two columns from xl, matching /dashboard/applications — the two
+           pages are the same shape seen from either side of a hire. */
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {applicants.map((applicant) => (
             <ApplicantCard
               key={applicant.id}

@@ -407,9 +407,10 @@ export default function BrandingDealsPage() {
   const busy = uploading || redirecting;
 
   return (
-    // The width cap that used to be here is gone: the dashboard layout now
-    // centres a 1200px column for every page, so a per-page max-width only
-    // made this one narrower and left-aligned inside it.
+    // No per-page width cap: the dashboard layout centres the column for every
+    // page (1600px since the widening), and the form below is already a
+    // two-column grid from xl with container queries inside each column, so it
+    // uses the extra width rather than stretching one field row across it.
     <div>
       <PageHeading title="Branding deals" />
 

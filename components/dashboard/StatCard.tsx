@@ -13,7 +13,8 @@ export function StatCard({
   borderAccent = "yellow",
 }: {
   label: string;
-  value: string | number;
+  /** null means "not counted yet" — rendered as a dash, never as 0. */
+  value: string | number | null;
   accent?: boolean;
   borderAccent?: "yellow" | "orange" | "blue";
 }) {
@@ -21,7 +22,11 @@ export function StatCard({
     <Card className={borderColors[borderAccent]}>
       <p className="text-gray-400 text-sm mb-2">{label}</p>
       <h2 className={`text-4xl font-technical font-bold ${accent ? "text-white" : ""}`}>
-        {value}
+        {/* A zero while the count is still in flight is indistinguishable from
+            a real zero, and the dashboard showing four confident zeros it had
+            not measured is the bug this replaced. An em dash cannot be
+            mistaken for a number. */}
+        {value === null ? <span className="text-zinc-600">&mdash;</span> : value}
       </h2>
     </Card>
   );

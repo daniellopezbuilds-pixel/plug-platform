@@ -95,7 +95,12 @@ export default function PublicProfilePage() {
   const isEmployer = accountType === "employer";
 
   return (
-    <div className="max-w-2xl">
+    /* mx-auto matters now the container is 1600 wide. Without it this sat hard
+       against the left with most of the page empty to its right — which was
+       already true at 1200 and is simply more obvious at 1920. A public
+       profile is a reading surface, so it keeps its measure and centres rather
+       than stretching. */
+    <div className="max-w-2xl mx-auto">
       {companyBannerPath && (
         <img
           src={getBrandingPublicUrl(companyBannerPath)}

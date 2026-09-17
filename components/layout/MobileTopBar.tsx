@@ -14,7 +14,7 @@ import { NotificationBell } from "./NotificationBell";
  */
 export function MobileTopBar({ onOpenNav }: { onOpenNav: () => void }) {
   return (
-    <header className="md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-zinc-800 bg-black">
+    <header className="lg:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-zinc-800 bg-black">
       <button
         type="button"
         onClick={onOpenNav}

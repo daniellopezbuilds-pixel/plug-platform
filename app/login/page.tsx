@@ -39,7 +39,9 @@ export default function LoginPage() {
     );
   }
 
-  async function handleLogin() {
+  async function handleLogin(e: React.FormEvent) {
+    // A real submit, so the browser's own navigation has to be stopped.
+    e.preventDefault();
     setError(null);
 
     if (!email.trim() || !password) {
@@ -85,7 +87,13 @@ export default function LoginPage() {
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
           <h2 className="text-lg font-semibold mb-5">Log in</h2>
 
-          <div className="space-y-3">
+          {/* A real <form>, so Enter submits from ANY field.
+              It used to be a bare <div> with an onKeyDown on the password
+              input alone: Enter worked from the password box and did nothing
+              from the email box, which is where people press it. A form also
+              gets the Go key on mobile keyboards and gives password managers
+              something to recognise. */}
+          <form onSubmit={handleLogin} className="space-y-3">
             <div>
               <label htmlFor="email" className={labelClass}>
                 Email
@@ -114,9 +122,6 @@ export default function LoginPage() {
                   setPassword(e.target.value);
                   setError(null);
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleLogin();
-                }}
                 className={inputClass}
               />
             </div>
@@ -137,15 +142,14 @@ export default function LoginPage() {
             )}
 
             <button
-              type="button"
-              onClick={handleLogin}
+              type="submit"
               disabled={submitting}
               className="w-full bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
               <ButtonSpinner active={submitting} />
               {submitting ? "Logging in..." : "Log in"}
             </button>
-          </div>
+          </form>
         </div>
 
         <p className="text-center text-sm text-gray-400 mt-5">

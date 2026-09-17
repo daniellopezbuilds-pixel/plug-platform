@@ -1,6 +1,6 @@
 "use client";
 
-import { usePublicAds } from "@/hooks/usePublicAds";
+import type { PublicAd } from "@/hooks/usePublicAds";
 import { FeedAdCard } from "@/components/ads/FeedAdCard";
 
 /** Matches the reserved width in PageWithRail. */
@@ -9,28 +9,39 @@ const RAIL_WIDTH = 320;
 /**
  * The sponsored slot, in the right rail, identical on every page that has one.
  *
- * Owns its own `usePublicAds` call, so the three surfaces cannot drift apart —
- * previously feed, jobs and marketplace each wired up the hook, the index, the
- * rotation callback and the placement themselves, and the feed additionally
- * injected a second copy of the same ad into the post stream.
+ * Presentational: it renders whatever the slot currently holds and nothing
+ * else. The `usePublicAds` call lives one level up, in
+ * `PageWithSponsoredRail`, because the surrounding layout has to know whether
+ * this slot will fill before it decides to reserve 320px for it — and one
+ * query has to answer both questions or the two can disagree.
+ *
+ * That the pages do not wire up the hook, the index, the rotation callback or
+ * the placement themselves is still the point; only the level that owns it has
+ * moved. Previously feed, jobs and marketplace each did all of that, and the
+ * feed additionally injected a second copy of the same ad into the post stream.
  *
  * NO LAYOUT SHIFT. The image box inside FeedAdCard reserves its own height
  * from the 4:1 aspect ratio, so the image loading moves nothing. The remaining
  * shift would be the gap between "still querying" and "ad arrived", which the
  * skeleton below covers by occupying the same box while `loading` is true.
  *
- * When a placement genuinely has no eligible ad, the rail renders nothing and
- * collapses. On desktop that changes no layout at all — PageWithRail reserves
- * the rail's width whether or not anything is in it — and on stacked narrow
- * layouts it settles once per page load rather than jumping under the user.
+ * When a placement genuinely has no eligible ad, this renders nothing and
+ * PageWithSponsoredRail collapses the reserved width with it.
  */
 export function SponsoredRail({
-  placement,
+  ad,
+  index,
+  total,
+  onSelect,
+  loading,
 }: {
-  placement: "jobs_board" | "marketplace" | "feed";
+  ad: PublicAd | null;
+  /** 0-based index of `ad` within the slot's rotation. */
+  index: number;
+  total: number;
+  onSelect: (index: number) => void;
+  loading: boolean;
 }) {
-  const { ad, adIndex, adCount, selectAd, loading } = usePublicAds(placement);
-
   if (loading) {
     return (
       <div
@@ -45,11 +56,6 @@ export function SponsoredRail({
   if (!ad) return null;
 
   return (
-    <FeedAdCard
-      ad={ad}
-      index={adIndex}
-      total={adCount}
-      onSelect={selectAd}
-    />
+    <FeedAdCard ad={ad} index={index} total={total} onSelect={onSelect} />
   );
 }

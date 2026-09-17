@@ -56,7 +56,8 @@ export default function ForgotPasswordPage() {
     }, 1000);
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
     setError(null);
 
     if (!email.trim()) {
@@ -112,7 +113,11 @@ export default function ForgotPasswordPage() {
             Enter your email and we&apos;ll send you a link to set a new one.
           </p>
 
-          <div className="space-y-3">
+          {/* A real <form>, so Enter submits from the field. The button is
+              the form's default button, so while it is disabled during the
+              cooldown the browser declines the implicit submission too — which
+              is what the old onKeyDown had to spell out with `&& !disabled`. */}
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label htmlFor="email" className={labelClass}>
                 Email
@@ -124,9 +129,6 @@ export default function ForgotPasswordPage() {
                 onChange={(e) => {
                   setEmail(e.target.value);
                   setError(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !disabled) handleSubmit();
                 }}
                 className={inputClass}
               />
@@ -155,8 +157,7 @@ export default function ForgotPasswordPage() {
             )}
 
             <button
-              type="button"
-              onClick={handleSubmit}
+              type="submit"
               disabled={disabled}
               className="w-full bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
@@ -169,7 +170,7 @@ export default function ForgotPasswordPage() {
               ? "Resend link"
               : "Send reset link"}
             </button>
-          </div>
+          </form>
         </div>
 
         <p className="text-center text-sm text-gray-400 mt-5">

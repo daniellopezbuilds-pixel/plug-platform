@@ -88,16 +88,20 @@ export default function MessagesPage() {
     activeParticipantInfo.participants[0].role === "employer";
 
   return (
-    <div className={`relative ${FULL_HEIGHT_PANEL_CLASS}`}>
+    /* Capped and centred. The container went to 1600px, and a chat thread is
+       the one surface that gets actively worse with width — the conversation
+       list stays 320 and every extra pixel goes to the message pane, so at
+       1920 the bubbles were stretching to about 1200px. */
+    <div className={`relative mx-auto w-full max-w-[1280px] ${FULL_HEIGHT_PANEL_CLASS}`}>
       <div className="flex h-full border border-zinc-800 rounded-xl overflow-hidden">
         {/*
-          Two panes side by side from md. Under md there is no room for both
+          Two panes side by side from lg. Under lg there is no room for both
           (the list alone was a fixed 320px on a 375px screen), so it becomes
           one pane at a time: the list until a conversation is picked, then the
           thread with a back button. activeId is the switch.
         */}
         <div
-          className={`w-full md:w-80 md:flex border-r border-zinc-800 flex-col ${
+          className={`w-full lg:w-80 lg:flex border-r border-zinc-800 flex-col ${
             activeId ? "hidden" : "flex"
           }`}
         >
@@ -105,7 +109,7 @@ export default function MessagesPage() {
             <h1 className="text-xl font-bold text-white">Messages</h1>
             <button
               onClick={() => setShowNewPanel(true)}
-              className="bg-accent text-on-accent px-4 min-h-11 md:min-h-0 md:py-1.5 rounded-lg text-sm font-semibold shrink-0"
+              className="bg-accent text-on-accent px-4 min-h-11 lg:min-h-0 lg:py-1.5 rounded-lg text-sm font-semibold shrink-0"
             >
               New
             </button>
@@ -124,14 +128,14 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        <div className={`flex-1 min-w-0 flex-col ${activeId ? "flex" : "hidden md:flex"}`}>
-          {/* Back to the list. Under md the thread covers the whole panel, so
+        <div className={`flex-1 min-w-0 flex-col ${activeId ? "flex" : "hidden lg:flex"}`}>
+          {/* Back to the list. Under lg the thread covers the whole panel, so
               without this there is no way out of a conversation. */}
           {activeId && (
             <button
               type="button"
               onClick={() => setActiveId(null)}
-              className="md:hidden flex items-center gap-2 min-h-11 px-4 border-b border-zinc-800 text-sm text-gray-300 hover:text-white transition"
+              className="lg:hidden flex items-center gap-2 min-h-11 px-4 border-b border-zinc-800 text-sm text-gray-300 hover:text-white transition"
             >
               <span aria-hidden="true">&larr;</span> All conversations
             </button>

@@ -66,7 +66,11 @@ export function BadgesSection() {
   const heldByKey = new Map(held.map((b) => [b.badge_key, b]));
 
   return (
-    <div className="border-t border-zinc-800 pt-6 mt-2">
+    // A bordered panel rather than a bare section with a top rule: this sits in
+    // the profile's right rail from xl and stacks under the form below it, and
+    // a panel reads correctly in both places where a `border-t` only read
+    // correctly in the flow.
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-5">
       <h2 className="text-xl font-bold text-white mb-1">Badges</h2>
       <p className="text-xs text-gray-400 mb-5">
         Shown beside your name across the platform.

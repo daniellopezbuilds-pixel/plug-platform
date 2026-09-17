@@ -418,11 +418,15 @@ A third dashboard mode. No jobs, no applicants, no marketplace:
 - **Billing** — invoices, payment method, spend to date
 
 **Analytics is cut from this phase.** It was specified against
-`advertisement_metrics_daily`, and that table is cut (section 4.6). There is no
-impression or click tracking of any kind in the codebase today — `AdBanner` and
-`FeedAdCard` render a plain `<a>` with no instrumentation. A brand dashboard
-cannot show impressions, clicks, or leads until that is built. Ship brand mode
-without an analytics screen rather than with an empty one.
+`advertisement_metrics_daily`, and that table is cut (section 4.6).
+
+Note the reason has changed. This used to read "there is no impression or
+click tracking of any kind in the codebase" — there is now: `ad_events` and
+`lib/adEvents.tsx` capture both, on staging and production. What does not
+exist is a rollup, a query, a screen, or more than a day of history. A brand
+dashboard still cannot show impressions, clicks or leads until those are
+built. Ship brand mode without an analytics screen rather than with one that
+reports a number nobody should act on yet.
 
 ### Key principle
 
@@ -650,17 +654,43 @@ Fields the creative keeps:
   the accessible name and the caption.
 
 No `advertisement_creatives` table. One image per listing, stored on the
-listing, as it is today. A/B testing needs an impression counter to be
-meaningful, and there is no impression counter.
+listing, as it is today. A/B testing needs impression counts to be meaningful;
+`ad_events` now records them (section 4.6), but with no rollup over it and
+days rather than months of history, there is still nothing to test against.
 
 ### 4.6 Cut from this phase
 
-**`advertisement_metrics_daily` — cut.** There is no event source. Nothing in
-`AdBanner` or `FeedAdCard` fires an impression or a click; they render an `<a>`
-with `target="_blank"`. A rollup table with no writer is a table that reports
-zero. Build click instrumentation first, then the rollup, then the analytics
-screen — as its own phase. The daily-rollup shape is still the right target
-when that happens: do not store one row per impression.
+**`advertisement_metrics_daily` — still cut, but not for the reason first
+given.** The original reason was that there is no event source: nothing fired
+an impression or a click, so a rollup table would have had no writer and would
+have reported zero. **That is no longer true.** `ad_events` shipped in
+`20260916120000` (applied to staging and production on 2026-09-16), and
+`lib/adEvents.tsx` writes to it from the browser — `usePublicAds` fires an
+impression whenever the displayed ad changes, and both `FeedAdCard` and
+`AdBanner` fire a click. One raw row per event, deliberately not a rollup.
+
+What is still missing is everything downstream of capture: no rollup, no
+query, no reporting UI, and no history worth reporting on. As of 2026-09-16
+production holds **1 impression and 0 clicks**, and staging holds 27 events
+that are mostly this project's own testing. Capture began on 2026-09-16, so
+there is nothing before that date and there never will be.
+
+So the order of work is unchanged and one step shorter: the rollup, then the
+analytics screen, as its own phase. The daily-rollup shape is still the right
+target — build it over `ad_events` on a schedule, and do not have a dashboard
+scan that table directly once it is large.
+
+Two things to carry into that phase, both already true in the data:
+
+- **Impressions are renders, not viewport impressions.** `recordAdImpression`
+  does not check that the slot was scrolled into view. The rail sits at the
+  top of the page so the two are close today, but an IAB-style count would be
+  lower, and a below-the-fold slot would need an `IntersectionObserver`
+  before the number is shown to anyone paying for it.
+- **The write is client-side and therefore forgeable** by anyone holding the
+  anon key, which is everyone. Flat monthly pricing does not bill from it, so
+  that is acceptable; per-impression pricing on top of it would not be,
+  without server-side verification.
 
 **`auth_provider` on the account — cut.** Signup is email and password only;
 there is no OAuth call in the codebase. Supabase already records the provider
@@ -712,8 +742,11 @@ whether the two should converge on one component.
 
 Start with **flat monthly placement rates**, not an auction. An auction needs
 enough simultaneous bidders to produce a sensible clearing price, and inventory
-is currently three pages. Move to CPM when demand outstrips inventory, which
-also requires the impression counter that does not exist.
+is currently three pages. Move to CPM when demand outstrips inventory — which
+now needs a trustworthy impression count rather than any impression count at
+all. `ad_events` records them, but the write is client-side and forgeable, so
+billing per impression from it would mean billing from a number a viewer can
+invent. That is the gap to close before CPM, not the counter itself.
 
 ---
 

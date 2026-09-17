@@ -112,6 +112,25 @@ export default function SignupPage() {
     setStep((s) => Math.min(STEP_COUNT - 1, s + 1));
   }
 
+  /**
+   * Enter, and the primary button, on every step.
+   *
+   * A multi-step wizard still wants to be one <form>: on the middle steps
+   * submitting means "next", and only on the last does it mean "create the
+   * account". Routing both through here keeps the keyboard and the button on
+   * exactly the same path, so Enter can never skip a step's validation.
+   */
+  function handleFormSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (isLastStep) {
+      handleSignup();
+      return;
+    }
+
+    goNext();
+  }
+
   async function handleSignup() {
     setError(null);
 
@@ -272,8 +291,13 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {/* Step 1 — single select */}
-          {step === 0 && (
+          {/* A real <form> so Enter submits the step from any field. Every
+              other button inside it — the type choices on step 0, Back — is
+              explicitly type="button", which is what stops them submitting it;
+              a button with no type inside a form defaults to submit. */}
+          <form onSubmit={handleFormSubmit}>
+            {/* Step 1 — single select */}
+            {step === 0 && (
             <div className="space-y-2">
               {SIGNUP_TYPES.map((type) => {
                 const selected = chosenType === type.key;
@@ -445,8 +469,7 @@ export default function SignupPage() {
             )}
 
             <button
-              type="button"
-              onClick={isLastStep ? handleSignup : goNext}
+              type="submit"
               disabled={submitting}
               className="flex-1 bg-accent text-on-accent p-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50"
             >
@@ -458,6 +481,7 @@ export default function SignupPage() {
               : "Continue"}
             </button>
           </div>
+          </form>
         </div>
 
         <p className="text-center text-sm text-gray-400 mt-5">

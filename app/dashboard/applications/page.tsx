@@ -19,7 +19,10 @@ export default function ApplicationsPage() {
       {applications.length === 0 ? (
         <p className="text-gray-400">No applications yet.</p>
       ) : (
-        <div className="space-y-6">
+        /* No rail on this page, so the full 1520 is available at 1920 — one
+           column of application cards across all of it was the sparse case
+           the widening was meant to fix. */
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {applications.map((application) => (
             <ApplicationCard
               key={application.id}

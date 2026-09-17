@@ -31,8 +31,8 @@ every push; `db push` names no environment in its output.
 | Migration section 6 (signup trigger) | **Written**, applied, and hotfixed. See the incident note |
 | RLS conflict check vs baseline | **Done.** No conflicts. See "Conflict check" |
 | Hand-run files folded in | Yes — see "Migration inventory" |
-| Production | Migrations applied through `20260910120000` |
-| Staging | Fresh project, being brought up. See "Bringing up a fresh project" |
+| Production | **All nine migrations applied**, through `20260916140000` |
+| Staging | **All nine migrations applied.** See "Bringing up a fresh project" for what migrations do not carry |
 
 ---
 
@@ -40,15 +40,35 @@ every push; `db push` names no environment in its output.
 
 | File | State | Notes |
 |---|---|---|
-| `20260908000000_remote_schema.sql` | Applied on production; runs for real on staging | Repair, never push, at production. See "Before pushing" |
-| `20260909110000_branding_deals_columns.sql` | Already applied, except its comments | Records the hand-run branding-deals script |
+| `20260908000000_remote_schema.sql` | Applied on both | Repair, never push, at production — it is a dump of production. See "Before pushing" |
+| `20260909110000_branding_deals_columns.sql` | Applied on both | Records the hand-run branding-deals script. Its `COMMENT` statements were the part that never reached the database by hand; they have landed with the migration |
 | `20260909120000_signup_roles_and_account_mode.sql` | Applied 2026-09-10 | Broke signups; see the hotfix below |
-| `20260910120000_fix_generate_profile_number_search_path.sql` | Run by hand during the incident | Idempotent — push it to record it |
-| `20260910130000_pin_search_path_baseline_functions.sql` | **Not applied** | The other nine unpinned functions. Not urgent |
-| `20260915120000_ad_payment_columns.sql` | **Not applied** | `duration_months` + `stripe_session_id` on `sponsored_listings`, for the brand ad checkout. Fully additive; blocks the flow until pushed |
-| `20260916120000_ad_events.sql` | **Not applied** | New `ad_events` table — impression/click capture. New table only, touches nothing existing. Until pushed, every write is a silently swallowed 404 |
-| `20260916130000_badges.sql` | Applied 2026-09-16 (staging and production) | Badge system v1. Adds `profiles.signup_type`, `badges`, `user_badges`, `user_badge_reviews`, the `public_badges` view. Rewrote `handle_new_user()`. Backfilled the first 100 accounts and folded `employer_verified` into `business_verified`. **Created `badges` without an `icon` column** — see `20260916140000` |
-| `20260916140000_badge_icons.sql` | **Not applied** | `badges.icon` plus the glyph names for the three seeded badges. **Push this before deploying the code**: the app selects `badges.icon`, and a build that ships ahead of the column gets a PostgREST 400 and an empty Badges section |
+| `20260910120000_fix_generate_profile_number_search_path.sql` | Applied | Run by hand during the incident, and recorded in the ledger since. Idempotent |
+| `20260910130000_pin_search_path_baseline_functions.sql` | Applied | The other nine unpinned functions |
+| `20260915120000_ad_payment_columns.sql` | Applied | `duration_months` + `stripe_session_id` on `sponsored_listings`, for the brand ad checkout. Fully additive |
+| `20260916120000_ad_events.sql` | Applied | New `ad_events` table — impression/click capture. New table only, touches nothing existing |
+| `20260916130000_badges.sql` | Applied | Badge system v1. Adds `profiles.signup_type`, `badges`, `user_badges`, `user_badge_reviews`, the `public_badges` view. Rewrote `handle_new_user()`. Backfilled the first 100 accounts and folded `employer_verified` into `business_verified`. **Created `badges` without an `icon` column** — see `20260916140000` |
+| `20260916140000_badge_icons.sql` | Applied | `badges.icon` plus the glyph names for the three seeded badges. The app selects `badges.icon`, so this had to land before the code shipped — it did |
+
+**Verified 2026-09-16, both projects.** Four rows above said **Not applied**
+when the migrations had in fact been pushed — `20260910130000`,
+`20260915120000`, `20260916120000` and `20260916140000` — so this table had
+drifted far enough to be misleading. The `20260916140000` row was the worst of
+it: it warned to push before deploying or the Badges section would 400, which
+read as an open deploy blocker and was not one.
+
+This table is hand-maintained and the database will not update it for you.
+Confirm against the ledger rather than trusting it:
+
+```
+npm run db:linked                      # which project am I pointed at
+npm run db:status                      # local vs remote, per migration
+npm run db:link:prod && npm run db:status && npm run db:link:staging
+```
+
+`db:status` is read-only, so the production check above is safe — but it does
+leave production linked in `supabase/.temp/` until the last command runs, which
+is the whole reason step 8 of the loop in `CLAUDE.md` is not optional.
 
 **Incident 2026-09-10.** `20260909120000` pinned `handle_new_user()` to an empty
 `search_path`. Its own references were all qualified, but the
