@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
+import { PageViewTracker } from "@/components/analytics/PageViewTracker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +34,10 @@ export default function RootLayout({
           raise one. It is a client component in a server layout, which is fine
           — `children` stays server-rendered and is passed through as a slot. */}
       <body className="min-h-full flex flex-col">
+        {/* Renders nothing. Here rather than per page so the logged-out pages
+            — /, /login, /signup — are counted too, and so a page added later
+            is counted without anyone remembering to add it. */}
+        <PageViewTracker />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

@@ -31,8 +31,8 @@ every push; `db push` names no environment in its output.
 | Migration section 6 (signup trigger) | **Written**, applied, and hotfixed. See the incident note |
 | RLS conflict check vs baseline | **Done.** No conflicts. See "Conflict check" |
 | Hand-run files folded in | Yes — see "Migration inventory" |
-| Production | **All ten migrations applied**, through `20260917120000` |
-| Staging | **All ten migrations applied.** See "Bringing up a fresh project" for what migrations do not carry |
+| Production | **All eleven migrations applied**, through `20260917130000` |
+| Staging | **All eleven migrations applied.** See "Bringing up a fresh project" for what migrations do not carry |
 
 ---
 
@@ -50,6 +50,7 @@ every push; `db push` names no environment in its output.
 | `20260916130000_badges.sql` | Applied | Badge system v1. Adds `profiles.signup_type`, `badges`, `user_badges`, `user_badge_reviews`, the `public_badges` view. Rewrote `handle_new_user()`. Backfilled the first 100 accounts and folded `employer_verified` into `business_verified`. **Created `badges` without an `icon` column** — see `20260916140000` |
 | `20260916140000_badge_icons.sql` | Applied | `badges.icon` plus the glyph names for the three seeded badges. The app selects `badges.icon`, so this had to land before the code shipped — it did |
 | `20260917120000_role_credentials_verification_guards.sql` | Applied 2026-09-17 | Two BEFORE triggers on `role_credentials`. UPDATE: changing `fields` clears `verified`/`verified_at`, so a verified flag cannot outlive the values it was granted against. INSERT: a non-admin may not create an already-verified row — the RLS policy gates rows, not columns, and INSERT was never column-granted the way UPDATE was. Tested against staging before the production push; see "Credential verification guards" |
+| `20260917130000_page_views.sql` | Applied 2026-09-17 | New `page_views` table (first-party traffic capture, written by `lib/pageViews.tsx`) plus `traffic_summary()`, the one function the daily email reads. Insert open to anon; SELECT admin-only; EXECUTE on the function revoked from anon and authenticated and granted to service_role. New table and function only — touches nothing existing |
 
 **Verified 2026-09-16, both projects.** Four rows above said **Not applied**
 when the migrations had in fact been pushed — `20260910130000`,
