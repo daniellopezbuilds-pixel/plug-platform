@@ -34,6 +34,9 @@ export type TrafficSummary = {
   new_users_by_type: Record<string, number>;
   new_users_month: number;
   users_total: number;
+  /** Diagnostics — logged by the route, not printed in the email. */
+  excluded_profiles: number;
+  excluded_sessions_month: number;
   yesterday_label: string;
   month_label: string;
 };
@@ -142,6 +145,18 @@ export function dailySummarySubject(summary: TrafficSummary): string {
   )} new ${summary.new_users_yesterday === 1 ? "user" : "users"}`;
 }
 
+/**
+ * The footnote near the bottom carries the caveat about what "visits" means,
+ * and it is in the EMAIL rather than only in a code comment on purpose: these
+ * numbers get read over breakfast and quoted later, and "visits" sounds cleaner
+ * than it is. Demo and team accounts are filtered out, but a teammate browsing
+ * while logged out has no viewer_id on any row and cannot be told from a
+ * stranger. One sentence stops the figure being trusted further than it should.
+ *
+ * Note that the explanation lives here and not as an HTML comment inside the
+ * markup — anything in the template string is bytes in every message that goes
+ * out, and internal reasoning has no business travelling with it.
+ */
 export function dailySummaryHtml(summary: TrafficSummary, siteUrl: string): string {
   const {
     visits_yesterday,
@@ -228,7 +243,10 @@ ${statRow(
         <tr>
           <td style="padding:28px 32px 32px 32px; font-family:${FONT}; font-size:13px; line-height:20px; color:#71717A;">
             A visit is one browser session, so several pages in a row count once.
-            Days run midnight to midnight, Pacific.
+            Days run midnight to midnight, Pacific. Demo and team accounts are
+            left out &mdash; though a teammate browsing without signing in
+            can&rsquo;t be told apart from a real visitor, so a few of those may
+            still be counted.
           </td>
         </tr>
 

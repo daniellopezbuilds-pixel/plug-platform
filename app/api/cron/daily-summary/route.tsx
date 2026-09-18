@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { EXCLUDED_EMAIL_PATTERNS } from "@/lib/internalAccounts";
 import {
   dailySummaryHtml,
   dailySummarySubject,
@@ -133,7 +134,11 @@ export async function GET(req: NextRequest) {
   // Every number in one call, with the day boundaries worked out in Postgres
   // where the timezone is known. See traffic_summary() in
   // 20260917130000_page_views.sql.
-  const { data, error } = await supabaseAdmin.rpc("traffic_summary");
+  const { data, error } = await supabaseAdmin.rpc("traffic_summary", {
+    // Demo and internal accounts, so the morning numbers are external signups
+    // and external visitors. Passed as a bind parameter, never interpolated.
+    excluded_email_patterns: EXCLUDED_EMAIL_PATTERNS,
+  });
 
   if (error || !data) {
     console.error(
@@ -144,6 +149,18 @@ export async function GET(req: NextRequest) {
   }
 
   const summary = data as TrafficSummary;
+
+  // A zero here after someone adds a pattern means the pattern is wrong — the
+  // filter matched nothing and the numbers are unchanged. Cheaper to notice in
+  // a log line than by wondering why demo accounts are still showing up.
+  console.log(
+    "Daily summary:",
+    JSON.stringify({
+      excluded_profiles: summary.excluded_profiles,
+      excluded_sessions_month: summary.excluded_sessions_month,
+      patterns: EXCLUDED_EMAIL_PATTERNS.length,
+    })
+  );
 
   /**
    * ?to= redirects this one send. Manual only, by construction rather than by
