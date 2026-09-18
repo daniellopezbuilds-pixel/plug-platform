@@ -64,7 +64,7 @@ export function ProfilePreviewModal({
       setSignupType(profile.signup_type || null);
       setUnionStatus(profile.union_status || null);
       setUnionVerified(profile.union_verified || false);
-      setYearsExperience(profile.years_experience?.toString() || null);
+      setYearsExperience(profile.years_experience || null);
       setAccountType(profile.account_type || profile.role || null);
 
       setCompanyLogoPath(profile.company_logo_path || null);
@@ -132,7 +132,7 @@ export function ProfilePreviewModal({
 
             {yearsExperience && (
               <p className="text-gray-400 text-sm mb-4">
-                {yearsExperience} years of experience
+                {yearsExperience} of experience
               </p>
             )}
 

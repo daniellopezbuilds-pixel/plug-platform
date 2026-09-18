@@ -29,31 +29,11 @@ import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { Spinner } from "@/components/ui/Spinner";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { useToast } from "@/components/ui/Toast";
+// The same list signup writes to profiles.location. Targeting a city only
+// matches profiles if both ends spell it the same way, so there is one list
+// and not two that happen to agree. See lib/locations.tsx.
+import { AD_TARGET_CITIES } from "@/lib/locations";
 
-// Edit this list to change the city options.
-const CALIFORNIA_CITIES = [
-  "All of California",
-  "Los Angeles",
-  "San Diego",
-  "San Jose",
-  "San Francisco",
-  "Fresno",
-  "Sacramento",
-  "Long Beach",
-  "Oakland",
-  "Bakersfield",
-  "Anaheim",
-  "Santa Ana",
-  "Riverside",
-  "Stockton",
-  "Irvine",
-  "Chula Vista",
-  "Fremont",
-  "San Bernardino",
-  "Modesto",
-  "Fontana",
-  "Oxnard",
-] as const;
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-zinc-800/60 border-zinc-700 text-gray-300",
@@ -166,7 +146,7 @@ export default function BrandingDealsPage() {
   const [title, setTitle] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [placement, setPlacement] = useState<AdPlacement>("feed");
-  const [city, setCity] = useState<string>(CALIFORNIA_CITIES[0]);
+  const [city, setCity] = useState<string>(AD_TARGET_CITIES[0]);
   const [startDate, setStartDate] = useState(today);
   const [durationMonths, setDurationMonths] = useState<AdDurationMonths>(1);
 
@@ -538,7 +518,7 @@ export default function BrandingDealsPage() {
                     }}
                     className={inputClass}
                   >
-                    {CALIFORNIA_CITIES.map((c) => (
+                    {AD_TARGET_CITIES.map((c) => (
                       <option key={c} value={c}>
                         {c}
                       </option>

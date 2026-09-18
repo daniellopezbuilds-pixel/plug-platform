@@ -5,6 +5,7 @@ import {
   SIGNUP_TYPES,
   accountTypeFor,
   legacyRoleFor,
+  missingRequiredFields,
   roleKeysFor,
   signupType as signupTypeDefinition,
   type SignupTypeKey,
@@ -47,9 +48,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const { signupType, fields } = (body ?? {}) as {
+  const { signupType, fields, columns, location, contactNumber } = (body ??
+    {}) as {
     signupType?: unknown;
     fields?: unknown;
+    columns?: unknown;
+    location?: unknown;
+    contactNumber?: unknown;
   };
 
   // Validated against the real list rather than cast: this value ends up in a
@@ -70,13 +75,70 @@ export async function POST(req: NextRequest) {
   // rows look identical whichever path created them. Also stops an edited
   // request stuffing arbitrary JSON into the column.
   const claimed: Record<string, string> = {};
-  if (fields && typeof fields === "object" && !Array.isArray(fields)) {
-    for (const field of signupTypeDefinition(type).fields) {
-      const value = (fields as Record<string, unknown>)[field.key];
-      if (typeof value === "string" && value.trim()) {
-        claimed[field.key] = value.trim();
-      }
+  const claimedColumns: Record<string, string> = {};
+
+  for (const field of signupTypeDefinition(type).fields) {
+    // Column-backed fields arrive in `columns` keyed by the column name;
+    // everything else arrives in `fields` keyed by the field key. Reading each
+    // from its own object rather than merging them first is what stops a
+    // handcrafted request putting an arbitrary key into a profiles update.
+    const source = field.profileColumn ? columns : fields;
+    const sourceKey = field.profileColumn ?? field.key;
+
+    if (!source || typeof source !== "object" || Array.isArray(source)) continue;
+
+    const value = (source as Record<string, unknown>)[sourceKey];
+    if (typeof value !== "string" || !value.trim()) continue;
+
+    if (field.profileColumn) {
+      claimedColumns[field.profileColumn] = value.trim();
+    } else {
+      claimed[field.key] = value.trim();
     }
+  }
+
+  const cleanLocation = typeof location === "string" ? location.trim() : "";
+  const cleanContact =
+    typeof contactNumber === "string" ? contactNumber.trim() : "";
+
+  // REQUIRED MEANS REQUIRED ON THIS PATH TOO.
+  //
+  // The Google flow has no details step, so for a long time it collected
+  // neither a contact number nor a city, and its credential fields were all
+  // optional. Checking here rather than trusting the form is not belt and
+  // braces: this is a public endpoint reachable with any valid bearer token,
+  // and it is the only writer of these values for a Google account.
+  //
+  // missingRequiredFields() is the same function the form calls, so "required"
+  // cannot mean two different things at the two ends of this request. The
+  // messages come back keyed by field and the form renders them in place.
+  //
+  // Checked against both halves, keyed the way the FORM keys them, because the
+  // messages go back to the form to be rendered under its fields.
+  const invalid: Record<string, string> = missingRequiredFields(type, {
+    ...claimed,
+    ...Object.fromEntries(
+      signupTypeDefinition(type)
+        .fields.filter((f) => f.profileColumn)
+        .map((f) => [f.key, claimedColumns[f.profileColumn!] ?? ""])
+    ),
+  });
+
+  if (!cleanContact) {
+    invalid.contact_number =
+      "A number we can reach you on — it's how someone follows up on a job or an application.";
+  }
+
+  if (!cleanLocation) {
+    invalid.location =
+      "Pick your city so we can show you work near you. Not listed? Choose Other and type it.";
+  }
+
+  if (Object.keys(invalid).length > 0) {
+    return NextResponse.json(
+      { error: "Some details are still missing.", fields: invalid },
+      { status: 400 }
+    );
   }
 
   // ONE-TIME. This endpoint completes onboarding; it is not a way to re-type an
@@ -114,6 +176,15 @@ export async function POST(req: NextRequest) {
   // there — same derivation, same columns. full_name is deliberately left
   // alone: the trigger already set it from Google's full_name, and nothing
   // collected here would be better.
+  //
+  // The contact details are the exception to "same columns". handle_new_user()
+  // does read them now (20260918120000), but it ran at the OAuth callback with
+  // Google's metadata, which carries none of them — so for a Google account
+  // this route is the only thing that ever writes them.
+  //
+  // claimedColumns is spread last but cannot collide with the type columns
+  // above it: it only ever holds keys named by a field's profileColumn, which
+  // is a closed union in lib/signupRoles.tsx.
   const { error: profileError } = await supabaseAdmin
     .from("profiles")
     .update({
@@ -122,6 +193,9 @@ export async function POST(req: NextRequest) {
       active_mode: accountType === "brand" ? "brand" : legacyRole,
       role: legacyRole,
       active_role: legacyRole,
+      location: cleanLocation,
+      contact_number: cleanContact,
+      ...claimedColumns,
     })
     .eq("id", user.id);
 

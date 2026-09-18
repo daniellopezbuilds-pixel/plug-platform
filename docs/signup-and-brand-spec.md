@@ -67,7 +67,8 @@ active_role                   -- 'worker' | 'employer'
 is_admin              bool
 messaging_subscribed  bool
 union_status, union_verified
-years_experience
+years_experience              -- text BAND ('3-5 years'), not a count, since 20260918120000
+contact_number                -- added 20260918120000; was metadata-only and unreadable
 resume_path
 employer_verified     bool
 company_logo_path, company_banner_path, company_description, company_website

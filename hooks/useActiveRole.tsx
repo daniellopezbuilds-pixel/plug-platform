@@ -6,6 +6,8 @@ import { resolveSignupType } from "@/lib/onboarding";
 import type { Mode } from "@/lib/accountModes";
 
 type Profile = {
+  /** = auth.users.id. Needed by anything keying per-user storage off it. */
+  id: string;
   active_role: string;
   account_type: string | null;
   /**
@@ -29,6 +31,8 @@ type Profile = {
   username: string | null;
   trade: string | null;
   bio: string | null;
+  /** The profile photo. See CompletionProfile in lib/profileCompletion.tsx. */
+  company_logo_path: string | null;
   email: string | null;
   xp: number | null;
 };
@@ -94,7 +98,7 @@ export function useActiveRole() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "active_role, role, account_type, signup_type, full_name, profile_number, username, trade, bio, email, xp"
+        "id, active_role, role, account_type, signup_type, full_name, profile_number, username, trade, bio, email, xp, company_logo_path"
       )
       .eq("id", user.id)
       .single();
@@ -144,6 +148,7 @@ export function useActiveRole() {
       }
 
       setProfile({
+        id: data.id,
         active_role: activeRole,
         account_type: data.account_type,
         // Metadata is read off the auth user already fetched above, and the
@@ -172,6 +177,7 @@ export function useActiveRole() {
         username: data.username,
         trade: data.trade,
         bio: data.bio,
+        company_logo_path: data.company_logo_path,
         email: data.email,
         xp: data.xp,
       });

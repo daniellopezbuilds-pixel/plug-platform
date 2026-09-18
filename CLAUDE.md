@@ -127,3 +127,7 @@ of thing — dashboard state, absent from version control, and per-project. See
 ships today, verified against the live database and the source. Read those
 before designing against anything — several earlier drafts specified tables and
 surfaces that do not exist.
+
+ don't use Chrome browser
+automation for verification. It's slow and expensive. Build,
+typecheck, lint, and report — I test in the browser myself.

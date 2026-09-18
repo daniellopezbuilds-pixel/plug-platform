@@ -4,6 +4,12 @@ Captured 2026-09-09 from the PostgREST OpenAPI schema of project
 `ztjlyucyoiagdwafgppf`. This is read directly off the live database, not
 inferred from application code.
 
+**Amended 2026-09-18** for `20260918120000_profile_contact_location_experience`,
+applied to both projects: `profiles.contact_number` is new, and
+`profiles.years_experience` changed from `integer` to `text` because it now
+holds a band (`'3-5 years'`) rather than a count. Everything else in this file
+is still as captured on 2026-09-09.
+
 ## What this is authoritative about
 
 Table names, column names, column types, NOT NULL, primary keys, and foreign
@@ -172,7 +178,8 @@ Use this to verify that pull, not to replace it.
 | `union_status` | text |  |  |
 | `union_verified` | boolean |  |  |
 | `location` | text |  |  |
-| `years_experience` | integer |  |  |
+| `contact_number` | text |  |  |
+| `years_experience` | text |  |  |
 | `resume_path` | text |  |  |
 | `company_logo_path` | text |  |  |
 | `company_banner_path` | text |  |  |

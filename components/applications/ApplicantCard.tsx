@@ -59,13 +59,13 @@ export function ApplicantCard({
       </div>
 
       <div className="flex flex-wrap gap-2 mb-3">
-        {applicant.profiles?.years_experience !== null &&
-          applicant.profiles?.years_experience !== undefined && (
-            <span className="bg-zinc-800 text-gray-300 px-3 py-1 rounded-full text-sm">
-              {applicant.profiles.years_experience}{" "}
-              {applicant.profiles.years_experience === 1 ? "year" : "years"} experience
-            </span>
-          )}
+        {/* A band since 20260918120000 — "3-5 years" — so the unit is already
+            in the value and there is no singular to pluralise. */}
+        {applicant.profiles?.years_experience && (
+          <span className="bg-zinc-800 text-gray-300 px-3 py-1 rounded-full text-sm">
+            {applicant.profiles.years_experience} experience
+          </span>
+        )}
         {applicant.profiles?.union_status && (
           <UnionBadge
             status={applicant.profiles.union_status}

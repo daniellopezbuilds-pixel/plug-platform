@@ -21,7 +21,7 @@ every push; `db push` names no environment in its output.
 
 ---
 
-## Status as of 2026-09-10
+## Status as of 2026-09-18
 
 | | |
 |---|---|
@@ -31,8 +31,8 @@ every push; `db push` names no environment in its output.
 | Migration section 6 (signup trigger) | **Written**, applied, and hotfixed. See the incident note |
 | RLS conflict check vs baseline | **Done.** No conflicts. See "Conflict check" |
 | Hand-run files folded in | Yes — see "Migration inventory" |
-| Production | **All thirteen migrations applied**, through `20260917150000` |
-| Staging | **All thirteen migrations applied.** See "Bringing up a fresh project" for what migrations do not carry |
+| Production | **All fourteen migrations applied**, through `20260918120000` |
+| Staging | **All fourteen migrations applied.** See "Bringing up a fresh project" for what migrations do not carry |
 
 ---
 
@@ -53,6 +53,7 @@ every push; `db push` names no environment in its output.
 | `20260917130000_page_views.sql` | Applied 2026-09-17 | New `page_views` table (first-party traffic capture, written by `lib/pageViews.tsx`) plus `traffic_summary()`, the one function the daily email reads. Insert open to anon; SELECT admin-only; EXECUTE on the function revoked from anon and authenticated and granted to service_role. New table and function only — touches nothing existing |
 | `20260917140000_traffic_summary_exclusions.sql` | Applied 2026-09-17 | Replaces `traffic_summary()` with a version taking an `excluded_email_patterns text[]`, so demo and internal accounts stay out of the daily email. The list itself is in `lib/internalAccounts.tsx`, not in SQL — adding a colleague is a code change, not a migration. Drops the old zero-argument function rather than overloading it |
 | `20260917150000_traffic_summary_require_patterns.sql` | Applied 2026-09-17 | Removes the `default` from `traffic_summary(text[])`. The default meant a caller that omitted the list — a stale deployment — silently got completely unfiltered numbers and a success response, which is exactly what happened on production. A no-argument call now fails to resolve. See "The exclusion that was not applied" |
+| `20260918120000_profile_contact_location_experience.sql` | Applied 2026-09-18 | Adds `profiles.contact_number` (backfilled from `raw_user_meta_data`; 4 rows on production), converts `profiles.years_experience` from `integer` to a text band, backfills `profiles.location` from metadata, and rewrites `handle_new_user()` to carry all three onto the row. **Section 2 is one-way** — the original integers are not recoverable from the bands. Tested on staging by creating a real auth user through the admin API and reading the row back, including the blank-metadata case; both test users deleted. See "Signup detail columns" |
 
 **Verified 2026-09-16, both projects.** Four rows above said **Not applied**
 when the migrations had in fact been pushed — `20260910130000`,
@@ -437,3 +438,64 @@ chased. One that turns up with inflated numbers gets believed.
 **The general rule.** A default argument on an aggregate that feeds a report is
 a way to be wrong quietly. If the difference between "not supplied" and "supplied
 as empty" changes the answer, do not let one of them be the fallback.
+
+---
+
+## Signup detail columns
+
+`20260918120000_profile_contact_location_experience.sql`, applied to staging and
+then production on 2026-09-18. Three problems, one migration.
+
+**`contact_number` had no column.** Signup has asked for a phone number since
+launch and written it into `auth.users.raw_user_meta_data`, which no query
+reaches — not an admin screen, not the directory, not an export. Every number
+collected was write-only. The column is new, nullable text, backfilled from
+metadata: 4 rows on production, and the profile page now reads and writes the
+column rather than metadata.
+
+**`years_experience` was the wrong type.** An `integer`, rendered as
+"{n} years experience" on four surfaces, presenting a precision nobody has.
+It is now text holding a band (`'3-5 years'`). The conversion is **one way** —
+production held 3, 9, 10, 12, 15, 22 and five NULLs, all of which mapped
+cleanly, and those original numbers are now gone. Boundaries are `<=2`, `<=5`,
+`<=10`, else; a stored 10 lands in `'6-10 years'` because the lower band cannot
+overstate.
+
+No CHECK constraint on the band, deliberately, and the same call as `trade` and
+`location`: the list is `EXPERIENCE_BANDS` in `lib/signupRoles.tsx` and editing
+it should not need a migration. The cost is that any string can be written
+there. It is self-declared and gates nothing.
+
+**`location` was never written by the trigger.** The column existed;
+`handle_new_user()` did not touch it. The app had been filling it in from the
+browser right after `signUp`, which cannot work on production — email
+confirmation is on there, `signUp` returns no session, and there is no
+authenticated connection to write with until the link is clicked. An interim
+version papered over that with a reconciliation on first dashboard load; that
+was a second writer for one fact, running at a different time, and both are
+gone. Section 4 teaches the trigger to read `location`, `contact_number` and
+`years_experience`, so there is one writer at row creation.
+
+Google accounts still do not come through the trigger with any of this — it
+fires at the OAuth callback with Google's metadata, which carries none of these
+keys. `app/api/onboarding/complete/route.tsx` writes them afterwards with
+service_role, and re-checks every required field rather than trusting the form.
+
+### How it was tested
+
+Staging, before the production push, by creating real auth users through the
+admin API rather than inserting into `auth.users` by hand — the trigger fires on
+the same path a signup takes:
+
+| Case | Result |
+|---|---|
+| Full metadata, contact number padded with spaces | Row carried `location`, trimmed `contact_number`, and the band in `years_experience`. `role_credentials` held only the credential keys — no band copy |
+| All three keys empty or whitespace | All three stored as `NULL`, not `''`, so `is null` keeps meaning "not answered" |
+
+Both test users were deleted afterwards; `profiles` has no rows left matching
+`%@sparxplug-test.invalid`.
+
+**What is NOT covered by this migration**, and is dashboard state as usual:
+nothing. It is schema only. But note the ordering constraint it creates — the
+app reads `profiles.contact_number` and treats `years_experience` as text, so
+this had to land **before** the code deploys. It did, on both projects.

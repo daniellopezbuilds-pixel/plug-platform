@@ -7,6 +7,8 @@ import { BrandDashboard } from "@/components/dashboard/BrandDashboard";
 import { signupTypeLabel } from "@/lib/signupRoles";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { PageLoader } from "@/components/ui/Loading";
+import { ProfileCompletionBanner } from "@/components/dashboard/ProfileCompletionBanner";
+import { profileCompletionPercentage } from "@/lib/profileCompletion";
 
 export default function DashboardPage() {
   const { profile, loading } = useActiveRole();
@@ -15,14 +17,12 @@ export default function DashboardPage() {
     return <PageLoader message="Loading your dashboard" />;
   }
 
-  const completed = [
-    profile.full_name,
-    profile.username,
-    profile.trade,
-    profile.bio,
-    profile.email,
-  ].filter(Boolean).length;
-  const completionPercentage = Math.round((completed / 5) * 100);
+  // ONE DEFINITION, shared with the banner below. This used to be an inline
+  // count over full_name, username, trade, bio and email — a different list
+  // from the banner's, which is how the dashboard came to show "100%" directly
+  // above "Your profile is missing one thing". Both now call the same function
+  // on the same row, so they cannot disagree. See lib/profileCompletion.tsx.
+  const completionPercentage = profileCompletionPercentage(profile);
 
   // "SP-000001 · C-10 contractor · Worker mode"
   //
@@ -45,6 +45,12 @@ export default function DashboardPage() {
         title={`Welcome back, ${profile.full_name || "User"}`}
         subtitle={subtitle}
       />
+
+      {/* Under the heading, above the dashboard proper, and it renders nothing
+          at all for a complete profile, a brand, or anyone who has dismissed
+          it. The component decides — this page does not branch on it, so there
+          is one place the rule lives. */}
+      <ProfileCompletionBanner userId={profile.id} profile={profile} />
 
       {/* Brands carry role 'employer' so the signup trigger works unchanged,
           which would otherwise show them job and applicant stats. Branch on

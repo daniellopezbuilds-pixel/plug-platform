@@ -13,7 +13,7 @@ export type DirectoryProfile = {
   union_status: string | null;
   union_verified: boolean | null;
   active_role: string | null;
-  years_experience: number | null;
+  years_experience: string | null;
   resume_path: string | null;
   company_logo_path: string | null;
   company_description: string | null;

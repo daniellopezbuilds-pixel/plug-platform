@@ -132,9 +132,10 @@ export function ProfileCard({
             {profile.location}
           </span>
         )}
-        {profile.years_experience !== null && profile.years_experience !== undefined && (
+        {/* A band since 20260918120000 — the unit is in the value. */}
+        {profile.years_experience && (
           <span className="bg-zinc-800 text-gray-300 px-3 py-1 rounded-full text-sm">
-            {profile.years_experience} {profile.years_experience === 1 ? "year" : "years"} experience
+            {profile.years_experience} experience
           </span>
         )}
         {profile.union_status && (

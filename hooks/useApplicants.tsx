@@ -17,7 +17,7 @@ export type ApplicantWithJob = {
     profile_number: string | null;
     union_status: string | null;
     union_verified: boolean | null;
-    years_experience: number | null;
+    years_experience: string | null;
     resume_path: string | null;
     signup_type: string | null;
   } | null;

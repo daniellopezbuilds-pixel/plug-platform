@@ -9,8 +9,10 @@ import {
   SIGNUP_TYPES,
   accountTypeFor,
   legacyRoleFor,
+  missingRequiredFields,
   roleKeysFor,
   signupType as signupTypeDefinition,
+  splitSignupValues,
   type SignupTypeKey,
 } from "@/lib/signupRoles";
 import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, validatePassword } from "@/lib/passwords";
@@ -20,6 +22,7 @@ import { AuthLayout } from "@/components/auth/AuthLayout";
 import { ScreenLoader } from "@/components/ui/Loading";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { LocationField } from "@/components/ui/LocationField";
 
 /**
  * The steps, by name rather than by number.
@@ -57,6 +60,28 @@ const SESSION_SETTLE_MS = 2500;
 const inputClass =
   "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
 
+/**
+ * Enough of a check to catch a typo, and no more.
+ *
+ * Anything stricter rejects addresses that are perfectly valid, and the real
+ * proof that an address works is the confirmation email arriving at it.
+ */
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+/**
+ * Ten digits or more, ignoring everything that is not one.
+ *
+ * Deliberately not a format: people write numbers as (555) 123-4567, 555.123
+ * .4567 or +1 555 123 4567 and all three are the same number. Counting digits
+ * catches the actual mistake — a number cut short — without telling anyone
+ * their punctuation is wrong.
+ */
+function looksLikePhone(value: string): boolean {
+  return (value.match(/\d/g) ?? []).length >= 10;
+}
+
 export default function SignupPage() {
   const router = useRouter();
 
@@ -73,6 +98,7 @@ export default function SignupPage() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
+  const [location, setLocation] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -81,6 +107,19 @@ export default function SignupPage() {
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
 
   const [submitting, setSubmitting] = useState(false);
+
+  /**
+   * Per field, keyed by the input's name — the credential keys included, since
+   * those come from SIGNUP_TYPES and cannot collide with the fixed ones.
+   *
+   * This used to be a single `error` string shown under the form. With one
+   * optional field per step that was enough; with nine required ones it is not
+   * — "Please fill in the required fields" under a form of eight inputs makes
+   * the user hunt. Each message now sits under the field it is about.
+   */
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  /** Submit failures — a rejected signUp, a dead session. Not about one field. */
   const [error, setError] = useState<string | null>(null);
 
   // Set when signUp returns no session, i.e. email confirmation is on and the
@@ -91,6 +130,18 @@ export default function SignupPage() {
 
   const steps = mode === "google" ? GOOGLE_STEPS : EMAIL_STEPS;
   const currentStep = steps[step];
+
+  /**
+   * Contact number and city are asked on the step that exists in BOTH flows.
+   *
+   * Google skips "details" entirely — name, email and password all come from
+   * the provider — so anything asked only there is asked only of email signups.
+   * That is how contact number came to be missing from every Google account.
+   * The two fields ride along on "credentials" instead when there is no details
+   * step to put them on, which keeps the Google flow two steps rather than
+   * growing it a third.
+   */
+  const detailsStepExists = steps.includes("details");
 
   /**
    * Resolving how this page was reached.
@@ -138,7 +189,7 @@ export default function SignupPage() {
       // disagreed about one account it would bounce between the two pages.
       const { data: profileRow } = await supabase
         .from("profiles")
-        .select("signup_type")
+        .select("signup_type, location, contact_number")
         .eq("id", user.id)
         .single();
 
@@ -149,6 +200,18 @@ export default function SignupPage() {
       ) {
         router.replace("/dashboard");
         return;
+      }
+
+      // Prefilled, not assumed. The signup trigger fired at the callback with
+      // Google's metadata, which carries no city — but an account that has been
+      // here before, or was edited by an admin, may already have one, and
+      // making them retype it would be the form ignoring what it knows.
+      if (typeof profileRow?.location === "string") {
+        setLocation(profileRow.location);
+      }
+
+      if (typeof profileRow?.contact_number === "string") {
+        setContactNumber(profileRow.contact_number);
       }
 
       setGoogleIdentity({
@@ -194,59 +257,121 @@ export default function SignupPage() {
 
   function setField(key: string, value: string) {
     setFieldValues((prev) => ({ ...prev, [key]: value }));
+    clearError(key);
+  }
+
+  /** Clears one field's message as soon as it is being fixed. */
+  function clearError(key: string) {
+    setErrors((prev) => {
+      if (!prev[key]) return prev;
+
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   }
 
   /**
-   * Values for the chosen type's fields only, blanks stripped. Filtering by the
-   * current type also drops anything typed under a type they later changed
-   * away from.
+   * The chosen type's answers, split into the two places they are stored —
+   * signup_fields for the credentials, profiles columns for the rest. Filtering
+   * by the current type also drops anything typed under a type they later
+   * changed away from.
    */
-  function collectFields() {
-    if (!chosenType) return {};
+  function collectValues() {
+    if (!chosenType) return { credentials: {}, columns: {} };
 
-    const collected: Record<string, string> = {};
+    return splitSignupValues(chosenType, fieldValues);
+  }
 
-    for (const field of signupTypeDefinition(chosenType).fields) {
-      const value = (fieldValues[field.key] ?? "").trim();
-      if (value !== "") collected[field.key] = value;
+  /**
+   * Contact number and city, wherever they are being asked.
+   *
+   * Split out from the rest of the details step so the Google flow can run the
+   * same two checks on the credentials step without also demanding a password
+   * nobody set.
+   */
+  function validateContactAndLocation() {
+    const found: Record<string, string> = {};
+
+    if (!contactNumber.trim()) {
+      found.contact_number =
+        "A number we can reach you on — it's how someone follows up on a job or an application.";
+    } else if (!looksLikePhone(contactNumber)) {
+      found.contact_number =
+        "That's too short for a phone number — include the area code.";
     }
 
-    return collected;
+    if (!location.trim()) {
+      found.location =
+        "Pick your city so we can show you work near you. Not listed? Choose Other and type it.";
+    }
+
+    return found;
+  }
+
+  /** Everything the details step asks for. */
+  function validateDetails() {
+    const found: Record<string, string> = {};
+
+    if (!firstName.trim()) {
+      found.first_name = "Your first name — it's what other trades see on your profile.";
+    }
+
+    if (!lastName.trim()) {
+      found.last_name = "And your last name.";
+    }
+
+    if (!email.trim()) {
+      found.email = "The email address you'll sign in with.";
+    } else if (!looksLikeEmail(email.trim())) {
+      found.email = "That doesn't look like an email address — check for a typo.";
+    }
+
+    Object.assign(found, validateContactAndLocation());
+
+    // Caught on the way out of this step, not at final submit two steps
+    // later — being sent back to fix a password after filling in credentials
+    // is the kind of thing that loses a signup.
+    const invalidPassword = validatePassword(password, confirmPassword);
+    if (invalidPassword) found.password = invalidPassword;
+
+    return found;
+  }
+
+  /**
+   * The chosen type's required fields, plus the two shared ones when this step
+   * is where they are being asked.
+   */
+  function validateCredentials() {
+    if (!chosenType) return { type: "Please choose one to continue." };
+
+    const found = missingRequiredFields(chosenType, fieldValues);
+
+    if (!detailsStepExists) Object.assign(found, validateContactAndLocation());
+
+    return found;
   }
 
   function goBack() {
     setError(null);
+    setErrors({});
     setStep((s) => Math.max(0, s - 1));
   }
 
   function goNext() {
     setError(null);
 
-    if (currentStep === "type" && !chosenType) {
-      setError("Please choose one to continue.");
-      return;
-    }
+    const found =
+      currentStep === "type"
+        ? chosenType
+          ? {}
+          : { type: "Please choose one to continue." }
+        : currentStep === "details"
+        ? validateDetails()
+        : validateCredentials();
 
-    if (currentStep === "details") {
-      if (!firstName.trim() || !lastName.trim()) {
-        setError("Please enter your first and last name.");
-        return;
-      }
-
-      if (!email.trim()) {
-        setError("Please enter your email address.");
-        return;
-      }
-
-      // Caught on the way out of this step, not at final submit two steps
-      // later — being sent back to fix a password after filling in credentials
-      // is the kind of thing that loses a signup.
-      const invalidPassword = validatePassword(password, confirmPassword);
-      if (invalidPassword) {
-        setError(invalidPassword);
-        return;
-      }
-    }
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
 
     setStep((s) => Math.min(steps.length - 1, s + 1));
   }
@@ -292,6 +417,8 @@ export default function SignupPage() {
    *   1. The API route, because profiles.signup_type CANNOT be written from the
    *      browser. profiles_guard_signup_type raises 42501 for any non-admin
    *      JWT, including a first write over NULL. The route holds service_role.
+   *      It also writes profiles.location, and re-checks every required field
+   *      rather than trusting this form to have done it.
    *   2. updateUser, for raw_user_meta_data. Everything that already reads
    *      signup_type and signup_fields off the auth user keeps working —
    *      useActiveRole's brand name, app/dashboard/profile/page.tsx — and it
@@ -307,9 +434,13 @@ export default function SignupPage() {
     setError(null);
 
     if (!chosenType) {
-      setError("Please choose one to continue.");
+      setErrors({ type: "Please choose one to continue." });
       return;
     }
+
+    const found = validateCredentials();
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
 
     setSubmitting(true);
 
@@ -323,6 +454,8 @@ export default function SignupPage() {
       return;
     }
 
+    const { credentials, columns } = collectValues();
+
     const response = await fetch("/api/onboarding/complete", {
       method: "POST",
       headers: {
@@ -331,28 +464,49 @@ export default function SignupPage() {
       },
       // No user id in the body — the route takes it from the token. Sending one
       // would be the exact shape of the two Stripe checkout bugs.
-      body: JSON.stringify({ signupType: chosenType, fields: collectFields() }),
+      //
+      // The route writes every one of these to profiles with service_role. It
+      // has to: a Google account's row was created at the OAuth callback, by
+      // the trigger, from metadata that carried none of this.
+      body: JSON.stringify({
+        signupType: chosenType,
+        fields: credentials,
+        columns,
+        location: location.trim(),
+        contactNumber: contactNumber.trim(),
+      }),
     });
 
     if (!response.ok) {
       const body = await response.json().catch(() => null);
       setSubmitting(false);
+
+      // The route returns per-field messages for the same checks this form
+      // runs. Showing them against their fields rather than as one sentence
+      // means a server-side rejection reads the same as a client-side one.
+      if (body?.fields && typeof body.fields === "object") {
+        setErrors(body.fields as Record<string, string>);
+        return;
+      }
+
       setError(body?.error ?? "We couldn't finish setting up your account.");
       return;
     }
 
-    // Same seven keys the email path writes, so nothing downstream has to know
-    // which flow produced the account. updateUser merges, so Google's own
-    // metadata (name, avatar_url, sub) survives alongside these.
+    // Same keys the email path writes, so nothing downstream has to know which
+    // flow produced the account. updateUser merges, so Google's own metadata
+    // (name, avatar_url, sub) survives alongside these.
     const { error: metadataError } = await supabase.auth.updateUser({
       data: {
         full_name: googleIdentity?.name ?? "",
-        contact_number: "",
+        contact_number: contactNumber.trim(),
+        location: location.trim(),
+        years_experience: columns.years_experience ?? "",
         role: legacyRoleFor(chosenType),
         signup_type: chosenType,
         account_type: accountTypeFor(chosenType),
         roles: roleKeysFor(chosenType),
-        signup_fields: collectFields(),
+        signup_fields: credentials,
       },
     });
 
@@ -372,26 +526,30 @@ export default function SignupPage() {
   async function handleSignup() {
     setError(null);
 
-    if (!firstName.trim() || !lastName.trim()) {
-      setError("Please enter your first and last name.");
-      return;
-    }
-
-    if (!email.trim()) {
-      setError("Please enter your email address.");
-      return;
-    }
-
     // Re-checked at submit as well as on the step transition: the user can go
-    // back and edit step 2 after passing it once.
-    const invalidPassword = validatePassword(password, confirmPassword);
-    if (invalidPassword) {
-      setError(invalidPassword);
+    // back and edit an earlier step after passing it once.
+    const found = { ...validateDetails(), ...validateCredentials() };
+    setErrors(found);
+
+    if (Object.keys(found).length > 0) {
+      // The details step is where the first of these lives, and it is behind
+      // them — send them to it rather than showing a message about a field
+      // that is not on screen.
+      const detailKeys = [
+        "first_name",
+        "last_name",
+        "email",
+        "contact_number",
+        "location",
+        "password",
+      ];
+
+      if (detailKeys.some((k) => found[k])) setStep(steps.indexOf("details"));
       return;
     }
 
     if (!chosenType) {
-      setError("Please choose one to continue.");
+      setErrors({ type: "Please choose one to continue." });
       return;
     }
 
@@ -401,18 +559,35 @@ export default function SignupPage() {
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
-    // Write path unchanged: same signUp call, same options.data object, with
-    // extra keys added for later backfill.
+    const { credentials, columns } = collectValues();
+
+    // ONE WRITE. Everything this form collects goes into options.data, and
+    // handle_new_user() turns it into the profiles row.
+    //
+    // There is no follow-up update from the browser and there must not be. With
+    // email confirmation on — production — signUp returns no session, so there
+    // is no authenticated connection to run one with until the user clicks the
+    // link. An earlier version wrote profiles.location here and reconciled the
+    // confirmation case on first dashboard load; that was two writers for one
+    // fact, running at different times, and 20260918120000 replaced both by
+    // teaching the trigger to read location, contact_number and
+    // years_experience.
     //
     // account_type and roles are derived from the one signup choice rather
     // than asked for separately, so the backfill documented in
     // supabase/migrations/20260909120000_signup_roles_and_account_mode.sql
     // section 6 keeps the source it expects.
     //
+    // years_experience is sent at the top level rather than inside
+    // signup_fields because it is stored in a profiles column — it is printed
+    // on other people's screens, and signup_fields is private to the account.
+    // splitSignupValues() is what decides that; see profileColumn in
+    // lib/signupRoles.tsx.
+    //
     // raw_user_meta_data is CLIENT-WRITABLE. Anything read back out of it is
-    // user-claimed, never verified. The backfill that eventually moves these
-    // into account_roles and role_credentials must treat them accordingly and
-    // set role_credentials.verified = false for every row it creates.
+    // user-claimed, never verified. The trigger validates what it can —
+    // account_type, signup_type, role keys — and stores the contact details as
+    // given, because they grant nothing.
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -420,11 +595,13 @@ export default function SignupPage() {
         data: {
           full_name: fullName,
           contact_number: contactNumber.trim(),
+          location: location.trim(),
+          years_experience: columns.years_experience ?? "",
           role: legacyRoleFor(type),
           signup_type: type,
           account_type: accountTypeFor(type),
           roles: roleKeysFor(type),
-          signup_fields: collectFields(),
+          signup_fields: credentials,
         },
       },
     });
@@ -436,10 +613,9 @@ export default function SignupPage() {
       return;
     }
 
-    // Email confirmation is off today, so signUp returns a session and we go
-    // straight to the dashboard. Turning confirmation back on needs no code
-    // change — it just starts taking the no-session branch below, which
-    // renders the "check your email" screen.
+    // Email confirmation is off on staging, so signUp returns a session and we
+    // go straight to the dashboard. It is ON in production, which takes the
+    // no-session branch below and renders the "check your email" screen.
 
     if (!data.session) {
       // No session means confirmation is required after all. Never assume it
@@ -498,6 +674,49 @@ export default function SignupPage() {
   const isLastStep = step === steps.length - 1;
 
   const activeType = chosenType ? signupTypeDefinition(chosenType) : null;
+
+  /** One message, under the field it belongs to. */
+  function fieldError(key: string) {
+    if (!errors[key]) return null;
+
+    return <p className="text-xs text-rose-400 mt-1">{errors[key]}</p>;
+  }
+
+  /** The contact number and city pair, shared by both steps that can host it. */
+  const contactAndLocation = (
+    <>
+      <div>
+        <label htmlFor="contact_number" className="block text-xs text-gray-400 mb-1">
+          Contact number
+        </label>
+        <input
+          id="contact_number"
+          type="tel"
+          autoComplete="tel"
+          placeholder="(555) 123-4567"
+          className={inputClass}
+          value={contactNumber}
+          onChange={(e) => {
+            setContactNumber(e.target.value);
+            clearError("contact_number");
+          }}
+        />
+        {fieldError("contact_number")}
+      </div>
+
+      <LocationField
+        id="location"
+        value={location}
+        onChange={(next) => {
+          setLocation(next);
+          clearError("location");
+        }}
+        className={inputClass}
+        labelClassName="block text-xs text-gray-400 mb-1"
+        error={errors.location}
+      />
+    </>
+  );
 
   return (
     <AuthLayout>
@@ -573,6 +792,7 @@ export default function SignupPage() {
                     type="button"
                     onClick={() => {
                       setChosenType(type.key);
+                      clearError("type");
                       setError(null);
                     }}
                     className={`w-full text-left p-3 rounded-lg border transition flex items-start gap-3 ${
@@ -602,6 +822,8 @@ export default function SignupPage() {
                 );
               })}
 
+              {fieldError("type")}
+
               <p className="text-xs text-gray-400 pt-1">
                 Do more than one? You can add more to your profile later.
               </p>
@@ -620,37 +842,55 @@ export default function SignupPage() {
               )}
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="text"
-                  placeholder={isBrand ? "Contact first name" : "First name"}
-                  className={inputClass}
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                />
-                <input
-                  type="text"
-                  placeholder={isBrand ? "Contact last name" : "Last name"}
-                  className={inputClass}
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                />
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    autoComplete="given-name"
+                    placeholder={isBrand ? "Contact first name" : "First name"}
+                    aria-label={isBrand ? "Contact first name" : "First name"}
+                    className={inputClass}
+                    value={firstName}
+                    onChange={(e) => {
+                      setFirstName(e.target.value);
+                      clearError("first_name");
+                    }}
+                  />
+                  {fieldError("first_name")}
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    autoComplete="family-name"
+                    placeholder={isBrand ? "Contact last name" : "Last name"}
+                    aria-label={isBrand ? "Contact last name" : "Last name"}
+                    className={inputClass}
+                    value={lastName}
+                    onChange={(e) => {
+                      setLastName(e.target.value);
+                      clearError("last_name");
+                    }}
+                  />
+                  {fieldError("last_name")}
+                </div>
               </div>
 
-              <input
-                type="email"
-                placeholder="Email"
-                className={inputClass}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+              <div>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  placeholder="Email"
+                  aria-label="Email"
+                  className={inputClass}
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    clearError("email");
+                  }}
+                />
+                {fieldError("email")}
+              </div>
 
-              <input
-                type="tel"
-                placeholder="Contact number (optional)"
-                className={inputClass}
-                value={contactNumber}
-                onChange={(e) => setContactNumber(e.target.value)}
-              />
+              {contactAndLocation}
 
               <div>
                 <PasswordInput
@@ -659,11 +899,15 @@ export default function SignupPage() {
                   minLength={MIN_PASSWORD_LENGTH}
                   className={inputClass}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    clearError("password");
+                  }}
                 />
                 {/* The rule is shown before anything is typed, not after a
                     rejected submit. */}
                 <p className="text-xs text-gray-400 mt-1">{PASSWORD_RULE}</p>
+                {fieldError("password")}
               </div>
 
               <PasswordInput
@@ -672,7 +916,10 @@ export default function SignupPage() {
                 minLength={MIN_PASSWORD_LENGTH}
                 className={inputClass}
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  clearError("password");
+                }}
               />
             </div>
           )}
@@ -680,37 +927,73 @@ export default function SignupPage() {
           {/* Step 3 — the chosen type's fields, rendered directly */}
           {currentStep === "credentials" && activeType && (
             <div className="space-y-3">
-              <p className="text-xs text-gray-400">
-                All optional — add what you have, skip the rest.
-              </p>
-
-              {activeType.fields.map((field) =>
-                field.type === "textarea" ? (
-                  <div key={field.key}>
-                    <label className="block text-xs text-gray-400 mb-1">
-                      {field.label}
-                    </label>
-                    <textarea
-                      rows={field.rows ?? 3}
-                      value={fieldValues[field.key] ?? ""}
-                      onChange={(e) => setField(field.key, e.target.value)}
-                      className={`${inputClass} resize-none`}
-                    />
-                  </div>
-                ) : (
-                  <div key={field.key}>
-                    <label className="block text-xs text-gray-400 mb-1">
-                      {field.label}
-                    </label>
-                    <input
-                      type="text"
-                      value={fieldValues[field.key] ?? ""}
-                      onChange={(e) => setField(field.key, e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                )
+              {/* The Google flow has no details step, so the two fields it
+                  would have asked for are asked here. Set off with its own
+                  heading rather than dropped in among the credentials, which
+                  are a different question. */}
+              {!detailsStepExists && (
+                <div className="space-y-3 pb-4 mb-1 border-b border-zinc-800">
+                  <p className="text-xs text-gray-400">
+                    Google didn&apos;t give us these.
+                  </p>
+                  {contactAndLocation}
+                </div>
               )}
+
+              {activeType.fields.map((field) => {
+                const value = fieldValues[field.key] ?? "";
+
+                return (
+                  <div key={field.key}>
+                    <label
+                      htmlFor={`signup-${field.key}`}
+                      className="block text-xs text-gray-400 mb-1"
+                    >
+                      {field.label}
+                      {!field.required && (
+                        <span className="text-gray-500"> (optional)</span>
+                      )}
+                    </label>
+
+                    {field.type === "textarea" ? (
+                      <textarea
+                        id={`signup-${field.key}`}
+                        rows={field.rows ?? 3}
+                        value={value}
+                        onChange={(e) => setField(field.key, e.target.value)}
+                        className={`${inputClass} resize-none`}
+                      />
+                    ) : field.type === "select" ? (
+                      <select
+                        id={`signup-${field.key}`}
+                        value={value}
+                        onChange={(e) => setField(field.key, e.target.value)}
+                        className={inputClass}
+                      >
+                        <option value="">Select one</option>
+                        {(field.options ?? []).map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        id={`signup-${field.key}`}
+                        type="text"
+                        value={value}
+                        onChange={(e) => setField(field.key, e.target.value)}
+                        className={inputClass}
+                      />
+                    )}
+
+                    {field.hint && (
+                      <p className="text-xs text-gray-500 mt-1">{field.hint}</p>
+                    )}
+                    {fieldError(field.key)}
+                  </div>
+                );
+              })}
             </div>
           )}
 

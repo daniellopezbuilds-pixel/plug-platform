@@ -13,7 +13,13 @@ import { BadgesSection } from "@/components/profile/BadgesSection";
 import { PageWithRail } from "@/components/layout/PageWithRail";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
-import { SIGNUP_TYPES, roleKeysFor } from "@/lib/signupRoles";
+import {
+  SIGNUP_TYPES,
+  EXPERIENCE_BANDS,
+  applyFieldAliases,
+  missingRequiredFields,
+  roleKeysFor,
+} from "@/lib/signupRoles";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { PageLoader } from "@/components/ui/Loading";
 import { InlineLoader } from "@/components/ui/Loading";
@@ -21,6 +27,7 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { useToast } from "@/components/ui/Toast";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { TRADES, OTHER_TRADE, isListedTrade } from "@/lib/trades";
+import { LocationField } from "@/components/ui/LocationField";
 
 export default function ProfilePage() {
   const toast = useToast();
@@ -48,6 +55,17 @@ export default function ProfilePage() {
 
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
+
+  /**
+   * profiles.contact_number, added by 20260918120000.
+   *
+   * Before that it existed only in auth user_metadata: signup wrote it there
+   * and nothing ever read it back, so every number collected since launch was
+   * write-only. The migration added the column and backfilled it from metadata.
+   * Metadata still carries it at signup, because that is how the value reaches
+   * handle_new_user() — but the column is what anything reads.
+   */
+  const [contactNumber, setContactNumber] = useState("");
   const [unionStatus, setUnionStatus] = useState<string | null>(null);
   const [unionVerified, setUnionVerified] = useState(false);
   const [yearsExperience, setYearsExperience] = useState("");
@@ -89,6 +107,25 @@ export default function ProfilePage() {
    */
   const [credentialsVerified, setCredentialsVerified] = useState(false);
   const [savingSignupFields, setSavingSignupFields] = useState(false);
+
+  /**
+   * Per-field messages for the required credentials, keyed by field key.
+   *
+   * Required-ness is decided by missingRequiredFields() — the same function the
+   * signup form and the onboarding route use — so an account cannot be edited
+   * into a state signup would have refused to create.
+   */
+  const [signupFieldErrors, setSignupFieldErrors] = useState<
+    Record<string, string>
+  >({});
+
+  /**
+   * Messages for the signup fields that are stored in profiles columns and so
+   * are edited in the main form rather than in the credentials section. Keyed
+   * by field key, same as signupFieldErrors — separate state because they are
+   * saved by a different button.
+   */
+  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
 
   const { reviews, averageRating, count } = useReviews(userId || null);
   const { hiredCount, jobsLandedCount } = useProfileStats(userId || null);
@@ -150,8 +187,13 @@ export default function ProfilePage() {
         }
       }
 
-      const resolvedFields =
-        Object.keys(credentialFields).length > 0 ? credentialFields : metaFields;
+      // Aliased on read, so a key collected under an old name (instructor's
+      // `certificate`) shows up in the field that replaced it rather than
+      // vanishing — the save below rebuilds this object from the CURRENT field
+      // list, so anything not rendered is anything not kept.
+      const resolvedFields = applyFieldAliases(
+        Object.keys(credentialFields).length > 0 ? credentialFields : metaFields
+      );
 
       setSignupFields(resolvedFields);
       setSavedSignupFields(resolvedFields);
@@ -186,7 +228,11 @@ export default function ProfilePage() {
       setLocation(profile.location || "");
       setUnionStatus(profile.union_status || null);
       setUnionVerified(profile.union_verified || false);
-      setYearsExperience(profile.years_experience?.toString() || "");
+      setContactNumber(profile.contact_number || "");
+      // A band now, not an integer — 20260918120000 converted the column and
+      // every value in it. A row still holding something outside the band list
+      // is kept selectable by the select below rather than silently replaced.
+      setYearsExperience(profile.years_experience || "");
       setResumePath(profile.resume_path || null);
 
       setCompanyLogoPath(profile.company_logo_path || null);
@@ -221,6 +267,25 @@ export default function ProfilePage() {
 
     if (!user) return;
 
+    // The column-backed signup fields are edited HERE, not in the credentials
+    // section below, so this is where their required-ness is enforced. Scoped
+    // to "columns" so this Save cannot complain about a licence number that
+    // belongs to the other form and is not on screen.
+    const invalidColumns = signupTypeDef
+      ? missingRequiredFields(
+          signupTypeDef.key,
+          { years_experience: yearsExperience },
+          "columns"
+        )
+      : {};
+
+    setProfileErrors(invalidColumns);
+
+    if (Object.keys(invalidColumns).length > 0) {
+      toast.error("Some details are still needed before this can be saved.");
+      return;
+    }
+
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -229,9 +294,12 @@ export default function ProfilePage() {
         trade,
         bio,
         location,
+        contact_number: contactNumber.trim() || null,
         union_status: unionStatus,
         union_verified: false,
-        years_experience: yearsExperience ? parseInt(yearsExperience, 10) : null,
+        // Plain text since 20260918120000 — no parseInt, and an empty select
+        // stores NULL rather than "" so `is null` keeps meaning "not answered".
+        years_experience: yearsExperience || null,
         company_description: companyDescription,
         company_website: companyWebsite,
       })
@@ -276,16 +344,41 @@ export default function ProfilePage() {
 
     if (!user) return;
 
-    setSavingSignupFields(true);
-
     // Only this type's fields, trimmed, blanks dropped — the same shape
     // collectFields() produces at signup, so a row written here is
     // indistinguishable from one written by the trigger.
+    // Column-backed fields are skipped: they are not credentials, they are not
+    // rendered in this section, and including them would write a copy into
+    // role_credentials that nothing reads and that goes stale the moment the
+    // main form saves.
     const cleaned: Record<string, string> = {};
     for (const field of signupTypeDef.fields) {
+      if (field.profileColumn) continue;
+
       const value = (signupFields[field.key] ?? "").trim();
       if (value) cleaned[field.key] = value;
     }
+
+    // Checked against the same function signup and the onboarding route use.
+    // Without it the profile editor would be a way to empty a field that
+    // signup insists on — a licence number cleared here would leave an account
+    // in a state the form that created it would have refused.
+    //
+    // "credentials" only: the column-backed fields are on the main form above
+    // and are checked by its own Save.
+    const invalid = missingRequiredFields(
+      signupTypeDef.key,
+      cleaned,
+      "credentials"
+    );
+    setSignupFieldErrors(invalid);
+
+    if (Object.keys(invalid).length > 0) {
+      toast.error("Some details are still needed before this can be saved.");
+      return;
+    }
+
+    setSavingSignupFields(true);
 
     const roleKeys = roleKeysFor(signupTypeDef.key);
 
@@ -527,7 +620,15 @@ export default function ProfilePage() {
    * state and whether the verification warning is shown — a warning that
    * appears when nothing has been touched would train people to ignore it.
    */
-  const signupFieldsChanged = (signupTypeDef?.fields ?? []).some(
+  /**
+   * The fields this section actually renders — everything except the ones
+   * stored in a profiles column, which belong to the main form above.
+   */
+  const credentialFields = (signupTypeDef?.fields ?? []).filter(
+    (field) => !field.profileColumn
+  );
+
+  const signupFieldsChanged = credentialFields.some(
     (field) =>
       (signupFields[field.key] ?? "").trim() !==
       (savedSignupFields[field.key] ?? "").trim()
@@ -624,22 +725,80 @@ export default function ProfilePage() {
           className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 h-40 text-white"
         />
 
-        <input
-          type="text"
-          placeholder="Location (e.g. Los Angeles, CA)"
+        {/* Location.
+            Same treatment as Trade above and for the same reason: a select over
+            a shared list, with Other revealing a text box so nothing already
+            stored is lost. profiles.location is free text with no constraint
+            and most existing rows read "Los Angeles, CA", which listedCityFor()
+            resolves to the Los Angeles option rather than pushing into Other. */}
+        <LocationField
+          id="profile-location"
           value={location}
-          onChange={(e) => setLocation(e.target.value)}
+          onChange={setLocation}
           className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
+          labelClassName="block text-sm text-gray-400 mb-2"
         />
 
-        <input
-          type="number"
-          min="0"
-          placeholder="Years of Experience"
-          value={yearsExperience}
-          onChange={(e) => setYearsExperience(e.target.value)}
-          className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-        />
+        <div>
+          <label
+            htmlFor="profile-contact-number"
+            className="block text-sm text-gray-400 mb-2"
+          >
+            Contact number
+          </label>
+          <input
+            id="profile-contact-number"
+            type="tel"
+            autoComplete="tel"
+            placeholder="(555) 123-4567"
+            value={contactNumber}
+            onChange={(e) => setContactNumber(e.target.value)}
+            className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
+          />
+        </div>
+
+        {/* Years of experience — a band, and this is the ONLY editor for it.
+            It is the signup field that lives in a profiles column rather than
+            in signup_fields (see profileColumn in lib/signupRoles.tsx), because
+            it is printed on other people's screens. The credentials section
+            below therefore skips it; two controls for one value is how the two
+            get to disagree. */}
+        <div>
+          <label
+            htmlFor="profile-years-experience"
+            className="block text-sm text-gray-400 mb-2"
+          >
+            Years of experience
+          </label>
+          <select
+            id="profile-years-experience"
+            value={yearsExperience}
+            onChange={(e) => {
+              setYearsExperience(e.target.value);
+              setProfileErrors({});
+            }}
+            className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
+          >
+            <option value="">Select a range</option>
+            {EXPERIENCE_BANDS.map((band) => (
+              <option key={band} value={band}>
+                {band}
+              </option>
+            ))}
+            {/* A value outside the list — hand-written, or from a band that has
+                since been renamed — stays selectable instead of rendering as an
+                empty select that silently clears it on the next save. */}
+            {yearsExperience &&
+              !(EXPERIENCE_BANDS as readonly string[]).includes(
+                yearsExperience
+              ) && <option value={yearsExperience}>{yearsExperience}</option>}
+          </select>
+          {profileErrors.years_experience && (
+            <p className="text-xs text-rose-400 mt-1">
+              {profileErrors.years_experience}
+            </p>
+          )}
+        </div>
 
         <div>
           <label className="block text-sm text-gray-400 mb-2">Union Status</label>
@@ -709,8 +868,8 @@ export default function ProfilePage() {
               </span>
             </div>
             <p className="text-xs text-gray-400 mb-4">
-              What you entered at signup. All optional — update them as things
-              change.
+              What you entered at signup. Update them as things change — the
+              ones marked optional can be left empty.
             </p>
 
             {/* The account type itself is NOT editable here, and that is
@@ -720,52 +879,91 @@ export default function ProfilePage() {
                 self-assignable. Shown as a badge above; changing it is an admin
                 action. */}
 
+            {/* Driven entirely off the field definition — type, options,
+                required-ness and the message shown when a required one is
+                empty all come from lib/signupRoles.tsx, exactly as they do on
+                the signup form. Two renderers for one definition is how the
+                two ends drift. */}
             <div className="space-y-4">
-              {signupTypeDef.fields.map((field) =>
-                field.type === "textarea" ? (
+              {credentialFields.map((field) => {
+                const value = signupFields[field.key] ?? "";
+                const inputClass =
+                  "w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white";
+
+                const onChange = (next: string) => {
+                  setSignupFields((prev) => ({ ...prev, [field.key]: next }));
+
+                  setSignupFieldErrors((prev) => {
+                    if (!prev[field.key]) return prev;
+
+                    const cleared = { ...prev };
+                    delete cleared[field.key];
+                    return cleared;
+                  });
+                };
+
+                return (
                   <div key={field.key}>
                     <label
                       htmlFor={`signup-${field.key}`}
                       className="block text-xs text-gray-400 mb-1"
                     >
                       {field.label}
+                      {!field.required && (
+                        <span className="text-gray-500"> (optional)</span>
+                      )}
                     </label>
-                    <textarea
-                      id={`signup-${field.key}`}
-                      rows={field.rows ?? 3}
-                      value={signupFields[field.key] ?? ""}
-                      onChange={(e) =>
-                        setSignupFields((prev) => ({
-                          ...prev,
-                          [field.key]: e.target.value,
-                        }))
-                      }
-                      className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-                    />
+
+                    {field.type === "textarea" ? (
+                      <textarea
+                        id={`signup-${field.key}`}
+                        rows={field.rows ?? 3}
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        className={inputClass}
+                      />
+                    ) : field.type === "select" ? (
+                      <select
+                        id={`signup-${field.key}`}
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        className={inputClass}
+                      >
+                        <option value="">Select one</option>
+                        {(field.options ?? []).map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                        {/* A stored value that is no longer in the list —
+                            renamed, or written before the list existed — would
+                            otherwise render as a blank select and be silently
+                            replaced on the next save. */}
+                        {value && !(field.options ?? []).includes(value) && (
+                          <option value={value}>{value}</option>
+                        )}
+                      </select>
+                    ) : (
+                      <input
+                        id={`signup-${field.key}`}
+                        type="text"
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        className={inputClass}
+                      />
+                    )}
+
+                    {field.hint && (
+                      <p className="text-xs text-gray-500 mt-1">{field.hint}</p>
+                    )}
+                    {signupFieldErrors[field.key] && (
+                      <p className="text-xs text-rose-400 mt-1">
+                        {signupFieldErrors[field.key]}
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  <div key={field.key}>
-                    <label
-                      htmlFor={`signup-${field.key}`}
-                      className="block text-xs text-gray-400 mb-1"
-                    >
-                      {field.label}
-                    </label>
-                    <input
-                      id={`signup-${field.key}`}
-                      type="text"
-                      value={signupFields[field.key] ?? ""}
-                      onChange={(e) =>
-                        setSignupFields((prev) => ({
-                          ...prev,
-                          [field.key]: e.target.value,
-                        }))
-                      }
-                      className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-                    />
-                  </div>
-                )
-              )}
+                );
+              })}
             </div>
 
             {/* BEFORE SAVING, NOT AFTER.
@@ -814,7 +1012,16 @@ export default function ProfilePage() {
           <SectionHeading>Company Branding</SectionHeading>
 
           <div className="mb-5">
-            <label className="block text-sm text-gray-400 mb-2">Company Logo</label>
+            {/* "Profile photo" first, because for an individual account that
+                is what this is — company_logo_path is the round image rendered
+                beside the name on the public profile, the marketplace card and
+                the application card, and there is no other image column. The
+                completion banner asks for a "profile photo"; a page whose only
+                matching label said "Company Logo" would send an electrician
+                looking for a field that, to them, does not exist. */}
+            <label className="block text-sm text-gray-400 mb-2">
+              Profile photo <span className="text-gray-500">/ company logo</span>
+            </label>
             {companyLogoPath && (
               <img
                 src={getBrandingPublicUrl(companyLogoPath)}
