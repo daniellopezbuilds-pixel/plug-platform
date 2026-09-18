@@ -31,8 +31,8 @@ every push; `db push` names no environment in its output.
 | Migration section 6 (signup trigger) | **Written**, applied, and hotfixed. See the incident note |
 | RLS conflict check vs baseline | **Done.** No conflicts. See "Conflict check" |
 | Hand-run files folded in | Yes — see "Migration inventory" |
-| Production | **All twelve migrations applied**, through `20260917140000` |
-| Staging | **All twelve migrations applied.** See "Bringing up a fresh project" for what migrations do not carry |
+| Production | **All thirteen migrations applied**, through `20260917150000` |
+| Staging | **All thirteen migrations applied.** See "Bringing up a fresh project" for what migrations do not carry |
 
 ---
 
@@ -52,6 +52,7 @@ every push; `db push` names no environment in its output.
 | `20260917120000_role_credentials_verification_guards.sql` | Applied 2026-09-17 | Two BEFORE triggers on `role_credentials`. UPDATE: changing `fields` clears `verified`/`verified_at`, so a verified flag cannot outlive the values it was granted against. INSERT: a non-admin may not create an already-verified row — the RLS policy gates rows, not columns, and INSERT was never column-granted the way UPDATE was. Tested against staging before the production push; see "Credential verification guards" |
 | `20260917130000_page_views.sql` | Applied 2026-09-17 | New `page_views` table (first-party traffic capture, written by `lib/pageViews.tsx`) plus `traffic_summary()`, the one function the daily email reads. Insert open to anon; SELECT admin-only; EXECUTE on the function revoked from anon and authenticated and granted to service_role. New table and function only — touches nothing existing |
 | `20260917140000_traffic_summary_exclusions.sql` | Applied 2026-09-17 | Replaces `traffic_summary()` with a version taking an `excluded_email_patterns text[]`, so demo and internal accounts stay out of the daily email. The list itself is in `lib/internalAccounts.tsx`, not in SQL — adding a colleague is a code change, not a migration. Drops the old zero-argument function rather than overloading it |
+| `20260917150000_traffic_summary_require_patterns.sql` | Applied 2026-09-17 | Removes the `default` from `traffic_summary(text[])`. The default meant a caller that omitted the list — a stale deployment — silently got completely unfiltered numbers and a success response, which is exactly what happened on production. A no-argument call now fails to resolve. See "The exclusion that was not applied" |
 
 **Verified 2026-09-16, both projects.** Four rows above said **Not applied**
 when the migrations had in fact been pushed — `20260910130000`,
@@ -397,3 +398,42 @@ and only `fields` carries an UPDATE grant. The result is a flat
 INSERT and a fields-only UPDATE are both fine, so the profile editor does
 UPDATE-then-INSERT. The onboarding route may keep its upsert: it holds
 service_role and is not subject to any of this.
+
+---
+
+## The exclusion that was not applied
+
+`20260917140000` added an `excluded_email_patterns text[]` parameter to
+`traffic_summary()` so demo and internal accounts stay out of the daily email.
+It gave that parameter `default array[]::text[]`. `20260917150000` takes the
+default away, after the first version of this shipped and did nothing.
+
+**Symptom.** Production kept reporting the unfiltered signup count after a
+deploy that was supposed to fix it. The filter looked correct, and it was.
+
+**Cause.** The default made two different situations identical:
+
+| Call | Meant | Did |
+|---|---|---|
+| `traffic_summary(ARRAY[...])` | exclude these | excluded them |
+| `traffic_summary()` | *caller forgot the list* | **excluded nothing, returned 200** |
+
+Any caller that did not pass the list — a deployment predating the commit that
+passes it, a hand-run query, a JSON body where the key serialised to `undefined`
+and was dropped — resolved the default and got completely unfiltered numbers
+back, with no error anywhere. The numbers were plausible, which is what made it
+survive a review.
+
+**Fix.** No default. A no-argument call now fails outright with
+`Could not find the function public.traffic_summary without parameters in the
+schema cache`, the route returns 500, and it is in the log the same morning. An
+explicitly empty array still means "exclude nothing", which keeps a deliberate
+unfiltered read available.
+
+**The trade, stated plainly:** until a deployment that passes the list is live,
+the email errors instead of arriving. A summary that does not turn up gets
+chased. One that turns up with inflated numbers gets believed.
+
+**The general rule.** A default argument on an aggregate that feeds a report is
+a way to be wrong quietly. If the difference between "not supplied" and "supplied
+as empty" changes the answer, do not let one of them be the fallback.

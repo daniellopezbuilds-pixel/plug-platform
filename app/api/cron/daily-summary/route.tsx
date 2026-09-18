@@ -134,6 +134,27 @@ export async function GET(req: NextRequest) {
   // Every number in one call, with the day boundaries worked out in Postgres
   // where the timezone is known. See traffic_summary() in
   // 20260917130000_page_views.sql.
+  /**
+   * Belt to the database's braces.
+   *
+   * traffic_summary() now requires the parameter, so a call that omits it fails
+   * to resolve. This catches the case one step earlier and more legibly: if the
+   * constant were ever emptied or failed to import, the key would serialise to
+   * undefined, JSON.stringify would drop it, and PostgREST would see a call
+   * with no arguments — the exact shape that used to return unfiltered numbers
+   * and report success.
+   */
+  if (!Array.isArray(EXCLUDED_EMAIL_PATTERNS) || EXCLUDED_EMAIL_PATTERNS.length === 0) {
+    console.error(
+      "Daily summary: EXCLUDED_EMAIL_PATTERNS is empty or missing — refusing to " +
+        "send unfiltered numbers. See lib/internalAccounts.tsx."
+    );
+    return NextResponse.json(
+      { error: "Exclusion list is not configured." },
+      { status: 500 }
+    );
+  }
+
   const { data, error } = await supabaseAdmin.rpc("traffic_summary", {
     // Demo and internal accounts, so the morning numbers are external signups
     // and external visitors. Passed as a bind parameter, never interpolated.
