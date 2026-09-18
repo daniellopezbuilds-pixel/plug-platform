@@ -19,6 +19,7 @@ import { GoogleButton, OrDivider } from "@/components/auth/GoogleButton";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { ScreenLoader } from "@/components/ui/Loading";
 import { LegalLinks } from "@/components/legal/LegalLinks";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 /**
  * The steps, by name rather than by number.
@@ -652,8 +653,7 @@ export default function SignupPage() {
               />
 
               <div>
-                <input
-                  type="password"
+                <PasswordInput
                   placeholder="Password"
                   autoComplete="new-password"
                   minLength={MIN_PASSWORD_LENGTH}
@@ -666,8 +666,7 @@ export default function SignupPage() {
                 <p className="text-xs text-gray-400 mt-1">{PASSWORD_RULE}</p>
               </div>
 
-              <input
-                type="password"
+              <PasswordInput
                 placeholder="Confirm password"
                 autoComplete="new-password"
                 minLength={MIN_PASSWORD_LENGTH}

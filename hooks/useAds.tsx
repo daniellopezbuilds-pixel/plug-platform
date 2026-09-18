@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/Toast";
 
 export type Ad = {
   id: string;
@@ -50,6 +51,7 @@ export function useAds(filters?: {
   skip?: boolean;
   pageSize?: number;
 }) {
+  const toast = useToast();
   const submittedBy = filters?.submittedBy ?? null;
   const source = filters?.source ?? null;
   const skip = filters?.skip ?? false;
@@ -213,7 +215,7 @@ export function useAds(filters?: {
       .eq("id", id);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
       return;
     }
 
@@ -226,7 +228,7 @@ export function useAds(filters?: {
     const { error } = await supabase.from("sponsored_listings").delete().eq("id", id);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
       return;
     }
 

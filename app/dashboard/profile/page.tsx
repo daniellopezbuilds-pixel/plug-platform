@@ -13,13 +13,17 @@ import { BadgesSection } from "@/components/profile/BadgesSection";
 import { PageWithRail } from "@/components/layout/PageWithRail";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
-import { SIGNUP_TYPES } from "@/lib/signupRoles";
+import { SIGNUP_TYPES, roleKeysFor } from "@/lib/signupRoles";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { PageLoader } from "@/components/ui/Loading";
 import { InlineLoader } from "@/components/ui/Loading";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { useToast } from "@/components/ui/Toast";
+import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { TRADES, OTHER_TRADE, isListedTrade } from "@/lib/trades";
 
 export default function ProfilePage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState("");
 
@@ -27,6 +31,21 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [trade, setTrade] = useState("");
+
+  /**
+   * Whether the free-text trade box is showing because the user PICKED "Other",
+   * as opposed to because their saved trade is not in the list.
+   *
+   * Two separate reasons to show the same input, and it needs both: deriving it
+   * from `trade` alone cannot distinguish "Other, nothing typed yet" (trade is
+   * "") from "nothing selected yet" (also ""), so choosing Other would
+   * immediately hide the box the user just asked for.
+   */
+  const [tradeIsOther, setTradeIsOther] = useState(false);
+
+  /** Either reason opens the box: an explicit "Other", or an unlisted value. */
+  const showOtherTrade = tradeIsOther || (!!trade && !isListedTrade(trade));
+
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
   const [unionStatus, setUnionStatus] = useState<string | null>(null);
@@ -51,6 +70,26 @@ export default function ProfilePage() {
   const [signupTypeKey, setSignupTypeKey] = useState<string | null>(null);
   const [signupFields, setSignupFields] = useState<Record<string, string>>({});
 
+  /**
+   * The signup credentials as they were when this page loaded.
+   *
+   * Kept alongside the editable copy so the form can tell whether anything
+   * actually changed — which is what decides whether saving will clear an
+   * existing verification, and therefore whether to warn about it.
+   */
+  const [savedSignupFields, setSavedSignupFields] = useState<
+    Record<string, string>
+  >({});
+
+  /**
+   * Whether any of this account's role_credentials rows are currently verified.
+   *
+   * Read from role_credentials, not metadata: `verified` only exists on the
+   * table, and it is the thing an edit is about to cost them.
+   */
+  const [credentialsVerified, setCredentialsVerified] = useState(false);
+  const [savingSignupFields, setSavingSignupFields] = useState(false);
+
   const { reviews, averageRating, count } = useReviews(userId || null);
   const { hiredCount, jobsLandedCount } = useProfileStats(userId || null);
 
@@ -73,15 +112,50 @@ export default function ProfilePage() {
       );
       // Coerce defensively: metadata is client-writable, so a value could be
       // any JSON, and only strings are renderable here.
-      setSignupFields(
+      const metaFields: Record<string, string> =
         meta.signup_fields && typeof meta.signup_fields === "object"
           ? Object.fromEntries(
               Object.entries(meta.signup_fields as Record<string, unknown>)
                 .filter(([, v]) => typeof v === "string")
                 .map(([k, v]) => [k, v as string])
             )
-          : {}
-      );
+          : {};
+
+      /**
+       * role_credentials FIRST, metadata as the fallback.
+       *
+       * The two stores hold the same values and disagree in two directions.
+       * role_credentials is the server-held one, written by the signup trigger
+       * and the onboarding route, and it is the only one carrying `verified` —
+       * so it wins where it exists. Metadata is the fallback because brand
+       * accounts have NO role_credentials rows at all (roleKeysFor("brand") is
+       * empty by design), and because a row can be missing for anyone who
+       * signed up before that table existed.
+       */
+      const { data: credentialRows } = await supabase
+        .from("role_credentials")
+        .select("fields, verified")
+        .eq("profile_id", user.id);
+
+      const credentialFields: Record<string, string> = {};
+      let anyVerified = false;
+
+      for (const row of credentialRows ?? []) {
+        if (row.verified) anyVerified = true;
+
+        if (row.fields && typeof row.fields === "object") {
+          for (const [k, v] of Object.entries(row.fields as Record<string, unknown>)) {
+            if (typeof v === "string") credentialFields[k] = v;
+          }
+        }
+      }
+
+      const resolvedFields =
+        Object.keys(credentialFields).length > 0 ? credentialFields : metaFields;
+
+      setSignupFields(resolvedFields);
+      setSavedSignupFields(resolvedFields);
+      setCredentialsVerified(anyVerified);
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -104,6 +178,10 @@ export default function ProfilePage() {
       setFullName(profile.full_name || "");
       setUsername(profile.username || "");
       setTrade(profile.trade || "");
+      // A saved trade that is not in the list — typed before the list existed,
+      // or entered through Other — opens the free-text box so it is editable
+      // rather than silently unreachable behind a select that cannot show it.
+      setTradeIsOther(!!profile.trade && !isListedTrade(profile.trade));
       setBio(profile.bio || "");
       setLocation(profile.location || "");
       setUnionStatus(profile.union_status || null);
@@ -160,12 +238,126 @@ export default function ProfilePage() {
       .eq("id", user.id);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
       return;
     }
 
     setUnionVerified(false);
-    alert("Profile updated successfully.");
+    toast.success("Profile updated successfully.");
+  }
+
+  /**
+   * Saves the signup credentials to BOTH stores.
+   *
+   * role_credentials is the real one — it is server-held and it is what carries
+   * `verified`. Metadata is written too because several places still read it:
+   * useActiveRole derives a brand's display name from
+   * user_metadata.signup_fields.brand_name, and this page falls back to it for
+   * accounts with no credential rows. Writing one and not the other would leave
+   * the two disagreeing, which is the state the fallback read exists to survive
+   * — not one to create deliberately.
+   *
+   * WHAT RESETS VERIFICATION. Nothing here does. The BEFORE UPDATE trigger
+   * added in 20260917120000 clears verified/verified_at whenever `fields`
+   * changes, for every writer. This function only has to tell the user it is
+   * about to happen; it could not be trusted to do the clearing itself, because
+   * `grant update (fields)` means any client can write this column without
+   * going through this code at all.
+   *
+   * Brand accounts take the metadata half only: roleKeysFor("brand") is empty,
+   * so there are no credential rows to update and nothing to verify.
+   */
+  async function handleSaveSignupFields() {
+    if (!signupTypeDef) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    setSavingSignupFields(true);
+
+    // Only this type's fields, trimmed, blanks dropped — the same shape
+    // collectFields() produces at signup, so a row written here is
+    // indistinguishable from one written by the trigger.
+    const cleaned: Record<string, string> = {};
+    for (const field of signupTypeDef.fields) {
+      const value = (signupFields[field.key] ?? "").trim();
+      if (value) cleaned[field.key] = value;
+    }
+
+    const roleKeys = roleKeysFor(signupTypeDef.key);
+
+    // UPDATE, then INSERT only where nothing was there. NOT upsert, and that is
+    // not a style preference — upsert is refused for this table. PostgREST
+    // compiles it to ON CONFLICT DO UPDATE SET over every column in the
+    // payload, including profile_id and role_key, and 20260909120000 revoked
+    // UPDATE from `authenticated` and granted back only `fields`. The result is
+    // a flat "permission denied for table role_credentials" that says nothing
+    // about which column caused it. Plain INSERT and a fields-only UPDATE are
+    // both within the grants.
+    //
+    // (The onboarding route upserts the same table and is fine: it holds
+    // service_role, which is not subject to any of this.)
+    //
+    // An account can legitimately have no row yet — nothing was filled in at
+    // signup, since every field is optional — which is why the INSERT branch
+    // has to exist at all.
+    for (const key of roleKeys) {
+      const { data: updatedRows, error: updateError } = await supabase
+        .from("role_credentials")
+        .update({ fields: cleaned })
+        .eq("profile_id", user.id)
+        .eq("role_key", key)
+        .select("role_key");
+
+      if (updateError) {
+        setSavingSignupFields(false);
+        toast.error(updateError.message);
+        return;
+      }
+
+      if ((updatedRows ?? []).length === 0) {
+        // verified is deliberately not sent: the column defaults to false, and
+        // naming it here would trip the INSERT guard for no reason.
+        const { error: insertError } = await supabase
+          .from("role_credentials")
+          .insert({ profile_id: user.id, role_key: key, fields: cleaned });
+
+        if (insertError) {
+          setSavingSignupFields(false);
+          toast.error(insertError.message);
+          return;
+        }
+      }
+    }
+
+    // Merged, not replaced: metadata carries keys this form does not own —
+    // full_name, contact_number, role, signup_type, account_type, roles — and
+    // updateUser replaces `signup_fields` wholesale with whatever is passed.
+    const { error: metaError } = await supabase.auth.updateUser({
+      data: { signup_fields: cleaned },
+    });
+
+    setSavingSignupFields(false);
+
+    if (metaError) {
+      toast.error(metaError.message);
+      return;
+    }
+
+    const clearedVerification = credentialsVerified && signupFieldsChanged;
+
+    setSignupFields(cleaned);
+    setSavedSignupFields(cleaned);
+    if (clearedVerification) setCredentialsVerified(false);
+
+    toast.success(
+      clearedVerification
+        ? "Credentials updated. Verification has been cleared and will need reviewing again."
+        : "Credentials updated."
+    );
   }
 
   async function handleResumeUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -173,7 +365,7 @@ export default function ProfilePage() {
     if (!file) return;
 
     if (file.type !== "application/pdf") {
-      alert("Only PDF files are accepted.");
+      toast.error("Only PDF files are accepted.");
       return;
     }
 
@@ -182,7 +374,7 @@ export default function ProfilePage() {
     const { error, path } = await uploadResume(userId, file);
 
     if (error) {
-      alert(error);
+      toast.error(error);
       setUploadingResume(false);
       return;
     }
@@ -195,12 +387,12 @@ export default function ProfilePage() {
     setUploadingResume(false);
 
     if (dbError) {
-      alert(dbError.message);
+      toast.error(dbError.message);
       return;
     }
 
     setResumePath(path);
-    alert("Resume uploaded successfully.");
+    toast.success("Resume uploaded successfully.");
   }
 
   async function handleViewResume() {
@@ -209,7 +401,7 @@ export default function ProfilePage() {
     const { error, url } = await getResumeSignedUrl(resumePath);
 
     if (error || !url) {
-      alert(error || "Could not open resume.");
+      toast.error(error || "Could not open resume.");
       return;
     }
 
@@ -221,7 +413,7 @@ export default function ProfilePage() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Only image files are accepted.");
+      toast.error("Only image files are accepted.");
       return;
     }
 
@@ -230,7 +422,7 @@ export default function ProfilePage() {
     const { error, path } = await uploadLogo(userId, file);
 
     if (error || !path) {
-      alert(error || "Upload failed.");
+      toast.error(error || "Upload failed.");
       setUploadingLogo(false);
       return;
     }
@@ -243,7 +435,7 @@ export default function ProfilePage() {
     setUploadingLogo(false);
 
     if (dbError) {
-      alert(dbError.message);
+      toast.error(dbError.message);
       return;
     }
 
@@ -255,7 +447,7 @@ export default function ProfilePage() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Only image files are accepted.");
+      toast.error("Only image files are accepted.");
       return;
     }
 
@@ -264,7 +456,7 @@ export default function ProfilePage() {
     const { error, path } = await uploadBanner(userId, file);
 
     if (error || !path) {
-      alert(error || "Upload failed.");
+      toast.error(error || "Upload failed.");
       setUploadingBanner(false);
       return;
     }
@@ -277,7 +469,7 @@ export default function ProfilePage() {
     setUploadingBanner(false);
 
     if (dbError) {
-      alert(dbError.message);
+      toast.error(dbError.message);
       return;
     }
 
@@ -295,13 +487,13 @@ export default function ProfilePage() {
     setUploadingEmployerDoc(false);
 
     if (error || !path) {
-      alert(error || "Upload failed.");
+      toast.error(error || "Upload failed.");
       return;
     }
 
     setEmployerDocPath(path);
     setEmployerDocLabel(file.name);
-    alert("Document uploaded. An admin will review it shortly.");
+    toast.success("Document uploaded. An admin will review it shortly.");
   }
 
   async function handleViewEmployerDoc() {
@@ -310,7 +502,7 @@ export default function ProfilePage() {
     const { error, url } = await getEmployerDocumentSignedUrl(employerDocPath);
 
     if (error || !url) {
-      alert(error || "Could not open document.");
+      toast.error(error || "Could not open document.");
       return;
     }
 
@@ -327,13 +519,19 @@ export default function ProfilePage() {
   // a junk value written into metadata by hand.
   const signupTypeDef = SIGNUP_TYPES.find((t) => t.key === signupTypeKey);
 
-  const signupEntries = (signupTypeDef?.fields ?? [])
-    .map((field) => ({
-      key: field.key,
-      label: field.label,
-      value: (signupFields[field.key] ?? "").trim(),
-    }))
-    .filter((entry) => entry.value !== "");
+  /**
+   * Has anything in this section actually changed?
+   *
+   * Compared per field against the values loaded, trimmed both sides, so
+   * whitespace alone is not a change. Drives both the Save button's disabled
+   * state and whether the verification warning is shown — a warning that
+   * appears when nothing has been touched would train people to ignore it.
+   */
+  const signupFieldsChanged = (signupTypeDef?.fields ?? []).some(
+    (field) =>
+      (signupFields[field.key] ?? "").trim() !==
+      (savedSignupFields[field.key] ?? "").trim()
+  );
 
   return (
     <div>
@@ -380,13 +578,44 @@ export default function ProfilePage() {
           className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
         />
 
-        <input
-          type="text"
-          placeholder="Trade"
-          value={trade}
-          onChange={(e) => setTrade(e.target.value)}
-          className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-        />
+        {/* Trade.
+            A select over lib/trades.tsx, with "Other" revealing a text box so
+            nothing a user already typed is lost — profiles.trade is free text
+            with no constraint, and plenty of rows predate this list. The stored
+            value is whatever is in `trade`, whichever control produced it. */}
+        <div className="space-y-2">
+          <select
+            aria-label="Trade"
+            value={isListedTrade(trade) || trade === "" ? trade : OTHER_TRADE}
+            onChange={(e) => {
+              // Switching TO Other clears the field so the text box starts
+              // empty rather than holding the listed trade they just left.
+              // Switching to a listed trade stores it directly.
+              setTrade(e.target.value === OTHER_TRADE ? "" : e.target.value);
+              setTradeIsOther(e.target.value === OTHER_TRADE);
+            }}
+            className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
+          >
+            <option value="">Select your trade</option>
+            {TRADES.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+            <option value={OTHER_TRADE}>Other</option>
+          </select>
+
+          {showOtherTrade && (
+            <input
+              type="text"
+              placeholder="Your trade"
+              aria-label="Your trade"
+              value={trade}
+              onChange={(e) => setTrade(e.target.value)}
+              className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
+            />
+          )}
+        </div>
 
         <textarea
           placeholder="Bio"
@@ -480,25 +709,104 @@ export default function ProfilePage() {
               </span>
             </div>
             <p className="text-xs text-gray-400 mb-4">
-              What you entered at signup. Read-only for now.
+              What you entered at signup. All optional — update them as things
+              change.
             </p>
 
-            {signupEntries.length === 0 ? (
-              <p className="text-sm text-gray-400">
-                Nothing was filled in at signup — these fields were optional.
-              </p>
-            ) : (
-              <dl className="space-y-3">
-                {signupEntries.map((entry) => (
-                  <div key={entry.key}>
-                    <dt className="text-xs text-gray-400 mb-0.5">{entry.label}</dt>
-                    <dd className="text-white whitespace-pre-wrap break-words">
-                      {entry.value}
-                    </dd>
+            {/* The account type itself is NOT editable here, and that is
+                deliberate rather than unfinished. profiles_guard_signup_type
+                raises 42501 for any non-admin caller, because the label is what
+                marks someone as a licensed contractor and it must not be
+                self-assignable. Shown as a badge above; changing it is an admin
+                action. */}
+
+            <div className="space-y-4">
+              {signupTypeDef.fields.map((field) =>
+                field.type === "textarea" ? (
+                  <div key={field.key}>
+                    <label
+                      htmlFor={`signup-${field.key}`}
+                      className="block text-xs text-gray-400 mb-1"
+                    >
+                      {field.label}
+                    </label>
+                    <textarea
+                      id={`signup-${field.key}`}
+                      rows={field.rows ?? 3}
+                      value={signupFields[field.key] ?? ""}
+                      onChange={(e) =>
+                        setSignupFields((prev) => ({
+                          ...prev,
+                          [field.key]: e.target.value,
+                        }))
+                      }
+                      className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
+                    />
                   </div>
-                ))}
-              </dl>
+                ) : (
+                  <div key={field.key}>
+                    <label
+                      htmlFor={`signup-${field.key}`}
+                      className="block text-xs text-gray-400 mb-1"
+                    >
+                      {field.label}
+                    </label>
+                    <input
+                      id={`signup-${field.key}`}
+                      type="text"
+                      value={signupFields[field.key] ?? ""}
+                      onChange={(e) =>
+                        setSignupFields((prev) => ({
+                          ...prev,
+                          [field.key]: e.target.value,
+                        }))
+                      }
+                      className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
+                    />
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* BEFORE SAVING, NOT AFTER.
+                Someone who went through verification should find out that
+                editing costs it while they can still back out, not in a
+                confirmation once it is gone. Rendered at full contrast with the
+                warning treatment used elsewhere, not as a muted hint — it is
+                the most consequential thing on this page.
+
+                Only shown when it is actually true: they are verified AND
+                something has changed. A permanent notice would be wallpaper. */}
+            {credentialsVerified && signupFieldsChanged && (
+              <div
+                role="alert"
+                className="mt-5 rounded-lg border border-rose-900 bg-rose-950/40 p-4"
+              >
+                <p className="text-sm font-semibold text-rose-300">
+                  Saving will remove your verified status
+                </p>
+                <p className="text-sm text-gray-300 mt-1.5">
+                  Your credentials are currently verified. Because you have
+                  changed them, they will go back to unverified and an
+                  administrator will need to review them again. Your existing
+                  verification badge will be removed until then.
+                </p>
+              </div>
             )}
+
+            <button
+              type="button"
+              onClick={handleSaveSignupFields}
+              disabled={savingSignupFields || !signupFieldsChanged}
+              className="mt-5 bg-accent text-on-accent px-5 py-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2 min-h-11"
+            >
+              <ButtonSpinner active={savingSignupFields} />
+              {savingSignupFields
+                ? "Saving..."
+                : credentialsVerified && signupFieldsChanged
+                ? "Save and clear verification"
+                : "Save credentials"}
+            </button>
           </div>
         )}
 

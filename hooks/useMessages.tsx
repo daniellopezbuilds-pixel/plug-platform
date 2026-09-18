@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/Toast";
 
 export type Message = {
   id: string;
@@ -13,6 +14,7 @@ export type Message = {
 };
 
 export function useMessages(conversationId: string | null) {
+  const toast = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -45,11 +47,23 @@ export function useMessages(conversationId: string | null) {
       } = await supabase.auth.getUser();
 
       if (user) {
-        await supabase
+        const { error: readError } = await supabase
           .from("conversation_participants")
           .update({ last_read_at: new Date().toISOString(), hidden_at: null })
           .eq("conversation_id", conversationId)
           .eq("user_id", user.id);
+
+        // Logged, not toasted. This fires from opening a conversation rather
+        // than from anything the user did, and the visible consequence is an
+        // unread badge that does not clear — annoying, but not worth
+        // interrupting a conversation to report. It was previously discarded
+        // entirely, so a persistently stuck badge had no trace anywhere.
+        if (readError) {
+          console.error(
+            "Could not mark conversation read:",
+            JSON.stringify({ conversationId, error: readError.message })
+          );
+        }
       }
 
       if (channelRef.current) {
@@ -140,7 +154,7 @@ export function useMessages(conversationId: string | null) {
       .eq("id", messageId);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
       return;
     }
 

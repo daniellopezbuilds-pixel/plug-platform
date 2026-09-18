@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/Toast";
 
 export type PendingEmployer = {
   id: string;
@@ -15,6 +16,7 @@ export type PendingEmployer = {
 };
 
 export function useEmployerVerifications() {
+  const toast = useToast();
   const [pending, setPending] = useState<PendingEmployer[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -61,7 +63,7 @@ export function useEmployerVerifications() {
       .eq("id", profileId);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
       return;
     }
 

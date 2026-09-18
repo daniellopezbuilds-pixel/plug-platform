@@ -111,14 +111,36 @@ export function useActiveRole() {
       // with the switcher, and overriding that would stop their choice from
       // ever sticking.
       if (!hasInitialisedMode(user.id)) {
+        let persisted = true;
+
         if (data.role && data.role !== activeRole) {
           activeRole = data.role;
-          await supabase
+
+          const { error: modeError } = await supabase
             .from("profiles")
             .update({ active_role: activeRole })
             .eq("id", user.id);
+
+          if (modeError) {
+            persisted = false;
+            console.error(
+              "Could not persist starting mode:",
+              JSON.stringify({ userId: user.id, error: modeError.message })
+            );
+          }
         }
-        markModeInitialised(user.id);
+
+        // Only marked once the write actually landed. This used to run
+        // unconditionally, so a failed update was permanent: the flag said the
+        // correction had happened, and a C-10 whose write failed was left in
+        // worker view for good with nothing logged. Leaving the flag unset
+        // retries on the next load, which is the behaviour a one-time
+        // correction should have when it does not complete.
+        //
+        // No toast: this is housekeeping on page load, not something the user
+        // asked for, and the local activeRole above is already correct — the
+        // mode they see is right whether or not the write succeeded.
+        if (persisted) markModeInitialised(user.id);
       }
 
       setProfile({

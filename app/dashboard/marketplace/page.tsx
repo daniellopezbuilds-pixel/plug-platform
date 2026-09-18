@@ -8,8 +8,10 @@ import { PageHeading } from "@/components/layout/PageHeading";
 import { PageWithSponsoredRail } from "@/components/ads/PageWithSponsoredRail";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { useToast } from "@/components/ui/Toast";
 
 export default function MarketplacePage() {
+  const toast = useToast();
   const {
     profiles,
     loading: profilesLoading,
@@ -32,7 +34,7 @@ export default function MarketplacePage() {
 
   async function handleConnect(recipientId: string) {
     const { error } = await sendRequest(recipientId);
-    if (error) alert(error);
+    if (error) toast.error(error);
   }
 
   async function handleRespond(
@@ -41,7 +43,7 @@ export default function MarketplacePage() {
     status: "accepted" | "rejected"
   ) {
     const { error } = await respondToRequest(connectionId, requesterId, status);
-    if (error) alert(error);
+    if (error) toast.error(error);
   }
 
   const loading = profilesLoading || connectionsLoading;

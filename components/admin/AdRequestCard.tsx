@@ -6,6 +6,7 @@ import type { AdRequest } from "@/hooks/useAdRequests";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { NameMeta } from "@/components/ui/NameMeta";
 import { adEndDate } from "@/lib/adPricing";
+import { useToast } from "@/components/ui/Toast";
 
 export function AdRequestCard({
   request,
@@ -25,6 +26,7 @@ export function AdRequestCard({
   ) => Promise<{ error: string | null }>;
   onReject: (id: string, reason: string) => Promise<{ error: string | null }>;
 }) {
+  const toast = useToast();
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export function AdRequestCard({
 
   async function handleApprove() {
     if (!startDate || !effectiveEndDate) {
-      alert("Start and end dates are required.");
+      toast.error("Start and end dates are required.");
       return;
     }
 
@@ -97,7 +99,7 @@ export function AdRequestCard({
     setSubmitting(false);
 
     if (error) {
-      alert(error);
+      toast.error(error);
     }
   }
 

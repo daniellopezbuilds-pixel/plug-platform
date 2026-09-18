@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/Toast";
 
 export type PostComment = {
   id: string;
@@ -16,6 +17,7 @@ export type PostComment = {
 };
 
 export function usePostComments(postId: string) {
+  const toast = useToast();
   const [comments, setComments] = useState<PostComment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -67,7 +69,7 @@ export function usePostComments(postId: string) {
     const { error } = await supabase.from("post_comments").delete().eq("id", id);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
       return;
     }
 

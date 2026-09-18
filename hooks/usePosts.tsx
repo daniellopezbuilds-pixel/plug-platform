@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/Toast";
 
 export type Post = {
   id: string;
@@ -20,6 +21,7 @@ export type Post = {
 };
 
 export function usePosts() {
+  const toast = useToast();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export function usePosts() {
     const { error } = await supabase.from("posts").delete().eq("id", id);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
       return;
     }
 

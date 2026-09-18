@@ -71,6 +71,36 @@ body {
   font-family: "JetBrains Mono", ui-monospace, monospace;
 }
 
+/* ---------------------------------------------------------------------------
+ * Toast entrance. See components/ui/Toast.tsx.
+ *
+ * A keyframe here rather than Tailwind's motion-safe: variant because the
+ * reduced-motion rule belongs with the animation it disables — someone editing
+ * the timing sees the opt-out in the same block. The card still appears, it
+ * just stops sliding: a toast that never renders for a reduced-motion user is
+ * a message they never get.
+ * ------------------------------------------------------------------------- */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.toast-enter {
+  animation: toast-in 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter {
+    animation: none;
+  }
+}
+
 .grid-bg {
   background-color: #0a0a0a;
   background-image:

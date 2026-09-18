@@ -9,6 +9,7 @@ import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { GoogleButton, OrDivider } from "@/components/auth/GoogleButton";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { LegalLinks } from "@/components/legal/LegalLinks";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 const inputClass =
   "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
@@ -117,9 +118,8 @@ export default function LoginPage() {
               <label htmlFor="password" className={labelClass}>
                 Password
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);

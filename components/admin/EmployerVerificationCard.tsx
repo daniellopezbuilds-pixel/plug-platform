@@ -6,6 +6,7 @@ import { getBrandingPublicUrl } from "@/lib/branding";
 import type { PendingEmployer } from "@/hooks/useEmployerVerifications";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { NameMeta } from "@/components/ui/NameMeta";
+import { useToast } from "@/components/ui/Toast";
 
 export function EmployerVerificationCard({
   employer,
@@ -16,6 +17,7 @@ export function EmployerVerificationCard({
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
 }) {
+  const toast = useToast();
   const [opening, setOpening] = useState(false);
 
   async function handleViewDocument() {
@@ -24,7 +26,7 @@ export function EmployerVerificationCard({
     setOpening(false);
 
     if (error || !url) {
-      alert(error || "Could not open document.");
+      toast.error(error || "Could not open document.");
       return;
     }
 

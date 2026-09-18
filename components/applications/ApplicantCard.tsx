@@ -8,6 +8,7 @@ import { NameMeta } from "@/components/ui/NameMeta";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { getResumeSignedUrl } from "@/lib/resume";
 import type { ApplicantWithJob } from "@/hooks/useApplicants";
+import { useToast } from "@/components/ui/Toast";
 
 export function ApplicantCard({
   applicant,
@@ -22,6 +23,7 @@ export function ApplicantCard({
   onUpdateStatus: (id: string, status: "accepted" | "rejected" | "pending") => void;
   onReviewed: () => void;
 }) {
+  const toast = useToast();
   const [showReviewForm, setShowReviewForm] = useState(false);
 
   async function handleViewResume() {
@@ -31,7 +33,7 @@ export function ApplicantCard({
     const { error, url } = await getResumeSignedUrl(path);
 
     if (error || !url) {
-      alert(error || "Could not open resume.");
+      toast.error(error || "Could not open resume.");
       return;
     }
 

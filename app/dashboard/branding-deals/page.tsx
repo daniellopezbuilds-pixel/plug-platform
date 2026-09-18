@@ -28,6 +28,7 @@ import { AdSubmissionSkeleton } from "@/components/ui/Skeleton";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { Spinner } from "@/components/ui/Spinner";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { useToast } from "@/components/ui/Toast";
 
 // Edit this list to change the city options.
 const CALIFORNIA_CITIES = [
@@ -118,6 +119,7 @@ const SUBMISSIONS_PAGE_SIZE = 5;
 const POST_CHECKOUT_REFRESH_MS = [2500, 7000];
 
 export default function BrandingDealsPage() {
+  const toast = useToast();
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -401,7 +403,7 @@ export default function BrandingDealsPage() {
 
   async function handleResume(listingId: string) {
     const { error } = await resumeCheckout(listingId);
-    if (error) alert(error);
+    if (error) toast.error(error);
   }
 
   const busy = uploading || redirecting;

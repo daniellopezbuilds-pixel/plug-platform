@@ -12,6 +12,7 @@ import { useProfileStats } from "@/hooks/useProfileStats";
 import type { DirectoryProfile } from "@/hooks/useDirectory";
 import type { ConnectionInfo } from "@/hooks/useConnections";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { useToast } from "@/components/ui/Toast";
 
 export function ProfileCard({
   profile,
@@ -24,6 +25,7 @@ export function ProfileCard({
   isActing: boolean;
   onConnect: (id: string) => void;
 }) {
+  const toast = useToast();
   const { averageRating, count } = useReviews(profile.id);
   const { hiredCount, jobsLandedCount } = useProfileStats(profile.id);
 
@@ -35,7 +37,7 @@ export function ProfileCard({
     const { error, url } = await getResumeSignedUrl(profile.resume_path);
 
     if (error || !url) {
-      alert(error || "You may need to connect with this person first to view their resume.");
+      toast.error(error || "You may need to connect with this person first to view their resume.");
       return;
     }
 

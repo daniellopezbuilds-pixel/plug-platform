@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ToastProvider } from "@/components/ui/Toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,8 +29,11 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      {/* ToastProvider wraps everything so any page, component or hook can
+          raise one. It is a client component in a server layout, which is fine
+          — `children` stays server-rendered and is passed through as a slot. */}
       <body className="min-h-full flex flex-col">
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

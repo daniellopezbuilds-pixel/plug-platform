@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/Toast";
 
 export type PendingUnionWorker = {
   id: string;
@@ -12,6 +13,7 @@ export type PendingUnionWorker = {
 };
 
 export function useUnionVerifications() {
+  const toast = useToast();
   const [pending, setPending] = useState<PendingUnionWorker[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,7 +47,7 @@ export function useUnionVerifications() {
       .eq("id", profileId);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
       return;
     }
 

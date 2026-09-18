@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useSubmitAdRequest } from "@/hooks/useSubmitAdRequest";
 import { validateAdImage, AD_SPEC_TEXT } from "@/lib/ads";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { useToast } from "@/components/ui/Toast";
 
 export function SubmitAdRequest({ onSubmitted }: { onSubmitted?: () => void }) {
+  const toast = useToast();
   const { submit, submitting } = useSubmitAdRequest();
 
   const [title, setTitle] = useState("");
@@ -94,7 +96,7 @@ export function SubmitAdRequest({ onSubmitted }: { onSubmitted?: () => void }) {
     setEndDate(defaultEnd.toISOString().split("T")[0]);
     setFileInputKey((k) => k + 1);
 
-    alert("Ad request submitted. An admin will review it shortly.");
+    toast.success("Ad request submitted. An admin will review it shortly.");
     onSubmitted?.();
   }
 

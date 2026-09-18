@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, validatePassword } from "@/lib/passwords";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 const inputClass =
   "w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
@@ -111,9 +112,8 @@ export function ChangePasswordSection() {
           <label htmlFor="current-password" className={labelClass}>
             Current password
           </label>
-          <input
+          <PasswordInput
             id="current-password"
-            type="password"
             autoComplete="current-password"
             value={current}
             onChange={(e) => {
@@ -128,9 +128,8 @@ export function ChangePasswordSection() {
           <label htmlFor="new-password" className={labelClass}>
             New password
           </label>
-          <input
+          <PasswordInput
             id="new-password"
-            type="password"
             autoComplete="new-password"
             minLength={MIN_PASSWORD_LENGTH}
             value={password}
@@ -146,9 +145,8 @@ export function ChangePasswordSection() {
           <label htmlFor="confirm-password" className={labelClass}>
             Confirm new password
           </label>
-          <input
+          <PasswordInput
             id="confirm-password"
-            type="password"
             autoComplete="new-password"
             minLength={MIN_PASSWORD_LENGTH}
             value={confirm}

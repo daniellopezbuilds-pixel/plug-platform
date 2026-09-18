@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePostComments } from "@/hooks/usePostComments";
 import { InlineLoader } from "@/components/ui/Loading";
 import { NameMeta } from "@/components/ui/NameMeta";
+import { useToast } from "@/components/ui/Toast";
 
 export function CommentSection({
   postId,
@@ -14,6 +15,7 @@ export function CommentSection({
   currentUserId: string | null;
   onViewProfile: (userId: string) => void;
 }) {
+  const toast = useToast();
   const { comments, loading, addComment, deleteComment } = usePostComments(postId);
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -28,7 +30,7 @@ export function CommentSection({
     setSubmitting(false);
 
     if (error) {
-      alert(error);
+      toast.error(error);
       return;
     }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/Toast";
 
 export type ConversationSummary = {
   id: string;
@@ -13,6 +14,7 @@ export type ConversationSummary = {
 };
 
 export function useConversations() {
+  const toast = useToast();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -202,7 +204,7 @@ export function useConversations() {
       .eq("user_id", userId);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
       return;
     }
 

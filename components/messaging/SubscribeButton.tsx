@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { useToast } from "@/components/ui/Toast";
 
 export function SubscribeButton() {
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
 
   async function handleSubscribe() {
@@ -18,7 +20,7 @@ export function SubscribeButton() {
     } = await supabase.auth.getSession();
 
     if (!session) {
-      alert("You must be logged in.");
+      toast.error("You must be logged in.");
       setLoading(false);
       return;
     }
@@ -34,7 +36,7 @@ export function SubscribeButton() {
     const data = await res.json();
 
     if (data.error || !data.url) {
-      alert(data.error || "Could not start checkout.");
+      toast.error(data.error || "Could not start checkout.");
       setLoading(false);
       return;
     }

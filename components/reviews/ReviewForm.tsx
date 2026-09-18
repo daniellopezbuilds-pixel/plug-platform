@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { useSubmitReview } from "@/hooks/useSubmitReview";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { useToast } from "@/components/ui/Toast";
 
 export function ReviewForm({
   applicationId,
@@ -14,6 +15,7 @@ export function ReviewForm({
   revieweeId: string;
   onSubmitted: () => void;
 }) {
+  const toast = useToast();
   const { submitReview, submitting } = useSubmitReview();
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
@@ -21,14 +23,14 @@ export function ReviewForm({
 
   async function handleSubmit() {
     if (rating === 0) {
-      alert("Please select a star rating.");
+      toast.error("Please select a star rating.");
       return;
     }
 
     const { error } = await submitReview(applicationId, revieweeId, rating, comment);
 
     if (error) {
-      alert(error);
+      toast.error(error);
       return;
     }
 

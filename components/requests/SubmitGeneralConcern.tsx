@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useSubmitGeneralConcern } from "@/hooks/useSubmitGeneralConcern";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { useToast } from "@/components/ui/Toast";
 
 export function SubmitGeneralConcern({ onSubmitted }: { onSubmitted?: () => void }) {
+  const toast = useToast();
   const { submit, submitting } = useSubmitGeneralConcern();
 
   const [subject, setSubject] = useState("");
@@ -12,21 +14,21 @@ export function SubmitGeneralConcern({ onSubmitted }: { onSubmitted?: () => void
 
   async function handleSubmit() {
     if (!subject.trim() || !message.trim()) {
-      alert("Subject and message are required.");
+      toast.error("Subject and message are required.");
       return;
     }
 
     const { error } = await submit({ subject, message });
 
     if (error) {
-      alert(error);
+      toast.error(error);
       return;
     }
 
     setSubject("");
     setMessage("");
 
-    alert("Your request has been submitted. An admin will review it shortly.");
+    toast.success("Your request has been submitted. An admin will review it shortly.");
     onSubmitted?.();
   }
 

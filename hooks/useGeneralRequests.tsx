@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/Toast";
 
 export type GeneralRequest = {
   id: string;
@@ -14,6 +15,7 @@ export type GeneralRequest = {
 };
 
 export function useGeneralRequests() {
+  const toast = useToast();
   const [pending, setPending] = useState<GeneralRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,7 +49,7 @@ export function useGeneralRequests() {
       .eq("id", id);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
       return;
     }
 
@@ -61,7 +63,7 @@ export function useGeneralRequests() {
       .eq("id", id);
 
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
       return;
     }
 

@@ -12,8 +12,10 @@ import { useConversationParticipants } from "@/hooks/useConversationParticipants
 import { FULL_HEIGHT_PANEL_CLASS } from "@/lib/layout";
 import { InlineLoader } from "@/components/ui/Loading";
 import { Spinner } from "@/components/ui/Spinner";
+import { useToast } from "@/components/ui/Toast";
 
 export default function MessagesPage() {
+  const toast = useToast();
   const {
     conversations,
     loading: convLoading,
@@ -58,7 +60,7 @@ export default function MessagesPage() {
   async function handleStart(participantIds: string[], title?: string) {
     const { error, conversationId } = await startConversation(participantIds, title);
     if (error) {
-      alert(error);
+      toast.error(error);
       return;
     }
     setShowNewPanel(false);
@@ -68,7 +70,7 @@ export default function MessagesPage() {
   async function handleSend(content: string) {
     const { error } = await sendMessage(content);
     if (error) {
-      alert(error);
+      toast.error(error);
       return;
     }
     refresh();

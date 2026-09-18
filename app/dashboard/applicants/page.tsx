@@ -4,13 +4,15 @@ import { useApplicants } from "@/hooks/useApplicants";
 import { ApplicantCard } from "@/components/applications/ApplicantCard";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { CardSkeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
 
 export default function ApplicantsPage() {
+  const toast = useToast();
   const { applicants, reviewedIds, loading, updatingId, updateStatus, refresh } = useApplicants();
 
   async function handleUpdate(id: string, status: "accepted" | "rejected" | "pending") {
     const { error } = await updateStatus(id, status);
-    if (error) alert(error);
+    if (error) toast.error(error);
   }
 
   if (loading) {

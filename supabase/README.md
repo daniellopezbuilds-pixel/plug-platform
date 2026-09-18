@@ -31,8 +31,8 @@ every push; `db push` names no environment in its output.
 | Migration section 6 (signup trigger) | **Written**, applied, and hotfixed. See the incident note |
 | RLS conflict check vs baseline | **Done.** No conflicts. See "Conflict check" |
 | Hand-run files folded in | Yes — see "Migration inventory" |
-| Production | **All nine migrations applied**, through `20260916140000` |
-| Staging | **All nine migrations applied.** See "Bringing up a fresh project" for what migrations do not carry |
+| Production | **All ten migrations applied**, through `20260917120000` |
+| Staging | **All ten migrations applied.** See "Bringing up a fresh project" for what migrations do not carry |
 
 ---
 
@@ -49,6 +49,7 @@ every push; `db push` names no environment in its output.
 | `20260916120000_ad_events.sql` | Applied | New `ad_events` table — impression/click capture. New table only, touches nothing existing |
 | `20260916130000_badges.sql` | Applied | Badge system v1. Adds `profiles.signup_type`, `badges`, `user_badges`, `user_badge_reviews`, the `public_badges` view. Rewrote `handle_new_user()`. Backfilled the first 100 accounts and folded `employer_verified` into `business_verified`. **Created `badges` without an `icon` column** — see `20260916140000` |
 | `20260916140000_badge_icons.sql` | Applied | `badges.icon` plus the glyph names for the three seeded badges. The app selects `badges.icon`, so this had to land before the code shipped — it did |
+| `20260917120000_role_credentials_verification_guards.sql` | Applied 2026-09-17 | Two BEFORE triggers on `role_credentials`. UPDATE: changing `fields` clears `verified`/`verified_at`, so a verified flag cannot outlive the values it was granted against. INSERT: a non-admin may not create an already-verified row — the RLS policy gates rows, not columns, and INSERT was never column-granted the way UPDATE was. Tested against staging before the production push; see "Credential verification guards" |
 
 **Verified 2026-09-16, both projects.** Four rows above said **Not applied**
 when the migrations had in fact been pushed — `20260910130000`,
@@ -350,3 +351,47 @@ Schema changes stop being made in the dashboard. Dashboard edits are invisible
 to this directory and will be silently reverted by the next `db push` that
 recreates an object. Write a migration, or run `db:pull` immediately after so
 the change is captured.
+
+---
+
+## Credential verification guards
+
+`20260917120000_role_credentials_verification_guards.sql`, applied to both
+projects 2026-09-17, alongside the profile-page editor for signup credentials.
+
+Two holes, same invariant — a `verified` flag must only ever mean "an
+administrator checked *these* values":
+
+1. **Editing a verified credential kept the flag.** `20260909120000` revoked
+   UPDATE and granted back only `fields`, which stops a user setting `verified`
+   directly and misses the obvious route: get verified honestly, then change the
+   licence number. A `BEFORE UPDATE` trigger now clears `verified` and
+   `verified_at` whenever `fields` changes, for every caller including
+   service_role.
+
+2. **INSERT was never restricted the way UPDATE was.** The policy checks only
+   `profile_id = auth.uid()`, so a user holding a role with no credentials row
+   could insert one with `verified = true`. A `BEFORE INSERT` trigger now raises
+   `42501` for a non-admin, non-service_role caller, matching
+   `profiles_guard_signup_type()`.
+
+**Why triggers and not a server route.** `grant update (fields)` means the
+browser can always write that column directly. A route would only bind callers
+that choose to use it, which makes the reset a convention; it has to be an
+invariant. The database also covers writers that do not exist yet.
+
+### What the test run found
+
+Verified against staging with a throwaway user before the production push. All
+ten checks passed, including that an update writing *identical* field values
+does **not** clear verification (`is distinct from`, so it is NULL-safe and a
+no-op stays a no-op).
+
+It also caught a real bug in the app code: **`upsert` is refused on this table
+for `authenticated`.** PostgREST compiles an upsert to `ON CONFLICT DO UPDATE
+SET` over every column in the payload, including `profile_id` and `role_key`,
+and only `fields` carries an UPDATE grant. The result is a flat
+`permission denied for table role_credentials` that names no column. Plain
+INSERT and a fields-only UPDATE are both fine, so the profile editor does
+UPDATE-then-INSERT. The onboarding route may keep its upsert: it holds
+service_role and is not subject to any of this.

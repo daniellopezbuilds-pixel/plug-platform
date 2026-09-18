@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/Toast";
 
 export type ReactionType = "like" | "celebrate" | "support" | "insightful";
 
@@ -19,6 +20,7 @@ export type PostReactionSummary = {
 };
 
 export function usePostReactions(postIds: string[]) {
+  const toast = useToast();
   const [summaries, setSummaries] = useState<Record<string, PostReactionSummary>>({});
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -82,7 +84,7 @@ export function usePostReactions(postIds: string[]) {
 
   async function react(postId: string, reactionType: ReactionType) {
     if (!userId) {
-      alert("You must be logged in to react.");
+      toast.error("You must be logged in to react.");
       return;
     }
 
@@ -96,7 +98,7 @@ export function usePostReactions(postIds: string[]) {
         .eq("user_id", userId);
 
       if (error) {
-        alert(error.message);
+        toast.error(error.message);
         return;
       }
     } else if (current) {
@@ -107,7 +109,7 @@ export function usePostReactions(postIds: string[]) {
         .eq("user_id", userId);
 
       if (error) {
-        alert(error.message);
+        toast.error(error.message);
         return;
       }
     } else {
@@ -118,7 +120,7 @@ export function usePostReactions(postIds: string[]) {
       });
 
       if (error) {
-        alert(error.message);
+        toast.error(error.message);
         return;
       }
     }

@@ -7,14 +7,16 @@ import { JobDetailModal } from "@/components/jobs/JobDetailModal";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { PageWithSponsoredRail } from "@/components/ads/PageWithSponsoredRail";
 import { JobSkeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
 
 export default function JobsPage() {
+  const toast = useToast();
   const { jobs, loading, appliedJobIds, applyingId, applyToJob } = useJobs();
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   async function handleApply(jobId: string) {
     const { error } = await applyToJob(jobId);
-    if (error) alert(error);
+    if (error) toast.error(error);
   }
 
   return (

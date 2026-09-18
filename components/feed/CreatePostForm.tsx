@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
+import { useToast } from "@/components/ui/Toast";
 
 export function CreatePostForm({
   onCreate,
@@ -13,6 +14,7 @@ export function CreatePostForm({
     job_location?: string;
   }) => Promise<{ error: string | null }>;
 }) {
+  const toast = useToast();
   const [postType, setPostType] = useState<"status" | "job">("status");
   const [content, setContent] = useState("");
   const [jobTitle, setJobTitle] = useState("");
@@ -21,12 +23,12 @@ export function CreatePostForm({
 
   async function handleSubmit() {
     if (!content.trim()) {
-      alert("Post content is required.");
+      toast.error("Post content is required.");
       return;
     }
 
     if (postType === "job" && !jobTitle.trim()) {
-      alert("Job title is required for a job post.");
+      toast.error("Job title is required for a job post.");
       return;
     }
 
@@ -42,7 +44,7 @@ export function CreatePostForm({
     setSubmitting(false);
 
     if (error) {
-      alert(error);
+      toast.error(error);
       return;
     }
 
