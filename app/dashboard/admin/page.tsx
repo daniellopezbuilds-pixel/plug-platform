@@ -4,11 +4,14 @@ import { useState } from "react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useEmployerVerifications } from "@/hooks/useEmployerVerifications";
 import { useUnionVerifications } from "@/hooks/useUnionVerifications";
+import { useBadgeRequests } from "@/hooks/useBadgeRequests";
 import { useAds } from "@/hooks/useAds";
 import { useAdRequests } from "@/hooks/useAdRequests";
 import { useGeneralRequests } from "@/hooks/useGeneralRequests";
 import { EmployerVerificationCard } from "@/components/admin/EmployerVerificationCard";
 import { UnionVerificationCard } from "@/components/admin/UnionVerificationCard";
+import { BadgeRequestCard } from "@/components/admin/BadgeRequestCard";
+import { CslbStalenessBanner } from "@/components/admin/CslbStalenessBanner";
 import { AdForm } from "@/components/admin/AdForm";
 import { AdListItem } from "@/components/admin/AdListItem";
 import { AdRequestCard } from "@/components/admin/AdRequestCard";
@@ -17,7 +20,13 @@ import { PageHeading } from "@/components/layout/PageHeading";
 import { PageLoader } from "@/components/ui/Loading";
 import { InlineLoader } from "@/components/ui/Loading";
 
-type AdminTab = "requests" | "employers" | "union" | "ad-requests" | "ads";
+type AdminTab =
+  | "requests"
+  | "employers"
+  | "union"
+  | "badges"
+  | "ad-requests"
+  | "ads";
 
 
 /**
@@ -54,6 +63,15 @@ export default function AdminPage() {
     approve: approveUnionWorker,
     reject: rejectUnionWorker,
   } = useUnionVerifications();
+
+  const {
+    pending: pendingBadgeRequests,
+    importInfo: cslbImportInfo,
+    loading: loadingBadgeRequests,
+    error: badgeRequestsError,
+    approve: approveBadgeRequest,
+    reject: rejectBadgeRequest,
+  } = useBadgeRequests();
 
   const {
     ads,
@@ -151,6 +169,17 @@ export default function AdminPage() {
           className={tabClass(activeTab === "union")}
         >
           Union Verification
+        </button>
+        <button
+          onClick={() => setActiveTab("badges")}
+          className={tabClass(activeTab === "badges")}
+        >
+          Badge Requests
+          {pendingBadgeRequests.length > 0 && (
+            <span className="ml-2 bg-accent-2 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+              {pendingBadgeRequests.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab("ad-requests")}
@@ -284,6 +313,39 @@ export default function AdminPage() {
               onReject={rejectUnionWorker}
             />
           ))}
+        </div>
+      )}
+
+      {activeTab === "badges" && (
+        <div>
+          {/* Above the queue, not inside it. The warning matters most exactly
+              when the list is empty -- a stale file with nothing pending still
+              means no new contractor can verify. */}
+          <CslbStalenessBanner info={cslbImportInfo} />
+
+          <div className="space-y-4">
+            {loadingBadgeRequests && (
+              <InlineLoader message="Loading badge requests" />
+            )}
+            {!loadingBadgeRequests && badgeRequestsError && (
+              <p className="text-red-300">
+                Could not load the review queue: {badgeRequestsError}
+              </p>
+            )}
+            {!loadingBadgeRequests &&
+              !badgeRequestsError &&
+              pendingBadgeRequests.length === 0 && (
+                <p className="text-gray-400">No licences awaiting review.</p>
+              )}
+            {pendingBadgeRequests.map((request) => (
+              <BadgeRequestCard
+                key={request.id}
+                request={request}
+                onApprove={approveBadgeRequest}
+                onReject={rejectBadgeRequest}
+              />
+            ))}
+          </div>
         </div>
       )}
 

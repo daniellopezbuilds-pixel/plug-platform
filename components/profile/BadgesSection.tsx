@@ -7,6 +7,7 @@ import {
   type HeldBadge,
 } from "@/hooks/useMyBadges";
 import { BadgeIcon } from "@/components/ui/BadgeIcon";
+import { cslbOwnerStatus } from "@/lib/cslb";
 import { InlineLoader } from "@/components/ui/Loading";
 
 /**
@@ -21,10 +22,15 @@ import { InlineLoader } from "@/components/ui/Loading";
  * reads as a settings screen, and the colour of the icon is doing the work of
  * saying which are earned.
  *
- * NO REQUEST BUTTON YET. The request form and the admin review tab are phase 3
- * and are not built; both review badges ship inactive, so nothing here is
- * requestable today and the copy does not pretend otherwise. When they are
- * switched on, the button belongs on the locked rows.
+ * NO REQUEST BUTTON, AND license_verified NO LONGER NEEDS ONE. That badge is
+ * awarded from the licence number already on the account -- the CSLB import
+ * checks it and a trigger writes the badge, so there is nothing for a user to
+ * submit. See 20260921120000_cslb_license_verification.sql.
+ *
+ * business_verified is still inactive and still has no request flow, so the
+ * locked copy below stays deliberately neutral about how a badge is obtained.
+ * When that one is switched on, a button belongs on its row -- not on
+ * license_verified's.
  */
 
 /**
@@ -34,7 +40,12 @@ import { InlineLoader } from "@/components/ui/Loading";
  */
 function lockedNote(badge: BadgeCatalogEntry, mine: HeldBadge | undefined) {
   if (!mine) {
-    return badge.requires_review ? "Requests are not open yet" : "Not awarded";
+    // Deliberately says nothing about HOW the badge is obtained. It used to
+    // read "Requests are not open yet", which stopped being true for
+    // license_verified the day the CSLB check went live -- that badge is
+    // awarded automatically and was never going to be requested. One neutral
+    // sentence is correct for both review badges rather than right for one.
+    return badge.requires_review ? "Not yet verified" : "Not awarded";
   }
 
   if (mine.status === "pending") return "Awaiting review";
@@ -80,6 +91,10 @@ export function BadgesSection() {
         {catalog.map((badge) => {
           const mine = heldByKey.get(badge.key);
           const earned = mine ? isCurrentlyVerified(mine) : false;
+          const status =
+            badge.key === "license_verified" && mine
+              ? cslbOwnerStatus(mine)
+              : null;
 
           return (
             <div key={badge.key} className="flex items-start gap-3">
@@ -128,6 +143,23 @@ export function BadgesSection() {
                 {mine?.status === "rejected" && mine.rejection_reason && (
                   <p className="text-sm text-gray-300 mt-2 border-l-2 border-zinc-700 pl-3">
                     {mine.rejection_reason}
+                  </p>
+                )}
+
+                {/* Licence verification explains itself. The other two badges
+                    have nothing to explain: early_member is awarded or not, and
+                    business_verified has no automated check behind it. */}
+                {badge.key === "license_verified" && mine && status && (
+                  <p
+                    className={`text-sm mt-2 border-l-2 pl-3 ${
+                      status.tone === "good"
+                        ? "border-accent text-gray-300"
+                        : status.tone === "action"
+                          ? "border-amber-600 text-gray-300"
+                          : "border-zinc-700 text-gray-400"
+                    }`}
+                  >
+                    {status.text}
                   </p>
                 )}
               </div>

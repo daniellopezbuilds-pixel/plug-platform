@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Imported reference data. scripts/data/cslb-license-master.csv is the CSLB
+# Master List: ~78MB, republished weekly, and re-downloaded rather than kept.
+# See scripts/import-cslb.mjs.
+scripts/data/

@@ -21,7 +21,7 @@ every push; `db push` names no environment in its output.
 
 ---
 
-## Status as of 2026-09-18
+## Status as of 2026-09-21
 
 | | |
 |---|---|
@@ -31,8 +31,9 @@ every push; `db push` names no environment in its output.
 | Migration section 6 (signup trigger) | **Written**, applied, and hotfixed. See the incident note |
 | RLS conflict check vs baseline | **Done.** No conflicts. See "Conflict check" |
 | Hand-run files folded in | Yes — see "Migration inventory" |
-| Production | **All fourteen migrations applied**, through `20260918120000` |
-| Staging | **All fourteen migrations applied.** See "Bringing up a fresh project" for what migrations do not carry |
+| Production | **Fourteen migrations applied**, through `20260918120000`. The four CSLB files have not been pushed here |
+| Staging | `20260921150000` and earlier applied; `20260921160000` written and not yet pushed |
+| CSLB licence data | **Not imported into either project.** It is data, not schema, and does not travel on a `db push` — see "Importing the CSLB file" |
 
 ---
 
@@ -54,6 +55,11 @@ every push; `db push` names no environment in its output.
 | `20260917140000_traffic_summary_exclusions.sql` | Applied 2026-09-17 | Replaces `traffic_summary()` with a version taking an `excluded_email_patterns text[]`, so demo and internal accounts stay out of the daily email. The list itself is in `lib/internalAccounts.tsx`, not in SQL — adding a colleague is a code change, not a migration. Drops the old zero-argument function rather than overloading it |
 | `20260917150000_traffic_summary_require_patterns.sql` | Applied 2026-09-17 | Removes the `default` from `traffic_summary(text[])`. The default meant a caller that omitted the list — a stale deployment — silently got completely unfiltered numbers and a success response, which is exactly what happened on production. A no-argument call now fails to resolve. See "The exclusion that was not applied" |
 | `20260918120000_profile_contact_location_experience.sql` | Applied 2026-09-18 | Adds `profiles.contact_number` (backfilled from `raw_user_meta_data`; 4 rows on production), converts `profiles.years_experience` from `integer` to a text band, backfills `profiles.location` from metadata, and rewrites `handle_new_user()` to carry all three onto the row. **Section 2 is one-way** — the original integers are not recoverable from the bands. Tested on staging by creating a real auth user through the admin API and reading the row back, including the blank-metadata case; both test users deleted. See "Signup detail columns" |
+| `20260921120000_cslb_license_verification.sql` | **Written, not applied** | CSLB C-10 licence verification: `cslb_licenses`, its staging table and the `cslb_imports` ledger, the decision table in `cslb_evaluate_license()`, and an AFTER trigger on `role_credentials` that re-checks a licence whenever it is written. Adds `user_badge_reviews.reason` and a `needs_review` decision. **Inert until `20260921130000`** — every write path early-outs while the `license_verified` badge is inactive, which also stops it breaking C-10 signups on a database with no imported data |
+| `20260921130000_activate_license_verified.sql` | **Written, not applied** | Switches `license_verified` active and sweeps every existing C-10 against the import. **Push only after the import has been loaded into that project** — it warns and skips the sweep rather than running it against data that is missing or stale. Does not touch `business_verified` or the `employer_verified` re-sync from section 7b of `20260916130000` |
+| `20260921140000_cslb_ownership_checks.sql` | **Written, not applied** | Two ownership checks added to `cslb_evaluate_license()`: `already_claimed` (the number is verified on another account) and `name_mismatch` (the account's business name does not resemble the CSLB record). CSLB publishes every licence number publicly, so the original seven checks proved a number was real and nothing about who typed it. Adds a **unique partial index** making one-licence-one-verified-badge a database invariant, demoting any duplicate already present before creating it. Changes the signatures of `cslb_evaluate_license` and `cslb_apply_check`, so both are dropped and recreated |
+| `20260921150000_licence_notifications.sql` | **Written, not applied** | Tells people what happened. Adds `user_badges.check_reason` (the reason, denormalised so the badge OWNER can read it — `user_badge_reviews` is admin-only because it carries private notes and the other party in a claim dispute), the `email_outbox` queue, a notification and a queued security email to the licence holder when a claim is blocked, and a trigger notifying the contractor on verified / rejected / revoked. Backfills `check_reason` for badges `20260921140000` already queued |
+| `20260921160000_claim_alert_dedupe_fix.sql` | **Written, not applied** | Fixes the held-back-claim alert never firing. `20260921150000` deduped on whether an `already_claimed` **review row** existed in the last 7 days, but a review row and an alert are different events — every row written before alerting shipped suppressed the first real alert. Dedupe now reads the `license_claim_attempt` **notification** instead, moved into `cslb_raise_claim_alert()` so the backfill shares one copy. Backfills the alerts already swallowed, indexes `notifications (user_id, type, created_at)`, and rewrites both review-badge descriptions so they read correctly in every status |
 
 **Verified 2026-09-16, both projects.** Four rows above said **Not applied**
 when the migrations had in fact been pushed — `20260910130000`,
@@ -195,6 +201,76 @@ it, so the edit is a no-op there.
    provider config. Relevant to the open email-deliverability item in spec
    section 7.6 — none of it is in version control and a reset would not restore
    it.
+6. **The CSLB licence table.** `cslb_licenses` is 29,000 rows of imported
+   reference data. The migration creates the table; nothing fills it. Each
+   project needs its own `scripts/import-cslb.mjs` run — see below.
+
+## Importing the CSLB file
+
+Licence verification checks a C-10's number against an imported copy of the
+CSLB Master List. **That import is data and does not travel with a migration.**
+A project that has had `db push` run against it has the table, the trigger and
+the decision function, and verifies nobody, because the table is empty.
+
+**Per project, in this order:**
+
+```
+1. npm run db:linked                       # confirm the target
+2. npm run db:push                         # 20260921120000 -- inert on its own
+3. download the Master List from CSLB      # note the file date beside the link
+4. save to scripts/data/cslb-license-master.csv
+5. node --env-file=.env.local scripts/import-cslb.mjs --as-of <file date>
+6. npm run db:push                         # 20260921130000 -- switches it on
+```
+
+Then repeat the whole thing for the other project. Step 5 writes to whatever
+`.env.local` points at, **not** to whatever is linked — those are the two
+independent switches described in `CLAUDE.md`, and this is one more thing that
+reads the second one. The script prints the project ref before it does
+anything, and refuses the production ref without an explicit `--prod`.
+
+`--as-of` is the date CSLB generated the file, printed beside the download.
+It is not optional and not guessed from the file's timestamp: it becomes
+`source_as_of`, and the 30-day staleness guard measures it. A wrong date makes
+stale data look fresh, which is the one failure the guard exists to prevent.
+
+**Expect the first sweep after `20260921140000` to move badges.** Every
+already-verified C-10 whose business name does not resemble its CSLB record
+goes back to review — that is the new check working on accounts verified before
+it existed, not a fault. Measured against the 2026-09-19 file, 99.94% of C-10
+licences match their own registered name; the 16 that cannot (names made
+entirely of stop words, like "THE ELECTRIC COMPANY") need one manual approval
+each, for good.
+
+**Re-run it weekly.** Past 30 days the check stops verifying new signups and
+sends them to the Badge Requests tab instead, which shows the warning. Existing
+badges are unaffected — each expires on its own licence date.
+
+### The email queue
+
+A blocked licence claim queues a security alert to the account that holds the
+licence, in `email_outbox`, in the same transaction as the block. Postgres
+cannot call Resend and the paths that detect a claim have no server route, so
+something else sends it:
+
+- The signup page and the profile editor call `/api/email/drain`
+  fire-and-forget as soon as they write a credential, so in the ordinary case
+  the alert goes out in seconds.
+- **`/api/email/drain` also runs daily from `vercel.json`** (09:00) as the
+  backstop. Daily is a Vercel Hobby limit, not a choice — one invocation per
+  cron per day. It catches the case the nudge cannot: a claim made by someone
+  crafting raw requests rather than using our pages. The block itself is
+  immediate either way; only the telling waits.
+
+It needs `RESEND_API_KEY` and `CRON_SECRET` set in the environment — the same
+two the daily summary uses. **Without `RESEND_API_KEY` the alerts queue and
+never send**, which is visible as rows in `email_outbox` with `sent_at` null.
+A row that keeps failing carries its `last_error`; after five attempts it stops
+being retried and stays for someone to look at.
+
+`--dry-run` parses the file and reports without touching a database or needing
+credentials. Worth running on a fresh download: a CSLB format change shows up
+as a missing column or a collapsed C-10 count, with nothing at stake.
 
 ### Bringing up a fresh project
 

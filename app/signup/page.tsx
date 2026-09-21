@@ -16,6 +16,7 @@ import {
   type SignupTypeKey,
 } from "@/lib/signupRoles";
 import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, validatePassword } from "@/lib/passwords";
+import { nudgeEmailQueue } from "@/lib/emailOutbox";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { GoogleButton, OrDivider } from "@/components/auth/GoogleButton";
 import { AuthLayout } from "@/components/auth/AuthLayout";
@@ -520,6 +521,13 @@ export default function SignupPage() {
       console.error("Onboarding metadata update failed:", metadataError.message);
     }
 
+    // A C-10 signup runs the CSLB check inside the database, and a blocked
+    // claim queues a security alert to whoever actually holds that licence.
+    // Nothing on the server knows it happened, so ask it to flush the queue
+    // now rather than leaving the alert for the next scheduled drain. Fire and
+    // forget — the cron is the guarantee, this is the hurry.
+    nudgeEmailQueue();
+
     router.push("/dashboard");
   }
 
@@ -628,6 +636,13 @@ export default function SignupPage() {
       setConfirmationSent(true);
       return;
     }
+
+    // A C-10 signup runs the CSLB check inside the database, and a blocked
+    // claim queues a security alert to whoever actually holds that licence.
+    // Nothing on the server knows it happened, so ask it to flush the queue
+    // now rather than leaving the alert for the next scheduled drain. Fire and
+    // forget — the cron is the guarantee, this is the hurry.
+    nudgeEmailQueue();
 
     router.push("/dashboard");
   }

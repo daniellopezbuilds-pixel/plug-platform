@@ -33,6 +33,15 @@ export type HeldBadge = {
   awarded_at: string | null;
   expires_at: string | null;
   rejection_reason: string | null;
+  /**
+   * Why the last automated check did not verify this badge.
+   *
+   * Denormalised onto user_badges precisely so this screen can read it. The
+   * same value on user_badge_reviews is admin-only, because that table also
+   * carries the reviewer's private notes and the other party in a claim
+   * dispute. See 20260921150000_licence_notifications.sql section 1.
+   */
+  check_reason: string | null;
 };
 
 export function useMyBadges() {
@@ -60,7 +69,9 @@ export function useMyBadges() {
         .order("sort_order", { ascending: true }),
       supabase
         .from("user_badges")
-        .select("badge_key, status, awarded_at, expires_at, rejection_reason")
+        .select(
+          "badge_key, status, awarded_at, expires_at, rejection_reason, check_reason"
+        )
         .eq("profile_id", user.id),
     ]);
 

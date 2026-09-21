@@ -27,6 +27,7 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { useToast } from "@/components/ui/Toast";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { TRADES, OTHER_TRADE, isListedTrade } from "@/lib/trades";
+import { nudgeEmailQueue } from "@/lib/emailOutbox";
 import { LocationField } from "@/components/ui/LocationField";
 
 export default function ProfilePage() {
@@ -439,6 +440,12 @@ export default function ProfilePage() {
       toast.error(metaError.message);
       return;
     }
+
+    // Saving a licence number re-runs the CSLB check in the database, and a
+    // number already verified on somebody else's account queues a security
+    // alert to them. Flush it now rather than leaving it for the scheduled
+    // drain. Fire and forget; the cron is the guarantee.
+    nudgeEmailQueue();
 
     const clearedVerification = credentialsVerified && signupFieldsChanged;
 
