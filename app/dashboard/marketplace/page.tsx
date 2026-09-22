@@ -9,12 +9,16 @@ import { PageWithSponsoredRail } from "@/components/ads/PageWithSponsoredRail";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { useToast } from "@/components/ui/Toast";
+import { LoadMore } from "@/components/ui/LoadMore";
 
 export default function MarketplacePage() {
   const toast = useToast();
   const {
     profiles,
     loading: profilesLoading,
+    loadingMore,
+    hasMore,
+    loadMore,
     trade,
     setTrade,
     location,
@@ -137,6 +141,19 @@ export default function MarketplacePage() {
                 />
               ))}
             </div>
+          )}
+
+          {/* Outside the grid: a sentinel that is a grid item would be laid
+              out as a column and could sit off to one side of the last row
+              rather than below it. */}
+          {!loading && profiles.length > 0 && (
+            <LoadMore
+              hasMore={hasMore}
+              loadingMore={loadingMore}
+              onLoadMore={loadMore}
+              endMessage="That's everyone nearby."
+              showEndMessage={profiles.length >= 24}
+            />
           )}
         </section>
       </PageWithSponsoredRail>

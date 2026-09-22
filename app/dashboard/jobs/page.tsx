@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useJobs, type Job } from "@/hooks/useJobs";
+import { LoadMore } from "@/components/ui/LoadMore";
 import { JobCard } from "@/components/jobs/JobCard";
 import { JobDetailModal } from "@/components/jobs/JobDetailModal";
 import { PageHeading } from "@/components/layout/PageHeading";
@@ -11,7 +12,16 @@ import { useToast } from "@/components/ui/Toast";
 
 export default function JobsPage() {
   const toast = useToast();
-  const { jobs, loading, appliedJobIds, applyingId, applyToJob } = useJobs();
+  const {
+    jobs,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    appliedJobIds,
+    applyingId,
+    applyToJob,
+  } = useJobs();
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   async function handleApply(jobId: string) {
@@ -46,6 +56,16 @@ export default function JobsPage() {
               />
             ))}
           </div>
+        )}
+
+        {/* Outside the grid so the sentinel is not laid out as a column. */}
+        {!loading && jobs.length > 0 && (
+          <LoadMore
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            onLoadMore={loadMore}
+            endMessage="No more jobs right now."
+          />
         )}
       </PageWithSponsoredRail>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/Toast";
 
@@ -13,10 +13,29 @@ export type Message = {
   deleted_at: string | null;
 };
 
+/**
+ * 30: two or three screens of chat, so most conversations open complete.
+ */
+const PAGE_SIZE = 30;
+
+/**
+ * A conversation thread.
+ *
+ * THE ONE LIST THAT PAGES UPWARDS, which is why it does not use
+ * usePagedList. Every other list here is newest-first and grows downwards as
+ * you scroll; a chat is oldest-first on screen and grows UPWARDS, and the page
+ * you want on open is the NEWEST one. So the query is ordered descending,
+ * takes the newest PAGE_SIZE, and is reversed for display — and loadOlder()
+ * prepends rather than appends.
+ *
+ * It used to select every message in the conversation with no limit at all.
+ */
 export function useMessages(conversationId: string | null) {
   const toast = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlder, setHasOlder] = useState(false);
   const [sending, setSending] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
@@ -32,13 +51,19 @@ export function useMessages(conversationId: string | null) {
     async function init() {
       setLoading(true);
 
+      // Newest first, then reversed: "the last 30" cannot be expressed as an
+      // ascending range without knowing the total first.
       const { data } = await supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .range(0, PAGE_SIZE - 1);
 
-      if (isMounted && data) setMessages(data as Message[]);
+      if (isMounted && data) {
+        setMessages((data as Message[]).slice().reverse());
+        setHasOlder(data.length === PAGE_SIZE);
+      }
       if (isMounted) setLoading(false);
 
       // Mark this conversation as read now that it's open, and unhide it for this user
@@ -120,6 +145,43 @@ export function useMessages(conversationId: string | null) {
     };
   }, [conversationId]);
 
+  /**
+   * The page before the one on screen.
+   *
+   * Ordered descending from the oldest message currently held, so it does not
+   * depend on an offset that shifts when a new message arrives mid-scroll —
+   * the one case plain offset paging gets wrong in a live thread.
+   */
+  const loadOlder = useCallback(async () => {
+    if (!conversationId || loadingOlder || !hasOlder || messages.length === 0) {
+      return;
+    }
+
+    setLoadingOlder(true);
+
+    const oldest = messages[0].created_at;
+
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .lt("created_at", oldest)
+      .order("created_at", { ascending: false })
+      .range(0, PAGE_SIZE - 1);
+
+    if (!error && data) {
+      const older = (data as Message[]).slice().reverse();
+
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        return [...older.filter((m) => !seen.has(m.id)), ...prev];
+      });
+      setHasOlder(data.length === PAGE_SIZE);
+    }
+
+    setLoadingOlder(false);
+  }, [conversationId, loadingOlder, hasOlder, messages]);
+
   async function sendMessage(content: string) {
     if (!conversationId || !content.trim()) return { error: "Nothing to send." };
 
@@ -165,5 +227,14 @@ export function useMessages(conversationId: string | null) {
     );
   }
 
-  return { messages, loading, sending, sendMessage, deleteMessage };
+  return {
+    messages,
+    loading,
+    loadingOlder,
+    hasOlder,
+    loadOlder,
+    sending,
+    sendMessage,
+    deleteMessage,
+  };
 }

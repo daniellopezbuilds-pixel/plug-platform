@@ -31,7 +31,16 @@ export default function MessagesPage() {
   const [myRole, setMyRole] = useState<string | null>(null);
   const [subscribed, setSubscribed] = useState(false);
 
-  const { messages, loading: msgLoading, sending, sendMessage, deleteMessage } = useMessages(activeId);
+  const {
+    messages,
+    loading: msgLoading,
+    loadingOlder,
+    hasOlder,
+    loadOlder,
+    sending,
+    sendMessage,
+    deleteMessage,
+  } = useMessages(activeId);
   const activeParticipantInfo = useConversationParticipants(activeId);
 
   useEffect(() => {
@@ -161,6 +170,9 @@ export default function MessagesPage() {
                 onSend={handleSend}
                 onDelete={deleteMessage}
                 locked={isLocked}
+                hasOlder={hasOlder}
+                loadingOlder={loadingOlder}
+                onLoadOlder={loadOlder}
               />
             )}
           </div>

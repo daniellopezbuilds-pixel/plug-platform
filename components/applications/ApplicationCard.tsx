@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatPay } from "@/lib/jobs";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "./StatusBadge";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
@@ -57,7 +58,11 @@ export function ApplicationCard({
       </div>
 
       {job?.location && <p className="text-gray-400 mb-1">{job.location}</p>}
-      {job?.pay && <p className="text-green-400 font-semibold mb-4">{job.pay}</p>}
+      {/* formatPay, not job.pay — otherwise a job posted with a structured
+          rate shows no pay at all here while showing it on the board. */}
+      {job && formatPay(job) && (
+        <p className="text-accent font-semibold mb-4">{formatPay(job)}</p>
+      )}
       {job?.description && <p className="text-gray-300 mb-4">{job.description}</p>}
 
       <p className="text-gray-400 text-sm">

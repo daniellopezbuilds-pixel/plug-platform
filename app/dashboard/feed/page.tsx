@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { usePosts } from "@/hooks/usePosts";
+import { LoadMore } from "@/components/ui/LoadMore";
 import { usePostReactions } from "@/hooks/usePostReactions";
 import { CreatePostForm } from "@/components/feed/CreatePostForm";
 import { PostCard } from "@/components/feed/PostCard";
@@ -13,7 +14,16 @@ import { PostSkeleton } from "@/components/ui/Skeleton";
 
 export default function FeedPage() {
   const router = useRouter();
-  const { posts, loading, userId, createPost, deletePost } = usePosts();
+  const {
+    posts,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    userId,
+    createPost,
+    deletePost,
+  } = usePosts();
   const { summaries, react } = usePostReactions(posts.map((p) => p.id));
 
   const [previewUserId, setPreviewUserId] = useState<string | null>(null);
@@ -83,6 +93,13 @@ export default function FeedPage() {
                   onViewProfile={handleViewProfile}
                 />
               ))}
+
+              <LoadMore
+                hasMore={hasMore}
+                loadingMore={loadingMore}
+                onLoadMore={loadMore}
+                endMessage="You're all caught up."
+              />
             </div>
           )}
         </div>

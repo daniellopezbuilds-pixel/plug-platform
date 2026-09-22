@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { usePagedList } from "./usePagedList";
 
 export type AdRequest = {
   id: string;
@@ -28,45 +29,51 @@ export type AdRequest = {
   profiles: { full_name: string | null; profile_number: string | null; signup_type: string | null } | null;
 };
 
+/** 20: an admin queue is worked through, so a deeper page than a browse list. */
+const PAGE_SIZE = 20;
+
 export function useAdRequests() {
-  const [pending, setPending] = useState<AdRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const fetchPage = useCallback(
+    async (offset: number, limit: number | null) => {
+      let query = supabase
+        .from("sponsored_listings")
+        // select("*") rather than an explicit column list on purpose. city and
+        // review_notes do now exist — the baseline confirms both — but naming
+        // columns here 400s the whole admin tab the moment one is missing, so
+        // the wildcard stays as insurance against the next additive column.
+        .select("*, profiles!submitted_by(full_name, profile_number, signup_type)")
+        .eq("status", "pending")
+        // An unpaid campaign never reaches review. A brand that starts checkout
+        // and closes the tab leaves a pending row behind; it is theirs to finish
+        // paying for (the resume button on /dashboard/branding-deals), not an
+        // admin's to approve.
+        //
+        // .neq rather than a paid-only filter on purpose: house ads and the free
+        // /dashboard/requests submissions carry payment_status 'n/a' and must
+        // still appear here.
+        .neq("payment_status", "unpaid")
+        .order("created_at", { ascending: true });
 
-  const load = useCallback(async () => {
-    setLoading(true);
+      if (limit) query = query.range(offset, offset + limit - 1);
 
-    const { data, error } = await supabase
-      .from("sponsored_listings")
-      // select("*") rather than an explicit column list on purpose. city and
-      // review_notes do now exist — the baseline confirms both — but naming
-      // columns here 400s the whole admin tab the moment one is missing, so
-      // the wildcard stays as insurance against the next additive column.
-      .select("*, profiles!submitted_by(full_name, profile_number, signup_type)")
-      .eq("status", "pending")
-      // An unpaid campaign never reaches review. A brand that starts checkout
-      // and closes the tab leaves a pending row behind; it is theirs to finish
-      // paying for (the resume button on /dashboard/branding-deals), not an
-      // admin's to approve.
-      //
-      // .neq rather than a paid-only filter on purpose: house ads and the free
-      // /dashboard/requests submissions carry payment_status 'n/a' and must
-      // still appear here.
-      .neq("payment_status", "unpaid")
-      .order("created_at", { ascending: true });
+      const { data, error } = await query;
+      return { data: (data as AdRequest[]) ?? null, error };
+    },
+    []
+  );
 
-    if (error || !data) {
-      setPending([]);
-      setLoading(false);
-      return;
-    }
-
-    setPending(data as AdRequest[]);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const {
+    items: pending,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload: load,
+  } = usePagedList<AdRequest>({
+    pageSize: PAGE_SIZE,
+    fetchPage,
+    getId: (r) => r.id,
+  });
 
   async function approve(
     id: string,
@@ -118,5 +125,14 @@ export function useAdRequests() {
     return { error: null };
   }
 
-  return { pending, loading, approve, reject, reload: load };
+  return {
+    pending,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    approve,
+    reject,
+    reload: load,
+  };
 }

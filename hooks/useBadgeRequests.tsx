@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { usePagedList } from "./usePagedList";
 import { useToast } from "@/components/ui/Toast";
 import { clearProfileBadgeCache } from "@/hooks/useProfileBadges";
 
@@ -119,52 +120,63 @@ export type CslbImportInfo = {
   rowCount: number | null;
 };
 
+/** 20: an admin queue is worked through, so a deeper page than a browse list. */
+const PAGE_SIZE = 20;
+
 export function useBadgeRequests() {
   const toast = useToast();
-  const [pending, setPending] = useState<BadgeRequest[]>([]);
   const [importInfo, setImportInfo] = useState<CslbImportInfo>({
     ageDays: null,
     sourceAsOf: null,
     rowCount: null,
   });
-  const [loading, setLoading] = useState(true);
-  /** Set when the queue could not be read at all — see the load() comment. */
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * THE STALENESS BANNER IS NOT PART OF THE QUEUE, so it does not page with
+   * it. It was loaded in the same Promise.all as the first page of badges,
+   * which was fine while there was only ever one page; now that "load more"
+   * exists, refetching the import vintage on every page would be three extra
+   * requests for a number that cannot have changed.
+   */
+  useEffect(() => {
+    loadImportInfo();
 
-  const load = useCallback(async () => {
-    setLoading(true);
+    async function loadImportInfo() {
+      const [ageResult, importResult] = await Promise.all([
+        supabase.rpc("cslb_data_age_days"),
+        supabase
+          .from("cslb_imports")
+          .select("source_as_of, row_count")
+          .order("imported_at", { ascending: false })
+          .limit(1),
+      ]);
 
-    const [badgeResult, ageResult, importResult] = await Promise.all([
-      supabase
-        .from("user_badges")
-        .select(
-          // NAMED CONSTRAINT, not a bare "profiles". user_badges has TWO
-          // foreign keys to profiles -- profile_id and reviewed_by -- so
-          // PostgREST refuses a bare embed with PGRST201 and returns no rows.
-          // That failed silently for a while: the panel showed "No licences
-          // awaiting review" with four queued. Hence the error surfacing below.
-          "id, profile_id, requested_at, submitted_fields, profiles!user_badges_profile_id_fkey!inner(id, full_name, signup_type, trade, location)"
-        )
-        .eq("badge_key", "license_verified")
-        .eq("status", "pending")
-        .order("requested_at", { ascending: true }),
-      supabase.rpc("cslb_data_age_days"),
-      supabase
-        .from("cslb_imports")
-        .select("source_as_of, row_count")
-        .order("imported_at", { ascending: false })
-        .limit(1),
-    ]);
+      const latestImport = importResult.data?.[0];
+      setImportInfo({
+        ageDays: typeof ageResult.data === "number" ? ageResult.data : null,
+        sourceAsOf: latestImport?.source_as_of ?? null,
+        rowCount: latestImport?.row_count ?? null,
+      });
+    }
+  }, []);
 
-    // The staleness banner is independent of the queue. An import that has
-    // never run is exactly when the queue is most likely to be empty and the
-    // warning most worth showing, so this is set whatever the badge query did.
-    const latestImport = importResult.data?.[0];
-    setImportInfo({
-      ageDays: typeof ageResult.data === "number" ? ageResult.data : null,
-      sourceAsOf: latestImport?.source_as_of ?? null,
-      rowCount: latestImport?.row_count ?? null,
-    });
+  const fetchPage = useCallback(async (offset: number, limit: number | null) => {
+    let query = supabase
+      .from("user_badges")
+      .select(
+        // NAMED CONSTRAINT, not a bare "profiles". user_badges has TWO
+        // foreign keys to profiles -- profile_id and reviewed_by -- so
+        // PostgREST refuses a bare embed with PGRST201 and returns no rows.
+        // That failed silently for a while: the panel showed "No licences
+        // awaiting review" with four queued. Hence the error surfacing below.
+        "id, profile_id, requested_at, submitted_fields, profiles!user_badges_profile_id_fkey!inner(id, full_name, signup_type, trade, location)"
+      )
+      .eq("badge_key", "license_verified")
+      .eq("status", "pending")
+      .order("requested_at", { ascending: true });
+
+    if (limit) query = query.range(offset, offset + limit - 1);
+
+    const badgeResult = await query;
 
     if (badgeResult.error || !badgeResult.data) {
       // SAYS SO, rather than rendering an empty queue. A failed read and an
@@ -175,15 +187,14 @@ export function useBadgeRequests() {
         "Badge requests: could not load the queue",
         JSON.stringify({ error: badgeResult.error?.message })
       );
-      setError(
-        badgeResult.error?.message ?? "Could not load the review queue."
-      );
-      setPending([]);
-      setLoading(false);
-      return;
+      return {
+        data: null,
+        error: {
+          message:
+            badgeResult.error?.message ?? "Could not load the review queue.",
+        },
+      };
     }
-
-    setError(null);
 
     // Through `unknown`: PostgREST types a to-one embed as an array, the
     // client returns an object, and the two do not overlap enough for a direct
@@ -255,8 +266,8 @@ export function useBadgeRequests() {
       }
     }
 
-    setPending(
-      rows.map((row) => {
+    return {
+      data: rows.map((row) => {
         const review = latest.get(row.id);
 
         return {
@@ -286,15 +297,25 @@ export function useBadgeRequests() {
             ? conflicts.get(review.conflicting_profile_id) ?? null
             : null,
         };
-      })
-    );
-
-    setLoading(false);
+      }),
+      error: null,
+    };
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const {
+    items: pending,
+    setItems: setPending,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    error,
+    reload: load,
+  } = usePagedList<BadgeRequest>({
+    pageSize: PAGE_SIZE,
+    fetchPage,
+    getId: (r) => r.id,
+  });
 
   /**
    * THE AUDIT ROW IS WRITTEN FIRST, and that order is deliberate.
@@ -543,5 +564,16 @@ export function useBadgeRequests() {
     return { error: null };
   }
 
-  return { pending, importInfo, loading, error, approve, reject, reload: load };
+  return {
+    pending,
+    importInfo,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    error,
+    approve,
+    reject,
+    reload: load,
+  };
 }

@@ -8,6 +8,7 @@ import { useBadgeRequests } from "@/hooks/useBadgeRequests";
 import { useAds } from "@/hooks/useAds";
 import { useAdRequests } from "@/hooks/useAdRequests";
 import { useGeneralRequests } from "@/hooks/useGeneralRequests";
+import { useAdminCounts } from "@/hooks/useAdminCounts";
 import { EmployerVerificationCard } from "@/components/admin/EmployerVerificationCard";
 import { UnionVerificationCard } from "@/components/admin/UnionVerificationCard";
 import { BadgeRequestCard } from "@/components/admin/BadgeRequestCard";
@@ -18,6 +19,7 @@ import { AdRequestCard } from "@/components/admin/AdRequestCard";
 import { GeneralRequestCard } from "@/components/admin/GeneralRequestCard";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { Tabs } from "@/components/ui/Tabs";
+import { LoadMore } from "@/components/ui/LoadMore";
 import { PageLoader } from "@/components/ui/Loading";
 import { InlineLoader } from "@/components/ui/Loading";
 
@@ -37,6 +39,9 @@ export default function AdminPage() {
   const {
     pending: pendingEmployers,
     loading: loadingEmployers,
+    loadingMore: loadingMoreEmployers,
+    hasMore: hasMoreEmployers,
+    loadMore: loadMoreEmployers,
     approve: approveEmployer,
     reject: rejectEmployer,
   } = useEmployerVerifications();
@@ -44,6 +49,9 @@ export default function AdminPage() {
   const {
     pending: pendingUnionWorkers,
     loading: loadingUnionWorkers,
+    loadingMore: loadingMoreUnion,
+    hasMore: hasMoreUnion,
+    loadMore: loadMoreUnion,
     approve: approveUnionWorker,
     reject: rejectUnionWorker,
   } = useUnionVerifications();
@@ -52,6 +60,9 @@ export default function AdminPage() {
     pending: pendingBadgeRequests,
     importInfo: cslbImportInfo,
     loading: loadingBadgeRequests,
+    loadingMore: loadingMoreBadgeRequests,
+    hasMore: hasMoreBadgeRequests,
+    loadMore: loadMoreBadgeRequests,
     error: badgeRequestsError,
     approve: approveBadgeRequest,
     reject: rejectBadgeRequest,
@@ -70,6 +81,9 @@ export default function AdminPage() {
   const {
     pending: pendingAdRequests,
     loading: loadingAdRequests,
+    loadingMore: loadingMoreAdRequests,
+    hasMore: hasMoreAdRequests,
+    loadMore: loadMoreAdRequests,
     approve: approveAdRequest,
     reject: rejectAdRequest,
   } = useAdRequests();
@@ -99,6 +113,21 @@ export default function AdminPage() {
     return result;
   }
 
+  /**
+   * THE BADGES COUNT THE DATABASE, NOT THE ARRAYS ON SCREEN.
+   *
+   * These used to be `pendingEmployers.length` and friends, which was only
+   * ever right because the queue hooks fetched every pending row. They page
+   * now, so an array's length is one page — useAdminCounts asks for the real
+   * figure and keeps it live over realtime. See hooks/useAdminCounts.tsx.
+   *
+   * ABOVE THE EARLY RETURNS, because it is a hook: the two `return`s below
+   * are conditional, and a hook called after them runs on some renders and not
+   * others. It takes isAdmin and does nothing until that is true, which is how
+   * it avoids querying for a visitor who is about to be refused.
+   */
+  const { counts } = useAdminCounts(isAdmin);
+
   if (loading) {
     return <PageLoader message="Checking permissions" />;
   }
@@ -117,18 +146,42 @@ export default function AdminPage() {
   // trip.
   const brandAdRequests = pendingAdRequests.filter((r) => r.source === "brand");
 
+
   const totalPendingRequests =
-    pendingEmployers.length +
-    pendingUnionWorkers.length +
-    pendingAdRequests.length +
-    pendingGeneralRequests.length;
+    counts.employers + counts.union + counts.adRequests + counts.generalRequests;
 
   const anyRequestsLoading =
     loadingEmployers || loadingUnionWorkers || loadingAdRequests || loadingGeneralRequests;
 
   return (
     <div className="max-w-4xl mx-auto">
-      <PageHeading title="Admin Panel" />
+      {/* THE ONE NUMBER AN ADMIN NEEDS BEFORE OPENING ANYTHING: is there work?
+          Distinct items, not the sum of the tab badges — All Requests already
+          aggregates four queues and the brand slice is part of a fifth, so
+          adding the badges up would count most items twice. See the `total`
+          note in useAdminCounts.
+
+          Rendered as heading actions rather than a bar of its own: it is one
+          fact about the page, and it belongs on the same line as the page's
+          name. */}
+      <PageHeading
+        title="Admin Panel"
+        actions={
+          counts.total > 0 ? (
+            <span className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent">
+              <span
+                className="w-2 h-2 rounded-full bg-accent"
+                aria-hidden
+              />
+              {counts.total} waiting
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full border border-zinc-800 px-4 py-2 text-sm font-semibold text-gray-400">
+              Nothing waiting
+            </span>
+          )
+        }
+      />
 
       {/* Counts live on the tab defs rather than in the markup, so the strip is
           data and the component that draws it is shared with the profile
@@ -136,13 +189,13 @@ export default function AdminPage() {
       <Tabs
         tabs={[
           { key: "requests", label: "All Requests", badge: totalPendingRequests },
-          { key: "employers", label: "Employer Verification" },
-          { key: "union", label: "Union Verification" },
-          { key: "badges", label: "Badge Requests", badge: pendingBadgeRequests.length },
+          { key: "employers", label: "Employer Verification", badge: counts.employers },
+          { key: "union", label: "Union Verification", badge: counts.union },
+          { key: "badges", label: "Badge Requests", badge: counts.badges },
           {
             key: "ad-requests",
             label: "Advertisement Requests",
-            badge: brandAdRequests.length,
+            badge: counts.brandAdRequests,
           },
           { key: "ads", label: "Ads" },
         ]}
@@ -246,6 +299,14 @@ export default function AdminPage() {
               onReject={rejectEmployer}
             />
           ))}
+
+          <LoadMore
+            hasMore={hasMoreEmployers}
+            loadingMore={loadingMoreEmployers}
+            onLoadMore={loadMoreEmployers}
+            endMessage=""
+            showEndMessage={false}
+          />
         </div>
       )}
 
@@ -263,6 +324,14 @@ export default function AdminPage() {
               onReject={rejectUnionWorker}
             />
           ))}
+
+          <LoadMore
+            hasMore={hasMoreUnion}
+            loadingMore={loadingMoreUnion}
+            onLoadMore={loadMoreUnion}
+            endMessage=""
+            showEndMessage={false}
+          />
         </div>
       )}
 
@@ -295,6 +364,13 @@ export default function AdminPage() {
                 onReject={rejectBadgeRequest}
               />
             ))}
+
+            <LoadMore
+              hasMore={hasMoreBadgeRequests}
+              loadingMore={loadingMoreBadgeRequests}
+              onLoadMore={loadMoreBadgeRequests}
+              showEndMessage={false}
+            />
           </div>
         </div>
       )}
@@ -313,6 +389,14 @@ export default function AdminPage() {
               onReject={handleRejectAdRequest}
             />
           ))}
+
+          <LoadMore
+            hasMore={hasMoreAdRequests}
+            loadingMore={loadingMoreAdRequests}
+            onLoadMore={loadMoreAdRequests}
+            endMessage=""
+            showEndMessage={false}
+          />
         </div>
       )}
 

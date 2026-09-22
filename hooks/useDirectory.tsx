@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { excludeInternalAccounts } from "@/lib/internalAccounts";
+import { usePagedList } from "./usePagedList";
 
 export type DirectoryProfile = {
   id: string;
@@ -22,50 +24,96 @@ export type DirectoryProfile = {
   signup_type: string | null;
 };
 
+const COLUMNS =
+  "id, full_name, profile_number, trade, location, bio, union_status, union_verified, active_role, years_experience, resume_path, company_logo_path, company_description, company_website, employer_verified, signup_type";
+
+/**
+ * 24: three full rows at the widest grid and eight at the narrowest, so the
+ * first page fills the screen at any width without a second request.
+ */
+const PAGE_SIZE = 24;
+
+/**
+ * My Local Network.
+ *
+ * TWO THINGS THIS DOES THAT IT DID NOT BEFORE.
+ *
+ * 1. Internal accounts are excluded. Demo profiles and the team's own logins
+ *    were being shown to real electricians as people they could hire or work
+ *    for. The list is lib/internalAccounts.tsx, shared with the daily summary
+ *    email rather than copied.
+ *
+ * 2. It pages. It used to select every profile on the platform, unbounded, and
+ *    render all of them — fine at eleven rows and a full table scan plus a full
+ *    payload at ten thousand.
+ */
 export function useDirectory() {
-  const [profiles, setProfiles] = useState<DirectoryProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [resolvingUser, setResolvingUser] = useState(true);
+
   const [trade, setTrade] = useState("");
   const [location, setLocation] = useState("");
   const [unionStatus, setUnionStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    loadProfiles();
-  }, [trade, location, unionStatus]);
+    supabase.auth.getUser().then(({ data }) => {
+      setUserId(data.user?.id ?? null);
+      setResolvingUser(false);
+    });
+  }, []);
 
-  async function loadProfiles() {
-    setLoading(true);
+  /**
+   * Trimmed here rather than inside fetchPage, so the identity of this
+   * callback — and therefore whether the list refetches — depends on the
+   * meaningful value and not on trailing whitespace as it is typed.
+   */
+  const tradeFilter = trade.trim();
+  const locationFilter = location.trim();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const fetchPage = useCallback(
+    async (offset: number, limit: number | null) => {
+      let query = supabase.from("profiles").select(COLUMNS);
 
-    let query = supabase
-      .from("profiles")
-      .select(
-        "id, full_name, profile_number, trade, location, bio, union_status, union_verified, active_role, years_experience, resume_path, company_logo_path, company_description, company_website, employer_verified, signup_type"
-      );
+      query = excludeInternalAccounts(query);
 
-    if (user) query = query.neq("id", user.id);
-    if (trade.trim()) query = query.ilike("trade", `%${trade.trim()}%`);
-    if (location.trim()) query = query.ilike("location", `%${location.trim()}%`);
-    if (unionStatus) query = query.eq("union_status", unionStatus);
+      // Your own profile is not part of your network. Kept as a filter rather
+      // than dropped after the fetch so it does not eat a slot in the page.
+      if (userId) query = query.neq("id", userId);
 
-    const { data } = await query.order("created_at", { ascending: false });
+      if (tradeFilter) query = query.ilike("trade", `%${tradeFilter}%`);
+      if (locationFilter) query = query.ilike("location", `%${locationFilter}%`);
+      if (unionStatus) query = query.eq("union_status", unionStatus);
 
-    if (data) setProfiles(data as DirectoryProfile[]);
-    setLoading(false);
-  }
+      query = query.order("created_at", { ascending: false });
+      if (limit) query = query.range(offset, offset + limit - 1);
+
+      const { data, error } = await query;
+      return { data: (data as DirectoryProfile[]) ?? null, error };
+    },
+    [userId, tradeFilter, locationFilter, unionStatus]
+  );
+
+  const paged = usePagedList<DirectoryProfile>({
+    pageSize: PAGE_SIZE,
+    fetchPage,
+    getId: (p) => p.id,
+    // Waiting on getUser(). Querying first would show the viewer their own
+    // card for a moment and then remove it.
+    skip: resolvingUser,
+  });
 
   return {
-    profiles,
-    loading,
+    profiles: paged.items,
+    loading: paged.loading,
+    loadingMore: paged.loadingMore,
+    hasMore: paged.hasMore,
+    loadMore: paged.loadMore,
     trade,
     setTrade,
     location,
     setLocation,
     unionStatus,
     setUnionStatus,
-    refresh: loadProfiles,
+    refresh: paged.reload,
   };
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { usePagedList } from "./usePagedList";
 import { useToast } from "@/components/ui/Toast";
 
 export type GeneralRequest = {
@@ -14,33 +15,41 @@ export type GeneralRequest = {
   created_at: string;
 };
 
+/** 20: an admin queue is worked through, so a deeper page than a browse list. */
+const PAGE_SIZE = 20;
+
 export function useGeneralRequests() {
   const toast = useToast();
-  const [pending, setPending] = useState<GeneralRequest[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const fetchPage = useCallback(
+    async (offset: number, limit: number | null) => {
+      let query = supabase
+        .from("general_requests")
+        .select("id, submitted_by, subject, message, status, admin_notes, created_at")
+        .eq("status", "pending")
+        .order("created_at", { ascending: true });
 
-    const { data, error } = await supabase
-      .from("general_requests")
-      .select("id, submitted_by, subject, message, status, admin_notes, created_at")
-      .eq("status", "pending")
-      .order("created_at", { ascending: true });
+      if (limit) query = query.range(offset, offset + limit - 1);
 
-    if (error || !data) {
-      setPending([]);
-      setLoading(false);
-      return;
-    }
+      const { data, error } = await query;
+      return { data: (data as GeneralRequest[]) ?? null, error };
+    },
+    []
+  );
 
-    setPending(data as GeneralRequest[]);
-    setLoading(false);
-  }, []);
+  const {
+    items: pending,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload: load,
+  } = usePagedList<GeneralRequest>({
+    pageSize: PAGE_SIZE,
+    fetchPage,
+    getId: (r) => r.id,
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
 
   async function resolve(id: string, adminNotes?: string) {
     const { error } = await supabase
@@ -70,5 +79,14 @@ export function useGeneralRequests() {
     await load();
   }
 
-  return { pending, loading, resolve, dismiss, reload: load };
+  return {
+    pending,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    resolve,
+    dismiss,
+    reload: load,
+  };
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { usePagedList } from "./usePagedList";
 import { useToast } from "@/components/ui/Toast";
 
 export type PendingUnionWorker = {
@@ -12,33 +13,42 @@ export type PendingUnionWorker = {
   signup_type: string | null;
 };
 
+/** 20: an admin queue is worked through, so a deeper page than a browse list. */
+const PAGE_SIZE = 20;
+
 export function useUnionVerifications() {
   const toast = useToast();
-  const [pending, setPending] = useState<PendingUnionWorker[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const fetchPage = useCallback(
+    async (offset: number, limit: number | null) => {
+      let query = supabase
+        .from("profiles")
+        .select("id, full_name, trade, union_status, signup_type")
+        .eq("union_verified", false)
+        .not("union_status", "is", null)
+        .order("created_at", { ascending: false });
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, trade, union_status, signup_type")
-      .eq("union_verified", false)
-      .not("union_status", "is", null);
+      if (limit) query = query.range(offset, offset + limit - 1);
 
-    if (error || !data) {
-      setPending([]);
-      setLoading(false);
-      return;
-    }
+      const { data, error } = await query;
+      return { data: (data as PendingUnionWorker[]) ?? null, error };
+    },
+    []
+  );
 
-    setPending(data as PendingUnionWorker[]);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const {
+    items: pending,
+    setItems: setPending,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload: load,
+  } = usePagedList<PendingUnionWorker>({
+    pageSize: PAGE_SIZE,
+    fetchPage,
+    getId: (p) => p.id,
+  });
 
   async function approve(profileId: string) {
     const { error } = await supabase
@@ -58,5 +68,14 @@ export function useUnionVerifications() {
     setPending((prev) => prev.filter((p) => p.id !== profileId));
   }
 
-  return { pending, loading, approve, reject, reload: load };
+  return {
+    pending,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    approve,
+    reject,
+    reload: load,
+  };
 }

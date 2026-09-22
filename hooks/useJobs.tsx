@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { usePagedList } from "./usePagedList";
 
 export type Job = {
   id: string;
@@ -9,49 +10,96 @@ export type Job = {
   title: string;
   company: string | null;
   location: string | null;
-  pay: string | null;
   description: string | null;
   created_at: string;
   required_union_status: string | null;
+
+  /**
+   * The legacy free-text rate. KEPT, not replaced: the seven jobs posted
+   * before 20260922170000 have their pay only here. formatPay() in lib/jobs
+   * falls back to it when there is no structured rate.
+   */
+  pay: string | null;
+
+  // Added by 20260922170000. Nullable throughout, because those same seven
+  // rows have none of them — see that migration's header for why the
+  // requiredness lives in the form rather than in the schema.
+  classification: string | null;
+  work_type: string | null;
+  starts_on: string | null;
+  duration: string | null;
+  shift: string | null;
+  /**
+   * numeric(10,2). Typed as number | string because that is what actually
+   * comes back: supabase-js parses these to numbers, but PostgREST hands
+   * numeric over as a string in other paths and a future client version is
+   * free to stop parsing. formatPay() coerces either, so neither shape is a
+   * bug — asserting only one of them would be.
+   */
+  pay_rate_min: number | string | null;
+  pay_rate_max: number | string | null;
+  pay_unit: string | null;
+  min_years_experience: string | null;
+  certification_required: string | null;
+  requires_own_tools: boolean;
+  requires_own_transport: boolean;
 };
 
+/** 12: a screen and a half of job cards at any width. */
+const PAGE_SIZE = 12;
+
 export function useJobs() {
-  const [jobs, setJobs] = useState<Job[]>([]);
   const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
   const [applyingId, setApplyingId] = useState<string | null>(null);
 
+  /**
+   * WHICH JOBS YOU HAVE APPLIED TO IS FETCHED WHOLE, AND SHOULD BE.
+   *
+   * It is one row per application by this user, id only, and it decides
+   * whether each card says "Apply" or "Applied". Paging it alongside the jobs
+   * would mean a job on page 3 whose application is on page 1 of the other
+   * list renders as un-applied — a wrong button, not a missing row. It stays a
+   * complete set because it is used as a lookup, not as a list.
+   */
   useEffect(() => {
-    loadJobs();
+    loadApplied();
   }, []);
 
-  async function loadJobs() {
-    setLoading(true);
-
+  async function loadApplied() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const { data: jobsData } = await supabase
-      .from("jobs")
-      .select("*")
-      .order("created_at", { ascending: false });
+    if (!user) return;
 
-    if (jobsData) setJobs(jobsData as Job[]);
+    const { data } = await supabase
+      .from("applications")
+      .select("job_id")
+      .eq("worker_id", user.id);
 
-    if (user) {
-      const { data: appsData } = await supabase
-        .from("applications")
-        .select("job_id")
-        .eq("worker_id", user.id);
-
-      if (appsData) {
-        setAppliedJobIds(new Set(appsData.map((a) => a.job_id)));
-      }
-    }
-
-    setLoading(false);
+    if (data) setAppliedJobIds(new Set(data.map((a) => a.job_id)));
   }
+
+  const fetchPage = useCallback(
+    async (offset: number, limit: number | null) => {
+      let query = supabase
+        .from("jobs")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (limit) query = query.range(offset, offset + limit - 1);
+
+      const { data, error } = await query;
+      return { data: (data as Job[]) ?? null, error };
+    },
+    []
+  );
+
+  const paged = usePagedList<Job>({
+    pageSize: PAGE_SIZE,
+    fetchPage,
+    getId: (j) => j.id,
+  });
 
   async function applyToJob(jobId: string) {
     const {
@@ -80,5 +128,19 @@ export function useJobs() {
     return { error: null };
   }
 
-  return { jobs, loading, appliedJobIds, applyingId, applyToJob, refresh: loadJobs };
+  async function refresh() {
+    await Promise.all([paged.reload(), loadApplied()]);
+  }
+
+  return {
+    jobs: paged.items,
+    loading: paged.loading,
+    loadingMore: paged.loadingMore,
+    hasMore: paged.hasMore,
+    loadMore: paged.loadMore,
+    appliedJobIds,
+    applyingId,
+    applyToJob,
+    refresh,
+  };
 }

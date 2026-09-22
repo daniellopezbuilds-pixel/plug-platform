@@ -57,7 +57,11 @@ export function EmployerVerificationCard({
             className="text-accent-2-soft hover:text-white text-sm font-semibold mt-2 disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             <ButtonSpinner active={opening} />
-            {opening ? "Opening..." : `View Document (${employer.document_label}) →`}
+            {opening
+              ? "Opening..."
+              : employer.document_label
+                ? `View Document (${employer.document_label}) →`
+                : "View Document →"}
           </button>
         </div>
       </div>

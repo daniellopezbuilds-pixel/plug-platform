@@ -3,10 +3,19 @@
 import { useApplications } from "@/hooks/useApplications";
 import { ApplicationCard } from "@/components/applications/ApplicationCard";
 import { PageHeading } from "@/components/layout/PageHeading";
+import { LoadMore } from "@/components/ui/LoadMore";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 
 export default function ApplicationsPage() {
-  const { applications, reviewedIds, loading, refresh } = useApplications();
+  const {
+    applications,
+    reviewedIds,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    refresh,
+  } = useApplications();
 
   if (loading) {
     return <CardSkeleton />;
@@ -32,6 +41,15 @@ export default function ApplicationsPage() {
             />
           ))}
         </div>
+      )}
+
+      {!loading && applications.length > 0 && (
+        <LoadMore
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          endMessage="That's all your applications."
+        />
       )}
     </div>
   );

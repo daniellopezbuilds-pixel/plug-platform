@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { usePagedList } from "./usePagedList";
 
 export type ApplicantWithJob = {
   id: string;
@@ -23,68 +24,91 @@ export type ApplicantWithJob = {
   } | null;
 };
 
+const COLUMNS = `
+  id,
+  status,
+  created_at,
+  worker_id,
+  jobs!inner (
+    id,
+    title,
+    user_id
+  ),
+  profiles (
+    full_name,
+    profile_number,
+    union_status,
+    union_verified,
+    years_experience,
+    resume_path,
+    signup_type
+  )
+`;
+
+/** 10: applicant cards carry a resume link and a decision, so they are tall. */
+const PAGE_SIZE = 10;
+
 export function useApplicants() {
-  const [applicants, setApplicants] = useState<ApplicantWithJob[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [resolvingUser, setResolvingUser] = useState(true);
   const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadApplicants();
+    supabase.auth.getUser().then(({ data }) => {
+      setUserId(data.user?.id ?? null);
+      setResolvingUser(false);
+    });
   }, []);
 
-  async function loadApplicants() {
-    setLoading(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+  /** Complete, not paged — a lookup behind the review button. See useJobs. */
+  const loadReviewed = useCallback(async () => {
+    if (!userId) return;
 
     const { data } = await supabase
-      .from("applications")
-      .select(
-        `
-        id,
-        status,
-        created_at,
-        worker_id,
-        jobs!inner (
-          id,
-          title,
-          user_id
-        ),
-        profiles (
-          full_name,
-          profile_number,
-          union_status,
-          union_verified,
-          years_experience,
-          resume_path,
-          signup_type
-        )
-      `
-      )
-      .eq("jobs.user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (data) setApplicants(data as unknown as ApplicantWithJob[]);
-
-    const { data: reviewsData } = await supabase
       .from("reviews")
       .select("application_id")
-      .eq("reviewer_id", user.id);
+      .eq("reviewer_id", userId);
 
-    if (reviewsData) {
-      setReviewedIds(new Set(reviewsData.map((r) => r.application_id)));
-    }
+    if (data) setReviewedIds(new Set(data.map((r) => r.application_id)));
+  }, [userId]);
 
-    setLoading(false);
-  }
+  useEffect(() => {
+    loadReviewed();
+  }, [loadReviewed]);
+
+  const fetchPage = useCallback(
+    async (offset: number, limit: number | null) => {
+      if (!userId) return { data: [], error: null };
+
+      let query = supabase
+        .from("applications")
+        .select(COLUMNS)
+        .eq("jobs.user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (limit) query = query.range(offset, offset + limit - 1);
+
+      const { data, error } = await query;
+      return { data: (data as unknown as ApplicantWithJob[]) ?? null, error };
+    },
+    [userId]
+  );
+
+  const {
+    items: applicants,
+    setItems: setApplicants,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reload,
+  } = usePagedList<ApplicantWithJob>({
+    pageSize: PAGE_SIZE,
+    fetchPage,
+    getId: (a) => a.id,
+    skip: resolvingUser,
+  });
 
   async function updateStatus(applicationId: string, status: "accepted" | "rejected" | "pending") {
     setUpdatingId(applicationId);
@@ -105,5 +129,19 @@ export function useApplicants() {
     return { error: null };
   }
 
-  return { applicants, reviewedIds, loading, updatingId, updateStatus, refresh: loadApplicants };
+  async function refresh() {
+    await Promise.all([reload(), loadReviewed()]);
+  }
+
+  return {
+    applicants,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    reviewedIds,
+    updatingId,
+    updateStatus,
+    refresh,
+  };
 }
