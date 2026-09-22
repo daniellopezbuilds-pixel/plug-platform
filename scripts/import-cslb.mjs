@@ -40,13 +40,36 @@
  * is per-licence and its maximum trails the file by weeks.
  *
  *
+ * WHAT GETS IMPORTED, AND WHAT DELIBERATELY DOES NOT
+ *
+ * Every classification, not just C-10 -- but non-C-10 rows are stored SLIM:
+ * license_no, classifications and class_keys, and nothing else.
+ *
+ * This used to filter to the 29,123 licences holding C10 and drop the rest. The
+ * table was then smaller than the question it answers, because a licence that
+ * was absent could not be told apart from a licence that does not exist, and
+ * cslb_evaluate_license() called both `not_found`. The case that found it:
+ * 1117700 is a real, current, CLEAR C-36 plumbing licence whose holder was told
+ * we could not find their number on the CSLB register. `wrong_classification`
+ * was already written, in the CHECK constraint and at rule 6 of the decision
+ * table, and could never fire.
+ *
+ * Slim rather than full for the other 215,396, because the rule in COLUMNS
+ * below scales: those contractors do no electrical work and will never hold an
+ * account here, and once the classification is wrong the check is over without
+ * reading another column. Their names, cities and counties would be personal
+ * data stored to answer nothing. The decision table checks classification
+ * BEFORE status and expiry precisely so that holds -- see section 4 of
+ * supabase/migrations/20260922120000_cslb_all_classifications.sql.
+ *
+ *
  * WHY THE SERVICE ROLE KEY
  *
  * cslb_licenses has RLS enabled and no policies at all -- nothing reachable
- * from the browser may read 29,000 contractor records, and nothing but this
- * script may write them. service_role is what gets past that. The same key is
- * what lets cslb_commit_import() and cslb_recheck_all() be called; EXECUTE on
- * both is revoked from anon and authenticated.
+ * from the browser may read a quarter of a million contractor records, and
+ * nothing but this script may write them. service_role is what gets past that.
+ * The same key is what lets cslb_commit_import() and cslb_recheck_all() be
+ * called; EXECUTE on both is revoked from anon and authenticated.
  *
  *
  * THE FILE IS RAW AND IT IS MESSY. This parser assumes nothing has been
@@ -85,6 +108,10 @@ const DEFAULT_FILE = "scripts/data/cslb-license-master.csv";
  * the rest of a contractor's record to answer it would be a choice to store
  * personal data with no use.
  *
+ * SLIM_COLUMNS applies the same rule one step further, to the rows that cannot
+ * answer the question at all. A non-C-10 licence is decided by its
+ * classification, so these three are everything that gets stored for it.
+ *
  * Keyed by the file's own header spelling, including the misspelled
  * "Classifications(s)", which is what CSLB actually publishes.
  */
@@ -102,7 +129,20 @@ const COLUMNS = {
   last_update: "LastUpdate",
 };
 
-/** Rows per insert. ~2,000 x ~200 bytes keeps each request around 400KB. */
+/**
+ * The only fields a non-C-10 row carries. Named here rather than expressed as
+ * an omission at the insert site, so "what we keep about somebody who is not an
+ * electrical contractor" is one readable list and not a diff of two objects.
+ */
+const SLIM_COLUMNS = ["license_no", "classifications", "class_keys"];
+
+/**
+ * Rows per insert. A full C-10 row is ~200 bytes and a slim row ~40, so at the
+ * file's 12% C-10 share ~2,000 rows keeps each request around 200KB. The whole
+ * file is ~123 requests rather than the ~15 it was while this filtered to C-10;
+ * that is a couple of minutes on a weekly manual run, and the batch size is
+ * left where it has been working.
+ */
 const BATCH_SIZE = 2000;
 
 // ---------------------------------------------------------------------------
@@ -316,8 +356,9 @@ async function main() {
 
   // --dry-run parses the file and reports, touching no database and needing no
   // credentials. Worth running on a fresh download before the real import: a
-  // CSLB format change shows up as a missing column or a collapsed C-10 count
-  // here, where nothing is at stake.
+  // CSLB format change shows up as a missing column, or as a C-10 count that
+  // has moved when the total has not, here, where nothing is at stake. The
+  // C-10 line is the one to read -- see the canary note after the summary.
   const asOf = args.dryRun && !args.asOf ? null : normaliseAsOf(args.asOf);
 
   if (!Number.isFinite(args.minRatio) || args.minRatio <= 0 || args.minRatio > 1) {
@@ -394,6 +435,11 @@ async function main() {
   const stats = {
     rows: 0,
     kept: 0,
+    // Counted separately and reported on its own line because it is the number
+    // that matters and the number that can collapse on its own. See the format
+    // canary below, and the guard it feeds in cslb_commit_import().
+    c10: 0,
+    slim: 0,
     shortRows: 0,
     badLicense: 0,
     badExpiry: 0,
@@ -408,13 +454,15 @@ async function main() {
 
     if (supabase === null) {
       batch = [];
-      process.stdout.write(`\r  Parsed ${stats.kept} C-10 licences`);
+      process.stdout.write(
+        `\r  Parsed ${stats.kept} licences (${stats.c10} C-10)`
+      );
       return;
     }
 
     // upsert rather than insert: the file is not guaranteed to be free of
     // duplicated licence numbers, and one repeated row should not abort an
-    // import of 29,000.
+    // import of a quarter of a million.
     const { error } = await supabase
       .from("cslb_licenses_staging")
       .upsert(batch, { onConflict: "license_no" });
@@ -422,7 +470,9 @@ async function main() {
     if (error) die(`Insert failed after ${stats.kept} rows: ${error.message}`);
 
     batch = [];
-    process.stdout.write(`\r  Loaded ${stats.kept} C-10 licences`);
+    process.stdout.write(
+      `\r  Loaded ${stats.kept} licences (${stats.c10} C-10)`
+    );
   }
 
   for await (const fields of csvRecords(stream)) {
@@ -456,9 +506,6 @@ async function main() {
 
     const get = (name) => (fields[index[name]] ?? "").trim();
 
-    const classKeys = parseClassifications(get(COLUMNS.classifications));
-    if (!classKeys.includes("C10")) continue;
-
     const licenseNo = normaliseLicense(get(COLUMNS.license_no));
     if (licenseNo === null) {
       stats.badLicense++;
@@ -468,12 +515,21 @@ async function main() {
     if (seen.has(licenseNo)) stats.duplicates++;
     seen.add(licenseNo);
 
+    const classKeys = parseClassifications(get(COLUMNS.classifications));
+    const isC10 = classKeys.includes("C10");
+
     const expiration = parseDate(get(COLUMNS.expiration_date));
-    if (expiration === null) stats.badExpiry++;
+
+    // Only counted for C-10s. A missing expiry is reported because it stops a
+    // licence verifying; on a row that could never verify anyway it would be
+    // noise in the one number a reader is checking.
+    if (isC10 && expiration === null) stats.badExpiry++;
 
     stats.kept++;
+    if (isC10) stats.c10++;
+    else stats.slim++;
 
-    batch.push({
+    const row = {
       license_no: licenseNo,
       business_name: get(COLUMNS.business_name) || null,
       full_business_name: get(COLUMNS.full_business_name) || null,
@@ -486,7 +542,20 @@ async function main() {
       classifications: get(COLUMNS.classifications) || null,
       class_keys: classKeys,
       last_update: parseDate(get(COLUMNS.last_update)),
-    });
+    };
+
+    // A non-C-10 row is slimmed by nulling rather than by omitting: PostgREST
+    // refuses a bulk insert whose objects disagree about which keys they have
+    // (PGRST102), so every row on the wire carries the same shape. What lands
+    // on disk is the same either way -- a NULL column costs a bit in the row's
+    // null bitmap and nothing else.
+    if (!isC10) {
+      for (const key of Object.keys(row)) {
+        if (!SLIM_COLUMNS.includes(key)) row[key] = null;
+      }
+    }
+
+    batch.push(row);
 
     if (batch.length >= BATCH_SIZE) await flush();
   }
@@ -495,12 +564,40 @@ async function main() {
   process.stdout.write("\n\n");
 
   console.log(`  Read        ${stats.rows} rows`);
-  console.log(`  C-10        ${stats.kept} kept`);
+  console.log(`  Kept        ${stats.kept}`);
+  console.log(`  C-10        ${stats.c10} in full`);
+  console.log(`  Other       ${stats.slim} slim (number and classification only)`);
   if (stats.shortRows) console.log(`  Short rows  ${stats.shortRows}`);
   if (stats.badLicense) console.log(`  No licence  ${stats.badLicense} skipped`);
-  if (stats.badExpiry) console.log(`  No expiry   ${stats.badExpiry} (kept, will not verify)`);
+  if (stats.badExpiry) console.log(`  No expiry   ${stats.badExpiry} C-10 (kept, will not verify)`);
   if (stats.duplicates) console.log(`  Duplicates  ${stats.duplicates} (last one wins)`);
   console.log("");
+
+  // THE FORMAT CANARY, and the reason the C-10 line above is printed
+  // unconditionally rather than only when it is interesting.
+  //
+  // While this filtered to C-10, a classification column CSLB had respelled
+  // showed up as the kept count collapsing to nothing -- impossible to miss,
+  // and refused outright by the row-count guard in cslb_commit_import(). Now
+  // that every row is kept, the total would hold up perfectly while class_keys
+  // came back empty for all 244,519, and every C-10 on the platform would be
+  // reported as wrong_classification on the next sweep.
+  //
+  // So it is checked twice. Here, where --dry-run reaches it without
+  // credentials and a real run reaches it before the commit -- staging may be
+  // full at this point, but cslb_licenses is untouched until the RPC below, and
+  // the next run clears staging on the way in. And in cslb_commit_import(),
+  // against the previous import's c10_count, which is the copy that cannot be
+  // skipped and the one that catches a partial collapse rather than a total
+  // one.
+  if (stats.c10 === 0) {
+    die(
+      `Not one of the ${stats.rows} rows parsed as C-10.\n  That is a parse ` +
+        "failure, not a file without electrical contractors -- check the " +
+        `"${COLUMNS.classifications}" column in the header and the | separator ` +
+        "before going further."
+    );
+  }
 
   if (args.dryRun) {
     console.log("  Dry run. Nothing was written.");
@@ -531,12 +628,17 @@ async function main() {
 
   const result = Array.isArray(committed) ? committed[0] : committed;
   const previous = result?.previous_rows;
+  const previousC10 = result?.previous_c10;
+
+  const delta = (now, before) =>
+    before == null ? "" : ` (${now - before >= 0 ? "+" : ""}${now - before})`;
 
   console.log(`  Committed   ${result?.imported_rows} rows, as of ${asOf}`);
+  console.log(`  C-10        ${result?.imported_c10}`);
   if (previous != null) {
-    const delta = result.imported_rows - previous;
     console.log(
-      `  Previous    ${previous} rows (${delta >= 0 ? "+" : ""}${delta})`
+      `  Previous    ${previous} rows${delta(result.imported_rows, previous)}, ` +
+        `${previousC10} C-10${delta(result.imported_c10, previousC10)}`
     );
   }
   console.log("");

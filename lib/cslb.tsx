@@ -74,9 +74,9 @@ const REASONS: Record<CslbReason, ReasonCopy> = {
     onLicence: true,
   },
   wrong_classification: {
-    label: "No C-10 classification",
+    label: "Not a C-10 licence",
     detail:
-      "The licence exists and is clear, but it does not carry a C-10 classification.",
+      "The number is on the CSLB register, under a classification that is not C-10. Nothing else about it was checked — the classification settles this on its own, so no status or expiry is shown below. Look it up by hand if the account claims C-10 under a different number.",
     onLicence: true,
   },
   expired: {
@@ -172,7 +172,7 @@ const OWNER_MESSAGES: Record<CslbReason, CslbOwnerStatus> = {
   },
   wrong_classification: {
     tone: "action",
-    text: "This licence is current, but CSLB doesn't show a C-10 classification on it. Check the number below, or contact us if you hold C-10 under a different licence.",
+    text: "CSLB has this licence number on the register, but not with a C-10 classification on it. If you hold C-10 under a different number, enter that one below — otherwise contact us and someone will take a look.",
   },
   stale_data: {
     tone: "waiting",
