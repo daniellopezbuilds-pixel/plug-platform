@@ -35,7 +35,27 @@ type PublicBadge = {
   profile_id: string;
   badge_key: string;
   category: string;
+  /** From the badges catalog, carried by the view since 20260922150000. */
+  icon: string | null;
+  label: string | null;
 };
+
+/**
+ * Which verification badge the single marker beside a name should represent,
+ * most specific first.
+ *
+ * ONE MARKER, SO SOMETHING HAS TO WIN. An account can hold more than one
+ * verification badge, and the rule is that a name never grows a row of icons —
+ * see components/ui/VerifiedCheck.tsx. A licence is the strongest claim on the
+ * platform and the one people are looking for, so it takes the marker when it
+ * is held.
+ *
+ * A badge not listed here still lights the marker; it just does not get to
+ * choose the glyph unless it is the only one. So a verification badge added by
+ * a migration works on the day it ships, without this array being touched — it
+ * simply sorts last until somebody decides where it belongs.
+ */
+const MARKER_PRIORITY = ["license_verified", "business_verified"];
 
 /**
  * Resolved badges, by profile id. An id present with an empty array means
@@ -62,7 +82,7 @@ async function flush() {
 
   const { data, error } = await supabase
     .from("public_badges")
-    .select("profile_id, badge_key, category")
+    .select("profile_id, badge_key, category, icon, label")
     .in("profile_id", ids);
 
   // A badge is decoration. If this fails the names still have to render, so
@@ -95,11 +115,36 @@ function request(profileId: string) {
 }
 
 /**
+ * What the single marker beside a name should say it verified.
+ *
+ * A PHRASE PER BADGE, not the badge's catalog label. The label is a name for a
+ * row on the badges screen ("License Verified"); the marker's title is read on
+ * hover with no other context, so it has to be a statement. An unmapped badge
+ * falls back to its own label, which is always better than "Verified" and
+ * never wrong.
+ *
+ * WHY THIS IS NOT THE STRING "C-10 licence verified" HARDCODED IN THE ICON.
+ * business_verified is a verification badge too; it is switched off today and
+ * will not be for ever. A marker that says "C-10 licence verified" for whatever
+ * happens to have lit it up would start lying the day that badge is activated,
+ * on the accounts least able to notice.
+ */
+const MARKER_TITLES: Record<string, string> = {
+  license_verified: "C-10 licence verified",
+  business_verified: "Business verified",
+};
+
+function markerTitle(badge: PublicBadge): string {
+  return MARKER_TITLES[badge.badge_key] ?? badge.label ?? "Verified";
+}
+
+/**
  * Badges held by one profile.
  *
- * `verified` is what the check mark beside a name keys off. It counts only
- * badges in the 'verification' category — see components/ui/VerifiedCheck.tsx
- * for why early_member must not light it up.
+ * `marker` is what the icon beside a name renders from. It is the single
+ * highest-priority badge in the 'verification' category, or null — see
+ * components/ui/VerifiedCheck.tsx for why early_member must not light it up,
+ * and MARKER_PRIORITY above for how one is chosen when there are several.
  */
 export function useProfileBadge(profileId: string | null | undefined) {
   const [, forceRender] = useState(0);
@@ -118,10 +163,33 @@ export function useProfileBadge(profileId: string | null | undefined) {
 
   const held = profileId ? cache.get(profileId) : undefined;
 
+  const verifications = (held ?? []).filter(
+    (b) => b.category === "verification"
+  );
+
+  // Lowest priority index wins; anything unlisted sorts after everything
+  // listed, and ties break on badge_key so the choice is stable across
+  // renders rather than depending on row order from the server.
+  const marker =
+    verifications.length === 0
+      ? null
+      : [...verifications].sort((a, b) => {
+          const ai = MARKER_PRIORITY.indexOf(a.badge_key);
+          const bi = MARKER_PRIORITY.indexOf(b.badge_key);
+          const ar = ai === -1 ? MARKER_PRIORITY.length : ai;
+          const br = bi === -1 ? MARKER_PRIORITY.length : bi;
+
+          return ar - br || a.badge_key.localeCompare(b.badge_key);
+        })[0];
+
   return {
-    /** Show the check mark. False while still loading, which is the right
+    /** Show the marker. False while still loading, which is the right
      *  default: a mark that appears late is better than one that flickers. */
-    verified: (held ?? []).some((b) => b.category === "verification"),
+    verified: marker !== null,
+    /** The glyph name from the badges catalog, for BadgeIcon. */
+    markerIcon: marker?.icon ?? null,
+    /** What the marker verified, as a sentence for its tooltip. */
+    markerTitle: marker ? markerTitle(marker) : null,
     /** Every currently-valid badge key. For the profile's badges section. */
     badgeKeys: (held ?? []).map((b) => b.badge_key),
     loading: held === undefined,

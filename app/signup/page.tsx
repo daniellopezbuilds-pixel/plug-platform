@@ -9,7 +9,7 @@ import {
   SIGNUP_TYPES,
   accountTypeFor,
   legacyRoleFor,
-  missingRequiredFields,
+  fieldErrors,
   roleKeysFor,
   signupType as signupTypeDefinition,
   splitSignupValues,
@@ -346,7 +346,7 @@ export default function SignupPage() {
   function validateCredentials() {
     if (!chosenType) return { type: "Please choose one to continue." };
 
-    const found = missingRequiredFields(chosenType, fieldValues);
+    const found = fieldErrors(chosenType, fieldValues);
 
     if (!detailsStepExists) Object.assign(found, validateContactAndLocation());
 

@@ -27,7 +27,7 @@ export type SignupField = {
   /**
    * Blocks submit when empty. Checked in three places — the signup form, the
    * profile editor and app/api/onboarding/complete/route.tsx — all through
-   * missingRequiredFields() below, so a Google account cannot skip what an
+   * fieldErrors() below, so a Google account cannot skip what an
    * email account is held to.
    */
   required?: boolean;
@@ -43,6 +43,18 @@ export type SignupField = {
   requiredError?: string;
   /** Always-visible hint under the input, for context a label cannot carry. */
   hint?: string;
+  /**
+   * Format check for a value the user actually entered, as { message } or null.
+   *
+   * NEVER CALLED ON AN EMPTY VALUE. Emptiness is `required`'s job, and a
+   * validator that also owned it would produce two different messages for one
+   * blank field depending on which check ran first.
+   *
+   * Runs in the same three places `required` does, through fieldErrors() below.
+   * A format enforced in the signup form but not in the profile editor is not
+   * enforced — it is a detour.
+   */
+  validate?: (value: string) => string | null;
   /**
    * Stored in this profiles column instead of in signup_fields.
    *
@@ -157,6 +169,52 @@ function experienceField(requiredError: string): SignupField {
   };
 }
 
+/**
+ * A CSLB licence number, checked for shape only.
+ *
+ * WHAT THIS IS FOR, and it is a real reported failure rather than a tidiness
+ * rule: the two fields are filled in the wrong order. "C-10" gets typed into
+ * License number and the actual number into Name of certification. Nothing
+ * downstream can recover from that — cslb_normalise_license() strips
+ * non-digits, so "C-10" reaches the register as licence number 10, and the
+ * contractor is told their licence could not be found while looking straight at
+ * it on their wall.
+ *
+ * DIGITS ONLY, AND NO MINIMUM LENGTH. Separators are allowed and stripped,
+ * because people write 11-23065 and the database strips them anyway. What is
+ * deliberately NOT here is a "must be 7 digits" rule, and the 2026-09-19 file
+ * is why:
+ *
+ *   6 digits   129,012     <- more of the register than 7 is
+ *   7 digits   115,462
+ *   1-5 digits      45     <- 17 of them current and CLEAR, 4 holding C-10
+ *
+ * So "7 digits" would be wrong for over half of California's contractors, and
+ * any floor at all would reject four live C-10 holders whose numbers are two
+ * and three digits long. This is an inline error a user cannot argue with, so
+ * it only refuses what cannot be a licence number: something that is not a
+ * number, or something longer than any number CSLB has issued.
+ */
+function validateLicenseNumber(value: string): string | null {
+  const bare = value.replace(/[\s-]/g, "");
+
+  if (!/^\d+$/.test(bare)) {
+    // Name the actual mistake where it is recognisable. A value starting with
+    // a letter is almost always the classification in the wrong box, and
+    // saying so is what stops the same swap being made again; "1123065x" is a
+    // typo and deserves the plain message rather than a guess about intent.
+    return /^[A-Za-z]/.test(bare)
+      ? "That looks like a classification, not a licence number. C-10 is the classification — this field wants the number from your CSLB record, digits only."
+      : "Licence numbers are digits only. Check it against your CSLB record.";
+  }
+
+  if (bare.length > 8) {
+    return "That is longer than any CSLB licence number. Check it against your CSLB record.";
+  }
+
+  return null;
+}
+
 // Each type has its own notes field — the label and height differ per type,
 // so there is no shared constant.
 export const SIGNUP_TYPES: readonly SignupType[] = [
@@ -177,6 +235,8 @@ export const SIGNUP_TYPES: readonly SignupType[] = [
         label: "License number",
         required: true,
         requiredError: "Your C-10 licence number — it's on your CSLB record.",
+        hint: "Numbers only — most are 6 or 7 digits, e.g. 1123065. Not the classification.",
+        validate: validateLicenseNumber,
       },
       // After the licence, not before it: the licence is what identifies a
       // contractor, and the first field of a form should be the one they came
@@ -347,34 +407,48 @@ export function splitSignupValues(
 }
 
 /**
- * Required fields of this type that are empty, as { key: message }.
+ * Everything wrong with this type's answers, as { key: message }.
  *
- * THE ONE PLACE REQUIREDNESS IS DECIDED. The signup form, the profile editor
- * and the onboarding route all call this, so "required" cannot mean one thing
- * in a form and another on the server — which is how the Google path came to
- * skip half of what the email path asks for.
+ * THE ONE PLACE A FIELD IS JUDGED. The signup form, the profile editor and the
+ * onboarding route all call this, so neither "required" nor "well-formed" can
+ * mean one thing in a form and another on the server — which is how the Google
+ * path came to skip half of what the email path asks for.
+ *
+ * Two checks per field, and the order between them matters: empty is reported
+ * as missing, and only a value the user actually typed is handed to
+ * `validate`. A blank field has one problem, not two, and telling somebody
+ * their empty box is not a valid licence number is how a form starts sounding
+ * broken.
  *
  * `scope` exists because the profile editor splits one signup step across two
  * forms with two Save buttons. Checking everything from either of them would
  * report a field that is not on the screen being saved.
  */
-export function missingRequiredFields(
+export function fieldErrors(
   key: SignupTypeKey,
   values: Record<string, string>,
   scope: FieldScope = "all"
 ): Record<string, string> {
-  const missing: Record<string, string> = {};
+  const found: Record<string, string> = {};
 
   for (const field of signupType(key).fields) {
-    if (!field.required) continue;
     if (!inScope(field, scope)) continue;
-    if ((values[field.key] ?? "").trim()) continue;
 
-    missing[field.key] =
-      field.requiredError ?? `Please add your ${field.label.toLowerCase()}.`;
+    const value = (values[field.key] ?? "").trim();
+
+    if (!value) {
+      if (field.required) {
+        found[field.key] =
+          field.requiredError ?? `Please add your ${field.label.toLowerCase()}.`;
+      }
+      continue;
+    }
+
+    const invalid = field.validate?.(value);
+    if (invalid) found[field.key] = invalid;
   }
 
-  return missing;
+  return found;
 }
 
 export function signupType(key: SignupTypeKey): SignupType {

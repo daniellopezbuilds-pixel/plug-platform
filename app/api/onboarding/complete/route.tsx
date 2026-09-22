@@ -5,7 +5,7 @@ import {
   SIGNUP_TYPES,
   accountTypeFor,
   legacyRoleFor,
-  missingRequiredFields,
+  fieldErrors,
   roleKeysFor,
   signupType as signupTypeDefinition,
   type SignupTypeKey,
@@ -109,13 +109,13 @@ export async function POST(req: NextRequest) {
   // braces: this is a public endpoint reachable with any valid bearer token,
   // and it is the only writer of these values for a Google account.
   //
-  // missingRequiredFields() is the same function the form calls, so "required"
+  // fieldErrors() is the same function the form calls, so "required"
   // cannot mean two different things at the two ends of this request. The
   // messages come back keyed by field and the form renders them in place.
   //
   // Checked against both halves, keyed the way the FORM keys them, because the
   // messages go back to the form to be rendered under its fields.
-  const invalid: Record<string, string> = missingRequiredFields(type, {
+  const invalid: Record<string, string> = fieldErrors(type, {
     ...claimed,
     ...Object.fromEntries(
       signupTypeDefinition(type)

@@ -34,12 +34,16 @@ export function ApplicationCard({
           )}
           <div>
             <h2 className="text-2xl font-bold text-white">{job?.title || "Job unavailable"}</h2>
+            {/* ONE MARKER BESIDE A NAME. A green "✓ Verified" from the legacy
+                profiles.employer_verified flag used to sit here, an inch from
+                the marker NameMeta draws — two ticks against one name, each
+                meaning something different and neither saying which. That flag
+                was folded into the business_verified badge by 20260916130000,
+                so the badge system is where it belongs and NameMeta is the one
+                thing that renders it. */}
             {employer?.full_name && (
               <p className="text-gray-400 text-sm flex items-center gap-1.5">
                 {employer.full_name}
-                {employer.employer_verified && (
-                  <span className="text-green-400 text-xs font-semibold">✓ Verified</span>
-                )}
                 <NameMeta
                   profileId={job?.user_id}
                   signupType={employer.signup_type}

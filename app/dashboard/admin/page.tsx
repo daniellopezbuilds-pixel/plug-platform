@@ -17,6 +17,7 @@ import { AdListItem } from "@/components/admin/AdListItem";
 import { AdRequestCard } from "@/components/admin/AdRequestCard";
 import { GeneralRequestCard } from "@/components/admin/GeneralRequestCard";
 import { PageHeading } from "@/components/layout/PageHeading";
+import { Tabs } from "@/components/ui/Tabs";
 import { PageLoader } from "@/components/ui/Loading";
 import { InlineLoader } from "@/components/ui/Loading";
 
@@ -28,23 +29,6 @@ type AdminTab =
   | "ad-requests"
   | "ads";
 
-
-/**
- * Tab styling, matching the sidebar active treatment: orange label, orange
- * bar. The bar is border-b here rather than border-l because these are a
- * horizontal strip, but it is the same accent token at the same weight.
- *
- * border-b-2 is always present and merely transparent when inactive, so
- * switching tabs does not shift the labels vertically.
- */
-function tabClass(active: boolean) {
-  return [
-    "px-5 py-3 font-semibold border-b-2 transition whitespace-nowrap shrink-0",
-    active
-      ? "border-accent text-accent"
-      : "border-transparent text-gray-400 hover:text-white",
-  ].join(" ");
-}
 
 export default function AdminPage() {
   const { isAdmin, loading } = useIsAdmin();
@@ -146,59 +130,25 @@ export default function AdminPage() {
     <div className="max-w-4xl mx-auto">
       <PageHeading title="Admin Panel" />
 
-      <div className="flex gap-2 mb-8 border-b border-zinc-800 overflow-x-auto scrollbar-dark -mx-4 px-4 md:mx-0 md:px-0">
-        <button
-          onClick={() => setActiveTab("requests")}
-          className={tabClass(activeTab === "requests")}
-        >
-          All Requests
-          {totalPendingRequests > 0 && (
-            <span className="ml-2 bg-accent-2 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-              {totalPendingRequests}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("employers")}
-          className={tabClass(activeTab === "employers")}
-        >
-          Employer Verification
-        </button>
-        <button
-          onClick={() => setActiveTab("union")}
-          className={tabClass(activeTab === "union")}
-        >
-          Union Verification
-        </button>
-        <button
-          onClick={() => setActiveTab("badges")}
-          className={tabClass(activeTab === "badges")}
-        >
-          Badge Requests
-          {pendingBadgeRequests.length > 0 && (
-            <span className="ml-2 bg-accent-2 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-              {pendingBadgeRequests.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("ad-requests")}
-          className={tabClass(activeTab === "ad-requests")}
-        >
-          Advertisement Requests
-          {brandAdRequests.length > 0 && (
-            <span className="ml-2 bg-accent-2 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-              {brandAdRequests.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("ads")}
-          className={tabClass(activeTab === "ads")}
-        >
-          Ads
-        </button>
-      </div>
+      {/* Counts live on the tab defs rather than in the markup, so the strip is
+          data and the component that draws it is shared with the profile
+          editor. See components/ui/Tabs.tsx. */}
+      <Tabs
+        tabs={[
+          { key: "requests", label: "All Requests", badge: totalPendingRequests },
+          { key: "employers", label: "Employer Verification" },
+          { key: "union", label: "Union Verification" },
+          { key: "badges", label: "Badge Requests", badge: pendingBadgeRequests.length },
+          {
+            key: "ad-requests",
+            label: "Advertisement Requests",
+            badge: brandAdRequests.length,
+          },
+          { key: "ads", label: "Ads" },
+        ]}
+        active={activeTab}
+        onChange={setActiveTab}
+      />
 
       {activeTab === "requests" && (
         <div className="space-y-8">

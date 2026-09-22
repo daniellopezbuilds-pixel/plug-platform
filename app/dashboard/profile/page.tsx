@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { UnionBadge } from "@/components/ui/UnionBadge";
 import { ReviewSummary } from "@/components/reviews/ReviewSummary";
@@ -10,14 +11,15 @@ import { uploadLogo, uploadBanner, getBrandingPublicUrl } from "@/lib/branding";
 import { uploadEmployerDocument, getEmployerDocumentSignedUrl } from "@/lib/employerDocuments";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
 import { BadgesSection } from "@/components/profile/BadgesSection";
-import { PageWithRail } from "@/components/layout/PageWithRail";
+import { LicenceVerificationStatus } from "@/components/profile/LicenceVerificationStatus";
+import { Tabs, tabPanelId, type TabDef } from "@/components/ui/Tabs";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import {
   SIGNUP_TYPES,
   EXPERIENCE_BANDS,
   applyFieldAliases,
-  missingRequiredFields,
+  fieldErrors,
   roleKeysFor,
 } from "@/lib/signupRoles";
 import { PageHeading } from "@/components/layout/PageHeading";
@@ -30,8 +32,65 @@ import { TRADES, OTHER_TRADE, isListedTrade } from "@/lib/trades";
 import { nudgeEmailQueue } from "@/lib/emailOutbox";
 import { LocationField } from "@/components/ui/LocationField";
 
+/**
+ * The four tabs, in order.
+ *
+ * WHY THIS PAGE IS TABBED AT ALL. It was one column roughly two thousand
+ * pixels tall: identity, trade, union, resume, signup credentials, company
+ * branding, a Save button, a password form and a reviews list, in that order.
+ * Editing your bio meant scrolling past your licence number, and the page had
+ * three separate Save buttons at three separate depths with nothing saying
+ * which one owned which field.
+ *
+ * THE SPLIT IS BY WHO SAVES IT. Each tab maps onto exactly one writer:
+ *
+ *   profile      -> handleSave(), the profiles row
+ *   credentials  -> handleSaveSignupFields(), role_credentials + auth metadata
+ *   badges       -> nothing. Read-only; badges are awarded, not edited
+ *   security     -> ChangePasswordSection, which writes to auth
+ *
+ * That is why "years of experience" is on Profile and not on Credentials even
+ * though signup asks it among the credential questions: it is stored in a
+ * profiles column, so the Profile tab's Save is the one that writes it. See
+ * profileColumn in lib/signupRoles.tsx.
+ */
+const PROFILE_TABS = [
+  { key: "profile", label: "Profile" },
+  { key: "credentials", label: "Credentials" },
+  { key: "badges", label: "Badges" },
+  { key: "security", label: "Security" },
+] as const;
+
+type ProfileTab = (typeof PROFILE_TABS)[number]["key"];
+
+function isProfileTab(value: string | null): value is ProfileTab {
+  return !!value && PROFILE_TABS.some((t) => t.key === value);
+}
+
+/**
+ * useSearchParams() forces the tree up to the nearest Suspense boundary to be
+ * client-rendered, and a static route that calls it WITHOUT one fails the
+ * production build outright — not dev, where routes render on demand and the
+ * problem stays invisible. See
+ * node_modules/next/dist/docs/01-app/03-api-reference/04-functions/use-search-params.md.
+ *
+ * Nothing is lost by the boundary here: this page is "use client" and fetches
+ * everything it shows after mount, so there was never any prerendered content
+ * to protect.
+ */
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ProfileEditor />
+    </Suspense>
+  );
+}
+
+function ProfileEditor() {
   const toast = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState("");
 
@@ -112,9 +171,10 @@ export default function ProfilePage() {
   /**
    * Per-field messages for the required credentials, keyed by field key.
    *
-   * Required-ness is decided by missingRequiredFields() — the same function the
-   * signup form and the onboarding route use — so an account cannot be edited
-   * into a state signup would have refused to create.
+   * Validity is decided by fieldErrors() — the same function the signup form
+   * and the onboarding route use — so an account cannot be edited into a state
+   * signup would have refused to create, and a licence number rejected at
+   * signup cannot be saved here instead.
    */
   const [signupFieldErrors, setSignupFieldErrors] = useState<
     Record<string, string>
@@ -273,7 +333,7 @@ export default function ProfilePage() {
     // to "columns" so this Save cannot complain about a licence number that
     // belongs to the other form and is not on screen.
     const invalidColumns = signupTypeDef
-      ? missingRequiredFields(
+      ? fieldErrors(
           signupTypeDef.key,
           { years_experience: yearsExperience },
           "columns"
@@ -283,7 +343,9 @@ export default function ProfilePage() {
     setProfileErrors(invalidColumns);
 
     if (Object.keys(invalidColumns).length > 0) {
-      toast.error("Some details are still needed before this can be saved.");
+      // Names the tab. Each tab saves only its own fields, so "some details"
+      // with no location would send somebody hunting across four of them.
+      toast.error("Check the highlighted fields on Profile before saving.");
       return;
     }
 
@@ -307,12 +369,12 @@ export default function ProfilePage() {
       .eq("id", user.id);
 
     if (error) {
-      toast.error(error.message);
+      toast.error(`Could not save your profile: ${error.message}`);
       return;
     }
 
     setUnionVerified(false);
-    toast.success("Profile updated successfully.");
+    toast.success("Profile saved.");
   }
 
   /**
@@ -367,7 +429,7 @@ export default function ProfilePage() {
     //
     // "credentials" only: the column-backed fields are on the main form above
     // and are checked by its own Save.
-    const invalid = missingRequiredFields(
+    const invalid = fieldErrors(
       signupTypeDef.key,
       cleaned,
       "credentials"
@@ -375,7 +437,10 @@ export default function ProfilePage() {
     setSignupFieldErrors(invalid);
 
     if (Object.keys(invalid).length > 0) {
-      toast.error("Some details are still needed before this can be saved.");
+      // fieldErrors() now reports bad formats as well as blanks, so this can no
+      // longer say "still needed" — a licence number with letters in it is not
+      // missing, it is wrong, and the per-field message below says which.
+      toast.error("Check the highlighted fields on Credentials before saving.");
       return;
     }
 
@@ -408,7 +473,7 @@ export default function ProfilePage() {
 
       if (updateError) {
         setSavingSignupFields(false);
-        toast.error(updateError.message);
+        toast.error(`Could not save your credentials: ${updateError.message}`);
         return;
       }
 
@@ -421,7 +486,7 @@ export default function ProfilePage() {
 
         if (insertError) {
           setSavingSignupFields(false);
-          toast.error(insertError.message);
+          toast.error(`Could not save your credentials: ${insertError.message}`);
           return;
         }
       }
@@ -437,7 +502,7 @@ export default function ProfilePage() {
     setSavingSignupFields(false);
 
     if (metaError) {
-      toast.error(metaError.message);
+      toast.error(`Could not save your credentials: ${metaError.message}`);
       return;
     }
 
@@ -455,8 +520,8 @@ export default function ProfilePage() {
 
     toast.success(
       clearedVerification
-        ? "Credentials updated. Verification has been cleared and will need reviewing again."
-        : "Credentials updated."
+        ? "Credentials saved. Verification has been cleared and will need reviewing again."
+        : "Credentials saved."
     );
   }
 
@@ -641,27 +706,62 @@ export default function ProfilePage() {
       (savedSignupFields[field.key] ?? "").trim()
   );
 
-  return (
-    <div>
-      {/* Badges move to the right rail from xl. They are the one thing on this
-          page you read rather than edit, so they are the natural rail content,
-          and pulling them out stops the form from being interrupted halfway
-          down by a read-only panel.
+  /**
+   * Credentials is hidden for an account with no recognised signup_type —
+   * there is nothing to put on it. Accounts predating the current signup form
+   * are the case, and they are the same ones that saw no "Signup details"
+   * section before this page had tabs.
+   */
+  const tabs: TabDef<ProfileTab>[] = PROFILE_TABS.filter(
+    (tab) => tab.key !== "credentials" || !!signupTypeDef
+  ).map((tab) => ({ key: tab.key, label: tab.label }));
 
-          railFirst={false}: below xl they stack UNDER the form. Above it they
-          would push the thing you came here to do off a phone screen — the
-          opposite of the sponsored rail, which belongs at the top. */}
-      <PageWithRail
-        label="Badges"
-        heading={<PageHeading title="Edit Profile" />}
-        measure="reading"
-        // 672 = max-w-2xl, the width this form had before the rail existed.
-        readingWidth={672}
-        contentClassName="max-w-2xl mx-auto xl:mx-0"
-        railFirst={false}
-        rail={<BadgesSection />}
+  /**
+   * THE URL IS THE STATE, not a copy of it kept in useState and synced.
+   *
+   * A notification links straight to ?tab=credentials, so the query string has
+   * to be able to open a tab on first paint. Deriving the tab from it rather
+   * than seeding state from it means there is no second source of truth to
+   * drift, and Back works without anything listening for it.
+   *
+   * An unknown or unavailable tab falls back to Profile rather than rendering
+   * nothing — ?tab=nonsense, or ?tab=credentials on an account that has none,
+   * should look like a normal profile page.
+   */
+  const requested = searchParams.get("tab");
+  const activeTab: ProfileTab =
+    isProfileTab(requested) && tabs.some((t) => t.key === requested)
+      ? requested
+      : "profile";
+
+  function selectTab(key: ProfileTab) {
+    // replace, not push: a tab is a view of one page, and pushing would make
+    // Back walk through every tab somebody clicked before leaving the page.
+    // scroll: false because switching tabs should not jump to the top — the
+    // strip is already at the top and the jump reads as a page load.
+    router.replace(
+      key === "profile" ? "/dashboard/profile" : `/dashboard/profile?tab=${key}`,
+      { scroll: false }
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <PageHeading title="Edit Profile" />
+
+      <Tabs tabs={tabs} active={activeTab} onChange={selectTab} />
+
+      {/* Panels are mounted only while selected. Every field on this page is
+          bound to state held by THIS component, so nothing is lost by
+          unmounting a panel — and the alternative, keeping them all in the DOM
+          behind `hidden`, would run the badges query on every page load
+          whether or not anybody opened that tab. */}
+      {activeTab === "profile" && (
+      <div
+        id={tabPanelId("profile")}
+        role="tabpanel"
+        aria-labelledby="tab-profile"
       >
-      <div>
       <div className="space-y-5">
         <div>
           <label className="block text-sm text-gray-400 mb-2">Profile Number</label>
@@ -864,156 +964,6 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* Hidden entirely for accounts created before the current signup
-            form — they have no signup_type, so there is nothing to show. */}
-        {signupTypeDef && (
-          <div className="border-t border-zinc-800 pt-6 mt-2">
-            <div className="flex items-center gap-3 mb-1">
-              <h2 className="text-xl font-bold text-white">Signup details</h2>
-              <span className="text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-gray-300">
-                {signupTypeDef.label}
-              </span>
-            </div>
-            <p className="text-xs text-gray-400 mb-4">
-              What you entered at signup. Update them as things change — the
-              ones marked optional can be left empty.
-            </p>
-
-            {/* The account type itself is NOT editable here, and that is
-                deliberate rather than unfinished. profiles_guard_signup_type
-                raises 42501 for any non-admin caller, because the label is what
-                marks someone as a licensed contractor and it must not be
-                self-assignable. Shown as a badge above; changing it is an admin
-                action. */}
-
-            {/* Driven entirely off the field definition — type, options,
-                required-ness and the message shown when a required one is
-                empty all come from lib/signupRoles.tsx, exactly as they do on
-                the signup form. Two renderers for one definition is how the
-                two ends drift. */}
-            <div className="space-y-4">
-              {credentialFields.map((field) => {
-                const value = signupFields[field.key] ?? "";
-                const inputClass =
-                  "w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white";
-
-                const onChange = (next: string) => {
-                  setSignupFields((prev) => ({ ...prev, [field.key]: next }));
-
-                  setSignupFieldErrors((prev) => {
-                    if (!prev[field.key]) return prev;
-
-                    const cleared = { ...prev };
-                    delete cleared[field.key];
-                    return cleared;
-                  });
-                };
-
-                return (
-                  <div key={field.key}>
-                    <label
-                      htmlFor={`signup-${field.key}`}
-                      className="block text-xs text-gray-400 mb-1"
-                    >
-                      {field.label}
-                      {!field.required && (
-                        <span className="text-gray-500"> (optional)</span>
-                      )}
-                    </label>
-
-                    {field.type === "textarea" ? (
-                      <textarea
-                        id={`signup-${field.key}`}
-                        rows={field.rows ?? 3}
-                        value={value}
-                        onChange={(e) => onChange(e.target.value)}
-                        className={inputClass}
-                      />
-                    ) : field.type === "select" ? (
-                      <select
-                        id={`signup-${field.key}`}
-                        value={value}
-                        onChange={(e) => onChange(e.target.value)}
-                        className={inputClass}
-                      >
-                        <option value="">Select one</option>
-                        {(field.options ?? []).map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                        {/* A stored value that is no longer in the list —
-                            renamed, or written before the list existed — would
-                            otherwise render as a blank select and be silently
-                            replaced on the next save. */}
-                        {value && !(field.options ?? []).includes(value) && (
-                          <option value={value}>{value}</option>
-                        )}
-                      </select>
-                    ) : (
-                      <input
-                        id={`signup-${field.key}`}
-                        type="text"
-                        value={value}
-                        onChange={(e) => onChange(e.target.value)}
-                        className={inputClass}
-                      />
-                    )}
-
-                    {field.hint && (
-                      <p className="text-xs text-gray-500 mt-1">{field.hint}</p>
-                    )}
-                    {signupFieldErrors[field.key] && (
-                      <p className="text-xs text-rose-400 mt-1">
-                        {signupFieldErrors[field.key]}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* BEFORE SAVING, NOT AFTER.
-                Someone who went through verification should find out that
-                editing costs it while they can still back out, not in a
-                confirmation once it is gone. Rendered at full contrast with the
-                warning treatment used elsewhere, not as a muted hint — it is
-                the most consequential thing on this page.
-
-                Only shown when it is actually true: they are verified AND
-                something has changed. A permanent notice would be wallpaper. */}
-            {credentialsVerified && signupFieldsChanged && (
-              <div
-                role="alert"
-                className="mt-5 rounded-lg border border-rose-900 bg-rose-950/40 p-4"
-              >
-                <p className="text-sm font-semibold text-rose-300">
-                  Saving will remove your verified status
-                </p>
-                <p className="text-sm text-gray-300 mt-1.5">
-                  Your credentials are currently verified. Because you have
-                  changed them, they will go back to unverified and an
-                  administrator will need to review them again. Your existing
-                  verification badge will be removed until then.
-                </p>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleSaveSignupFields}
-              disabled={savingSignupFields || !signupFieldsChanged}
-              className="mt-5 bg-accent text-on-accent px-5 py-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2 min-h-11"
-            >
-              <ButtonSpinner active={savingSignupFields} />
-              {savingSignupFields
-                ? "Saving..."
-                : credentialsVerified && signupFieldsChanged
-                ? "Save and clear verification"
-                : "Save credentials"}
-            </button>
-          </div>
-        )}
 
         <div className="border-t border-zinc-800 pt-6 mt-2">
           <SectionHeading>Company Branding</SectionHeading>
@@ -1111,36 +1061,223 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      {/* Outside the Save Profile block on purpose: it writes to auth, not to
-          the profiles row, and has its own submit. */}
-      <ChangePasswordSection />
+        <div className="mt-10 border-t border-zinc-800 pt-8">
+          <SectionHeading
+            actions={<ReviewSummary averageRating={averageRating} count={count} />}
+          >
+            Your Reputation
+          </SectionHeading>
 
-      <div className="mt-10 border-t border-zinc-800 pt-8">
-        <SectionHeading
-          actions={<ReviewSummary averageRating={averageRating} count={count} />}
+          {(hiredCount > 0 || jobsLandedCount > 0) && (
+            <div className="flex flex-wrap gap-2 mb-6">
+              {hiredCount > 0 && (
+                <span className="bg-zinc-800 text-gray-300 px-3 py-1 rounded-full text-sm">
+                  {hiredCount} {hiredCount === 1 ? "person" : "people"} hired
+                </span>
+              )}
+              {jobsLandedCount > 0 && (
+                <span className="bg-zinc-800 text-gray-300 px-3 py-1 rounded-full text-sm">
+                  {jobsLandedCount} {jobsLandedCount === 1 ? "job" : "jobs"} landed
+                </span>
+              )}
+            </div>
+          )}
+
+          <ReviewsList reviews={reviews} />
+        </div>
+      </div>
+      )}
+
+      {activeTab === "credentials" && (
+        <div
+          id={tabPanelId("credentials")}
+          role="tabpanel"
+          aria-labelledby="tab-credentials"
+          className="space-y-5"
         >
-          Your Reputation
-        </SectionHeading>
+          {/* WHERE THE LICENCE STANDS, ABOVE THE FIELD THAT DECIDES IT.
+              A contractor arriving from a "licence not approved" notification
+              lands here, and the first thing on the tab is why. */}
+          <LicenceVerificationStatus />
 
-        {(hiredCount > 0 || jobsLandedCount > 0) && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {hiredCount > 0 && (
-              <span className="bg-zinc-800 text-gray-300 px-3 py-1 rounded-full text-sm">
-                {hiredCount} {hiredCount === 1 ? "person" : "people"} hired
-              </span>
-            )}
-            {jobsLandedCount > 0 && (
-              <span className="bg-zinc-800 text-gray-300 px-3 py-1 rounded-full text-sm">
-                {jobsLandedCount} {jobsLandedCount === 1 ? "job" : "jobs"} landed
-              </span>
-            )}
-          </div>
-        )}
+          {/* No top rule any more: it was separating this from the main form
+              when the two shared one column, and a horizontal line across the
+              first thing on a tab reads as a heading that lost its text. */}
+          {signupTypeDef && (
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h2 className="text-xl font-bold text-white">Signup details</h2>
+                <span className="text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-gray-300">
+                  {signupTypeDef.label}
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mb-4">
+                What you entered at signup. Update them as things change — the
+                ones marked optional can be left empty.
+              </p>
 
-        <ReviewsList reviews={reviews} />
-      </div>
-      </div>
-      </PageWithRail>
+              {/* The account type itself is NOT editable here, and that is
+                  deliberate rather than unfinished. profiles_guard_signup_type
+                  raises 42501 for any non-admin caller, because the label is what
+                  marks someone as a licensed contractor and it must not be
+                  self-assignable. Shown as a badge above; changing it is an admin
+                  action. */}
+
+              {/* Driven entirely off the field definition — type, options,
+                  required-ness and the message shown when a required one is
+                  empty all come from lib/signupRoles.tsx, exactly as they do on
+                  the signup form. Two renderers for one definition is how the
+                  two ends drift. */}
+              <div className="space-y-4">
+                {credentialFields.map((field) => {
+                  const value = signupFields[field.key] ?? "";
+                  const inputClass =
+                    "w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white";
+
+                  const onChange = (next: string) => {
+                    setSignupFields((prev) => ({ ...prev, [field.key]: next }));
+
+                    setSignupFieldErrors((prev) => {
+                      if (!prev[field.key]) return prev;
+
+                      const cleared = { ...prev };
+                      delete cleared[field.key];
+                      return cleared;
+                    });
+                  };
+
+                  return (
+                    <div key={field.key}>
+                      <label
+                        htmlFor={`signup-${field.key}`}
+                        className="block text-xs text-gray-400 mb-1"
+                      >
+                        {field.label}
+                        {!field.required && (
+                          <span className="text-gray-500"> (optional)</span>
+                        )}
+                      </label>
+
+                      {field.type === "textarea" ? (
+                        <textarea
+                          id={`signup-${field.key}`}
+                          rows={field.rows ?? 3}
+                          value={value}
+                          onChange={(e) => onChange(e.target.value)}
+                          className={inputClass}
+                        />
+                      ) : field.type === "select" ? (
+                        <select
+                          id={`signup-${field.key}`}
+                          value={value}
+                          onChange={(e) => onChange(e.target.value)}
+                          className={inputClass}
+                        >
+                          <option value="">Select one</option>
+                          {(field.options ?? []).map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                          {/* A stored value that is no longer in the list —
+                              renamed, or written before the list existed — would
+                              otherwise render as a blank select and be silently
+                              replaced on the next save. */}
+                          {value && !(field.options ?? []).includes(value) && (
+                            <option value={value}>{value}</option>
+                          )}
+                        </select>
+                      ) : (
+                        <input
+                          id={`signup-${field.key}`}
+                          type="text"
+                          value={value}
+                          onChange={(e) => onChange(e.target.value)}
+                          className={inputClass}
+                        />
+                      )}
+
+                      {field.hint && (
+                        <p className="text-xs text-gray-500 mt-1">{field.hint}</p>
+                      )}
+                      {signupFieldErrors[field.key] && (
+                        <p className="text-xs text-rose-400 mt-1">
+                          {signupFieldErrors[field.key]}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* BEFORE SAVING, NOT AFTER.
+                  Someone who went through verification should find out that
+                  editing costs it while they can still back out, not in a
+                  confirmation once it is gone. Rendered at full contrast with the
+                  warning treatment used elsewhere, not as a muted hint — it is
+                  the most consequential thing on this page.
+
+                  Only shown when it is actually true: they are verified AND
+                  something has changed. A permanent notice would be wallpaper. */}
+              {credentialsVerified && signupFieldsChanged && (
+                <div
+                  role="alert"
+                  className="mt-5 rounded-lg border border-rose-900 bg-rose-950/40 p-4"
+                >
+                  <p className="text-sm font-semibold text-rose-300">
+                    Saving will remove your verified status
+                  </p>
+                  <p className="text-sm text-gray-300 mt-1.5">
+                    Your credentials are currently verified. Because you have
+                    changed them, they will go back to unverified and an
+                    administrator will need to review them again. Your existing
+                    verification badge will be removed until then.
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSaveSignupFields}
+                disabled={savingSignupFields || !signupFieldsChanged}
+                className="mt-5 bg-accent text-on-accent px-5 py-3 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2 min-h-11"
+              >
+                <ButtonSpinner active={savingSignupFields} />
+                {savingSignupFields
+                  ? "Saving..."
+                  : credentialsVerified && signupFieldsChanged
+                  ? "Save and clear verification"
+                  : "Save credentials"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "badges" && (
+        <div
+          id={tabPanelId("badges")}
+          role="tabpanel"
+          aria-labelledby="tab-badges"
+        >
+          {/* No Save button, and there should not be one. Badges are awarded
+              by the CSLB check and by administrators; there is nothing on this
+              tab a user can set. */}
+          <BadgesSection />
+        </div>
+      )}
+
+      {activeTab === "security" && (
+        <div
+          id={tabPanelId("security")}
+          role="tabpanel"
+          aria-labelledby="tab-security"
+        >
+          {/* Its own form and its own submit: it writes to auth, not to the
+              profiles row, and it re-authenticates before it does. */}
+          <ChangePasswordSection />
+        </div>
+      )}
     </div>
   );
 }

@@ -217,7 +217,13 @@ function licenseClaimAttempt(payload: OutboxPayload, siteUrl: string): string {
         "There is nothing you need to do. If this was you, setting up a " +
           "second account, reply to this email and we will sort it out."
       ) +
-      button("Open your profile", `${siteUrl}/dashboard/profile`),
+      // Straight to Credentials, matching the in-app notification this email
+      // accompanies. The licence number is the subject of the message and it
+      // lives on that tab.
+      button(
+        "Open your credentials",
+        `${siteUrl}/dashboard/profile?tab=credentials`
+      ),
   });
 }
 
