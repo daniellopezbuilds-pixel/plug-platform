@@ -44,6 +44,12 @@ export type BadgeRequest = {
   reason: string | null;
   checked_status: string | null;
   checked_expires_on: string | null;
+  /**
+   * The classifications on the CSLB record, normalised: ["A", "B", "C36"].
+   * Null where no record was read, and on rows written before the column
+   * existed — the card omits the field rather than rendering an empty list.
+   */
+  checked_classifications: string[] | null;
   source_as_of: string | null;
   checked_at: string | null;
   /** What the check saw on the CSLB record, and the name on this account. */
@@ -78,6 +84,7 @@ type ReviewRow = {
   reason: string | null;
   checked_status: string | null;
   checked_expires_on: string | null;
+  checked_classifications: string[] | null;
   source_as_of: string | null;
   conflicting_profile_id: string | null;
   notes: string | null;
@@ -194,7 +201,7 @@ export function useBadgeRequests() {
       const { data: reviews } = await supabase
         .from("user_badge_reviews")
         .select(
-          "user_badge_id, reason, checked_status, checked_expires_on, source_as_of, conflicting_profile_id, notes, reviewed_at"
+          "user_badge_id, reason, checked_status, checked_expires_on, checked_classifications, source_as_of, conflicting_profile_id, notes, reviewed_at"
         )
         .in("user_badge_id", ids)
         .order("reviewed_at", { ascending: false });
@@ -266,6 +273,12 @@ export function useBadgeRequests() {
           reason: review?.reason ?? null,
           checked_status: review?.checked_status ?? null,
           checked_expires_on: review?.checked_expires_on ?? null,
+          // Normalised to null when empty, so the card has one thing to test
+          // rather than two. An empty array reaches here from the one CSLB row
+          // whose Classifications(s) field is blank.
+          checked_classifications: review?.checked_classifications?.length
+            ? review.checked_classifications
+            : null,
           source_as_of: review?.source_as_of ?? null,
           checked_at: review?.reviewed_at ?? null,
           notes: review?.notes ?? null,

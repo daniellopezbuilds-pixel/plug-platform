@@ -31,9 +31,9 @@ every push; `db push` names no environment in its output.
 | Migration section 6 (signup trigger) | **Written**, applied, and hotfixed. See the incident note |
 | RLS conflict check vs baseline | **Done.** No conflicts. See "Conflict check" |
 | Hand-run files folded in | Yes — see "Migration inventory" |
-| Production | **Fourteen migrations applied**, through `20260918120000`. The six CSLB files have not been pushed here |
-| Staging | **Fully up to date** — everything through `20260922120000` applied |
-| CSLB licence data | **Staging: imported**, 29,123 rows as of the 2026-09-19 file — C-10s only, from before `20260922120000`, so it still answers `not_found` for every other classification until it is re-imported. **Production: not checked from here**, and it has none of the CSLB migrations anyway. It is data, not schema, and does not travel on a `db push` — see "Importing the CSLB file" |
+| Production | **Fourteen migrations applied**, through `20260918120000`. The eight CSLB files have not been pushed here |
+| Staging | **Fully up to date** — everything through `20260922140000` applied |
+| CSLB licence data | **Staging: imported on 2026-09-22**, 244,519 rows as of the 2026-09-19 file, all classifications, `c10_count` 29,123. Verified afterwards: licence 1117700 returns `wrong_classification` with `{C36}`. **Production: not checked from here**, and it has none of the CSLB migrations anyway. It is data, not schema, and does not travel on a `db push` — see "Importing the CSLB file" |
 | CSLB import shape | **Every classification**, since `20260922120000`. 244,519 rows: the 29,123 C-10s in full, the rest slim. A project imported before that migration holds C-10s only and answers `not_found` for everything else — re-import it |
 
 ---
@@ -62,6 +62,8 @@ every push; `db push` names no environment in its output.
 | `20260921150000_licence_notifications.sql` | Applied to staging 2026-09-21. **Not on production** | Tells people what happened. Adds `user_badges.check_reason` (the reason, denormalised so the badge OWNER can read it — `user_badge_reviews` is admin-only because it carries private notes and the other party in a claim dispute), the `email_outbox` queue, a notification and a queued security email to the licence holder when a claim is blocked, and a trigger notifying the contractor on verified / rejected / revoked. Backfills `check_reason` for badges `20260921140000` already queued |
 | `20260921160000_claim_alert_dedupe_fix.sql` | Applied to staging 2026-09-21. **Not on production** | Fixes the held-back-claim alert never firing. `20260921150000` deduped on whether an `already_claimed` **review row** existed in the last 7 days, but a review row and an alert are different events — every row written before alerting shipped suppressed the first real alert. Dedupe now reads the `license_claim_attempt` **notification** instead, moved into `cslb_raise_claim_alert()` so the backfill shares one copy. Backfills the alerts already swallowed, indexes `notifications (user_id, type, created_at)`, and rewrites both review-badge descriptions so they read correctly in every status |
 | `20260922120000_cslb_all_classifications.sql` | Applied to staging 2026-09-22. **Not on production** | The import stops filtering to C-10, so a licence in another classification can be answered `wrong_classification` instead of `not_found`. Found by licence 1117700 — a real, current, CLEAR **C-36** licence whose holder was told we could not find their number. `wrong_classification` had existed since `20260921120000` and could never fire. Three parts: the decision table checks classification **before** status and expiry (a no-op for every row in the table today, since all of them hold C10 — and what lets non-C-10 rows be stored **slim**: number, classifications and `class_keys`, no names or cities for 215,396 contractors who will never hold an account); `cslb_imports.c10_count` plus a second guard in `cslb_commit_import()` on the C-10 count alone; and refreshed table comments. **No table DDL beyond the new ledger column** — `class_keys` was stored rather than assumed from the start, exactly so the filter could widen without touching a function. `cslb_commit_import` is dropped and recreated because its returns table grows, so its grants are restated |
+| `20260922130000_cslb_surface_classification.sql` | Applied to staging 2026-09-22. **Not on production** | Says WHICH classification. `20260922120000` made `wrong_classification` reachable but it stopped at "not a C-10", so the reviewer's next move was to look up a number we had already looked up. `cslb_evaluate_license()` now returns `checked_classifications text[]` (dropped and recreated — the returns table grows), `cslb_apply_check()` writes it onto the audit row, `user_badge_reviews.checked_classifications` stores it, and the admin card renders it labelled from `CSLB_CLASSIFICATIONS` in `lib/cslb.tsx`. **The decision table is untouched** — same ten rules, same order, one more output column. Populated on every path that read a record, not only `wrong_classification`; NULL for `no_number`, `stale_data` and `not_found`, which read none |
+| `20260922140000_backfill_review_classifications.sql` | Applied to staging 2026-09-22. **Not on production** | Fills `checked_classifications` on audit rows written before the column existed. **A re-sweep cannot do this** — `cslb_apply_check()` returns `unchanged` and writes nothing when status, expiry and reason all match, which is the guard that stops a standing conflict re-alerting weekly, so a column added after a check ran is never filled by running the check again. Backfills only rows whose reason actually read a record (not `no_number`/`stale_data`/`not_found`) and whose `source_as_of` matches the current import, so no audit row is given evidence from a file it never consulted. Idempotent. Two rows on staging; none on production if `20260922130000` lands before its first import, which is the intended order |
 
 **Verified 2026-09-16, both projects.** Four rows above said **Not applied**
 when the migrations had in fact been pushed — `20260910130000`,
@@ -225,13 +227,19 @@ the decision function, and verifies nobody, because the table is empty.
 6. npm run db:push                         # 20260921130000 -- switches it on
 ```
 
-**Push `20260922120000` before step 5, not after.** It is what makes
+**Push the whole CSLB set — through `20260922130000` — before step 5, not
+after.** `20260922120000` is what makes
 `cslb_commit_import()` accept the C-10 count the script now sends, and what
 moves the classification check ahead of the status checks so the slim rows the
-script now writes are never read for a status they do not have. Pushing the
-whole pending set in one `db push` does this in the right order on its own; the
-only way to get it wrong is to import against a project stopped at
-`20260921160000`.
+script now writes are never read for a status they do not have.
+`20260922130000` is what records the classification onto the audit row the
+sweep writes at the end of the import — get it in first and there is nothing to
+backfill afterwards, because `cslb_apply_check()`'s `unchanged` early return
+means a later sweep will not fill it in (see `20260922140000`).
+
+Pushing the whole pending set in one `db push` does this in the right order on
+its own; the only way to get it wrong is to import against a project stopped
+part-way.
 
 ### What the import contains
 

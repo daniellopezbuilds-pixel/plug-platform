@@ -76,7 +76,7 @@ const REASONS: Record<CslbReason, ReasonCopy> = {
   wrong_classification: {
     label: "Not a C-10 licence",
     detail:
-      "The number is on the CSLB register, under a classification that is not C-10. Nothing else about it was checked — the classification settles this on its own, so no status or expiry is shown below. Look it up by hand if the account claims C-10 under a different number.",
+      "The number is on the CSLB register, under a classification that is not C-10 — the one it actually carries is shown below. Nothing else about it was checked, because the classification settles this on its own, which is why there is no status or expiry. Look it up by hand if the account says it holds C-10 under a different number.",
     onLicence: true,
   },
   expired: {
@@ -249,4 +249,131 @@ export function cslbOwnerStatus(badge: {
 export function normaliseLicenseNumber(value: string | null | undefined) {
   const digits = (value ?? "").replace(/[^0-9]/g, "");
   return digits === "" ? null : digits;
+}
+
+/**
+ * CSLB classification codes, labelled.
+ *
+ * Keyed on the NORMALISED code — hyphens stripped, upper cased — because that
+ * is the form `cslb_licenses.class_keys` holds and the form the decision table
+ * matches on. `C-36` in the published file is `C36` here. The hyphen is put
+ * back for display by cslbClassificationLabel(); it is not stored, because a
+ * stored hyphen is one more thing for an exact match to disagree about.
+ *
+ * DELIBERATELY INCOMPLETE. The 2026-09-19 Master List carries 98 distinct
+ * codes, and about twenty are retired D-subcategories CSLB no longer issues but
+ * that still sit on licences it renews — D-13, D-37, D-55 and the like. Those
+ * are left out rather than guessed at: an invented label on a reviewer's card
+ * is worse than the bare code, because the reviewer cannot tell it is invented.
+ * Everything unmapped falls back to the code, which is still the answer to
+ * "which classification is it" and is still enough to look up.
+ *
+ * This is display only. Nothing branches on it, and nothing may — the licence
+ * rule is `'C10' = any (class_keys)` in Postgres and nowhere else.
+ */
+const CSLB_CLASSIFICATIONS: Record<string, string> = {
+  A: "General Engineering",
+  B: "General Building",
+  B2: "Residential Remodeling",
+
+  C2: "Insulation and Acoustical",
+  C4: "Boiler, Hot Water Heating and Steam Fitting",
+  C5: "Framing and Rough Carpentry",
+  C6: "Cabinet, Millwork and Finish Carpentry",
+  C7: "Low Voltage Systems",
+  C8: "Concrete",
+  C9: "Drywall",
+  C10: "Electrical",
+  C11: "Elevator",
+  C12: "Earthwork and Paving",
+  C13: "Fencing",
+  C15: "Flooring and Floor Covering",
+  C16: "Fire Protection",
+  C17: "Glazing",
+  C20: "Warm-Air Heating, Ventilating and Air-Conditioning",
+  C21: "Building Moving and Demolition",
+  C22: "Asbestos Abatement",
+  C23: "Ornamental Metal",
+  C27: "Landscaping",
+  C28: "Lock and Security Equipment",
+  C29: "Masonry",
+  C31: "Construction Zone Traffic Control",
+  C32: "Parking and Highway Improvement",
+  C33: "Painting and Decorating",
+  C34: "Pipeline",
+  C35: "Lathing and Plastering",
+  C36: "Plumbing",
+  C38: "Refrigeration",
+  C39: "Roofing",
+  C42: "Sanitation System",
+  C43: "Sheet Metal",
+  C45: "Sign",
+  C46: "Solar",
+  C47: "General Manufactured Housing",
+  C49: "Tree Service",
+  C50: "Reinforcing Steel",
+  C51: "Structural Steel",
+  C53: "Swimming Pool",
+  C54: "Ceramic and Mosaic Tile",
+  C55: "Water Conditioning",
+  C57: "Well Drilling",
+  C60: "Welding",
+  C61: "Limited Specialty",
+
+  D3: "Awnings",
+  D4: "Central Vacuum Systems",
+  D6: "Concrete Related Services",
+  D9: "Drilling, Blasting and Oil Field Work",
+  D10: "Elevated Floors",
+  D12: "Synthetic Products",
+  D16: "Hardware, Locks and Safes",
+  D21: "Machinery and Pumps",
+  D24: "Metal Products",
+  D28: "Doors, Gates and Activating Devices",
+  D29: "Paperhanging",
+  D30: "Pile Driving and Pressure Foundation Jacking",
+  D31: "Pole Installation and Maintenance",
+  D34: "Prefabricated Equipment",
+  D35: "Pool and Spa Maintenance",
+  D38: "Sand and Water Blasting",
+  D39: "Scaffolding",
+  D40: "Service Station Equipment and Maintenance",
+  D41: "Siding and Decking",
+  D42: "Non-Electrical Sign Installation",
+  D49: "Tree Service",
+  D50: "Suspended Ceilings",
+  D52: "Window Coverings",
+  D53: "Wood Tanks",
+  D56: "Trenching Only",
+  D59: "Hydroseed Spraying",
+  D62: "Air and Water Balancing",
+  D63: "Construction Clean-up",
+  D64: "Non-Specialized",
+  D65: "Weatherization and Energy Conservation",
+
+  ASB: "Asbestos certification",
+  HAZ: "Hazardous Substance Removal certification",
+};
+
+/**
+ * One classification, as a reviewer should read it: "C-36 Plumbing".
+ *
+ * The published file zero-pads some D-codes and not others — `D03` and `D3` are
+ * the same classification — so the lookup tries the code as given and then with
+ * leading zeros stripped, rather than carrying two entries for each.
+ *
+ * THE DISPLAY KEEPS THE PADDING, which is why the two are separated. CSLB's own
+ * page calls it D-03, and a reviewer holding this card next to that page should
+ * not have to wonder whether D-3 is the same classification.
+ *
+ * An unmapped code comes back as just the code. See CSLB_CLASSIFICATIONS.
+ */
+export function cslbClassificationLabel(key: string): string {
+  const parts = /^([A-Z]+)(\d+)$/.exec(key);
+  const display = parts ? `${parts[1]}-${parts[2]}` : key;
+  const name =
+    CSLB_CLASSIFICATIONS[key] ??
+    (parts ? CSLB_CLASSIFICATIONS[`${parts[1]}${Number(parts[2])}`] : undefined);
+
+  return name ? `${display} ${name}` : display;
 }

@@ -5,7 +5,11 @@ import { NameMeta } from "@/components/ui/NameMeta";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { useToast } from "@/components/ui/Toast";
 import { timeAgo } from "@/lib/relativeTime";
-import { CSLB_LOOKUP_URL, cslbReasonCopy } from "@/lib/cslb";
+import {
+  CSLB_LOOKUP_URL,
+  cslbClassificationLabel,
+  cslbReasonCopy,
+} from "@/lib/cslb";
 import type { BadgeRequest } from "@/hooks/useBadgeRequests";
 
 /**
@@ -229,6 +233,44 @@ export function BadgeRequestCard({
               Expires
             </dt>
             <dd className="text-white">{request.checked_expires_on}</dd>
+          </div>
+        )}
+
+        {/* Spans the row: a licence can carry a dozen classifications, and
+            wrapping them inside a quarter-width cell makes the one that matters
+            hard to find. On a wrong_classification card this is the answer the
+            reviewer came for, so the C-10 it is missing is called out rather
+            than left to be noticed by its absence. */}
+        {request.checked_classifications && (
+          <div className="col-span-2 sm:col-span-4">
+            <dt className="text-gray-500 text-xs uppercase tracking-wide">
+              CSLB classifications
+            </dt>
+            <dd className="mt-1 flex flex-wrap gap-1.5">
+              {request.checked_classifications.map((key) => {
+                const isC10 = key === "C10";
+
+                return (
+                  <span
+                    key={key}
+                    className={[
+                      "px-2 py-0.5 rounded border text-xs",
+                      isC10
+                        ? "border-green-900 bg-green-950 text-green-300 font-semibold"
+                        : "border-zinc-700 bg-zinc-800 text-gray-300",
+                    ].join(" ")}
+                  >
+                    {cslbClassificationLabel(key)}
+                  </span>
+                );
+              })}
+
+              {!request.checked_classifications.includes("C10") && (
+                <span className="px-2 py-0.5 rounded border border-red-900 bg-red-950 text-red-300 text-xs font-semibold">
+                  No C-10
+                </span>
+              )}
+            </dd>
           </div>
         )}
 
