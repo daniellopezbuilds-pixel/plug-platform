@@ -6,23 +6,29 @@ import { supabase } from "@/lib/supabase";
 import { UnionBadge } from "@/components/ui/UnionBadge";
 import { ReviewSummary } from "@/components/reviews/ReviewSummary";
 import { ReviewsList } from "@/components/reviews/ReviewsList";
-import { uploadResume, getResumeSignedUrl } from "@/lib/resume";
+import {
+  uploadResume,
+  getResumeSignedUrl,
+  validateResume,
+  RESUME_ACCEPT,
+} from "@/lib/resume";
 import { uploadLogo, uploadBanner, getBrandingPublicUrl } from "@/lib/branding";
 import { uploadEmployerDocument, getEmployerDocumentSignedUrl } from "@/lib/employerDocuments";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
 import { BadgesSection } from "@/components/profile/BadgesSection";
 import { LicenceVerificationStatus } from "@/components/profile/LicenceVerificationStatus";
+import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { Tabs, tabPanelId, type TabDef } from "@/components/ui/Tabs";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import {
   SIGNUP_TYPES,
   EXPERIENCE_BANDS,
+  ELECTRICIAN_CLASSIFICATIONS,
   applyFieldAliases,
   fieldErrors,
   roleKeysFor,
 } from "@/lib/signupRoles";
-import { PageHeading } from "@/components/layout/PageHeading";
 import { PageLoader } from "@/components/ui/Loading";
 import { InlineLoader } from "@/components/ui/Loading";
 import { SectionHeading } from "@/components/ui/SectionHeading";
@@ -98,6 +104,7 @@ function ProfileEditor() {
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [trade, setTrade] = useState("");
+  const [classification, setClassification] = useState("");
 
   /**
    * Whether the free-text trade box is showing because the user PICKED "Other",
@@ -281,6 +288,7 @@ function ProfileEditor() {
       setFullName(profile.full_name || "");
       setUsername(profile.username || "");
       setTrade(profile.trade || "");
+      setClassification(profile.classification || "");
       // A saved trade that is not in the list — typed before the list existed,
       // or entered through Other — opens the free-text box so it is editable
       // rather than silently unreachable behind a select that cannot show it.
@@ -335,7 +343,7 @@ function ProfileEditor() {
     const invalidColumns = signupTypeDef
       ? fieldErrors(
           signupTypeDef.key,
-          { years_experience: yearsExperience },
+          { years_experience: yearsExperience, classification },
           "columns"
         )
       : {};
@@ -355,6 +363,10 @@ function ProfileEditor() {
         full_name: fullName,
         username,
         trade,
+        // profiles.classification since 20260922190000. Saved by THIS tab, not
+        // the credentials form, because it is a column — same split as
+        // years_experience. See profileColumn in lib/signupRoles.tsx.
+        classification: classification || null,
         bio,
         location,
         contact_number: contactNumber.trim() || null,
@@ -529,8 +541,15 @@ function ProfileEditor() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type !== "application/pdf") {
-      toast.error("Only PDF files are accepted.");
+    // The type and size rules live in lib/resume.tsx, with uploadResume()
+    // re-checking them — a rule enforced only by the form that happens to call
+    // it is not enforced.
+    const invalid = validateResume(file);
+    if (invalid) {
+      toast.error(invalid);
+      // Clear the input, or picking the SAME rejected file again fires no
+      // change event and the form looks frozen.
+      e.target.value = "";
       return;
     }
 
@@ -747,9 +766,30 @@ function ProfileEditor() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <PageHeading title="Edit Profile" />
+      {/* YOUR OWN PROFILE, AS EVERYONE ELSE SEES IT, above the form that edits
+          it. The page opened with "Edit Profile" in 48px and then a stack of
+          inputs — which told you what the page was for and nothing about what
+          it currently says. The same header the public page and the preview
+          modal render means the effect of a change is visible where the change
+          is made. */}
+      <ProfileHeader
+        profileId={userId || null}
+        fullName={fullName}
+        profileNumber={profileNumber}
+        signupType={signupTypeKey}
+        companyLogoPath={companyLogoPath}
+        companyBannerPath={companyBannerPath}
+        trade={trade}
+        classification={classification || null}
+        location={location}
+        yearsExperience={yearsExperience}
+        unionStatus={unionStatus}
+        unionVerified={unionVerified}
+      />
 
-      <Tabs tabs={tabs} active={activeTab} onChange={selectTab} />
+      <div className="mt-8">
+        <Tabs tabs={tabs} active={activeTab} onChange={selectTab} />
+      </div>
 
       {/* Panels are mounted only while selected. Every field on this page is
           bound to state held by THIS component, so nothing is lost by
@@ -822,6 +862,41 @@ function ProfileEditor() {
               onChange={(e) => setTrade(e.target.value)}
               className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
             />
+          )}
+        </div>
+
+        {/* Classification — how you are classified on the job, as opposed to
+            `trade`, which is what kind of work you do. Shown for everyone
+            rather than only for electrician accounts: a C-10 who also works on
+            the tools has one, and the column is free to be null for anyone who
+            does not. */}
+        <div>
+          <label
+            htmlFor="profile-classification"
+            className="block text-sm text-gray-400 mb-2"
+          >
+            Classification
+          </label>
+          <select
+            id="profile-classification"
+            value={classification}
+            onChange={(e) => {
+              setClassification(e.target.value);
+              setProfileErrors({});
+            }}
+            className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
+          >
+            <option value="">Not specified</option>
+            {ELECTRICIAN_CLASSIFICATIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          {profileErrors.classification && (
+            <p className="text-xs text-rose-400 mt-1">
+              {profileErrors.classification}
+            </p>
           )}
         </div>
 
@@ -945,10 +1020,13 @@ function ProfileEditor() {
         </div>
 
         <div>
-          <label className="block text-sm text-gray-400 mb-2">Resume (PDF only)</label>
+          <label className="block text-sm text-gray-400 mb-2">Resume</label>
+          <p className="text-xs text-gray-500 mb-2">
+            PDF or Word, under 5MB. Uploading a new one replaces the old.
+          </p>
           <input
             type="file"
-            accept="application/pdf"
+            accept={RESUME_ACCEPT}
             onChange={handleResumeUpload}
             disabled={uploadingResume}
             className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white disabled:opacity-50"

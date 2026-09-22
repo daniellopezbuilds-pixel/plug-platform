@@ -9,6 +9,7 @@ import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { NotificationToaster } from "@/components/layout/NotificationToaster";
 import { availableModes } from "@/lib/accountModes";
 import { ScreenLoader } from "@/components/ui/Loading";
 
@@ -189,6 +190,12 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
           AND against the mobile top bar height; see lib/layout.tsx. px is free
           to change, py is not.
         */}
+        {/* Renders nothing. Inside DashboardBody so it is past AuthGuard and
+            therefore only ever mounted for a signed-in user. It and the bell
+            both read useNotifications, which holds ONE fetch and ONE channel
+            at module level for exactly this reason — see that hook. */}
+        <NotificationToaster />
+
         <div className="mx-auto w-full max-w-[1600px] px-4 py-6 lg:px-10 lg:py-10">
           {children}
         </div>

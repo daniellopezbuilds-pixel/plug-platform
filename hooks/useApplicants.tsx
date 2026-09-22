@@ -21,6 +21,15 @@ export type ApplicantWithJob = {
     years_experience: string | null;
     resume_path: string | null;
     signup_type: string | null;
+    // Added so an employer can judge an applicant without leaving the page.
+    // classification is a profiles column since 20260922190000 precisely
+    // because of this card — it used to live in role_credentials, which is
+    // owner-and-admin only and therefore unreadable here.
+    trade: string | null;
+    classification: string | null;
+    location: string | null;
+    bio: string | null;
+    company_logo_path: string | null;
   } | null;
 };
 
@@ -41,7 +50,12 @@ const COLUMNS = `
     union_verified,
     years_experience,
     resume_path,
-    signup_type
+    signup_type,
+    trade,
+    classification,
+    location,
+    bio,
+    company_logo_path
   )
 `;
 

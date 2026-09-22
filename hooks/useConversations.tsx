@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { findExistingOneOnOne } from "@/lib/conversations";
 import { useToast } from "@/components/ui/Toast";
 
 export type ConversationSummary = {
@@ -117,42 +118,6 @@ export function useConversations() {
     setLoading(false);
   }
 
-  async function findExistingOneOnOne(otherUserId: string): Promise<string | null> {
-    if (!userId) return null;
-
-    const { data: myConvs } = await supabase
-      .from("conversation_participants")
-      .select("conversation_id")
-      .eq("user_id", userId);
-
-    const myConvIds = (myConvs || []).map((c) => c.conversation_id);
-
-    if (myConvIds.length === 0) return null;
-
-    const { data: candidates } = await supabase
-      .from("conversations")
-      .select(
-        `
-        id,
-        is_group,
-        conversation_participants ( user_id )
-        `
-      )
-      .in("id", myConvIds)
-      .eq("is_group", false);
-
-    for (const conv of candidates || []) {
-      const participantIds = (conv.conversation_participants || []).map((p: any) => p.user_id);
-      const others = participantIds.filter((id: string) => id !== userId);
-
-      if (others.length === 1 && others[0] === otherUserId) {
-        return conv.id as string;
-      }
-    }
-
-    return null;
-  }
-
   async function startConversation(participantIds: string[], title?: string) {
     if (!userId) return { error: "Not logged in.", conversationId: null };
 
@@ -160,7 +125,7 @@ export function useConversations() {
 
     // For 1-on-1 chats, reuse an existing conversation with this same person instead of duplicating
     if (!isGroup) {
-      const existingId = await findExistingOneOnOne(participantIds[0]);
+      const existingId = await findExistingOneOnOne(userId, participantIds[0]);
       if (existingId) {
         return { error: null, conversationId: existingId };
       }

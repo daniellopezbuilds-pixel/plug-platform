@@ -53,8 +53,24 @@ function shell(options: {
   heading: string;
   body: string;
   siteUrl: string;
+  /**
+   * Why this person is getting this email, for the footer.
+   *
+   * A PARAMETER RATHER THAN ONE FIXED SENTENCE. The footer used to say every
+   * outbox email "affects the security of your Sparx Plug account", which was
+   * true of the only template that existed. It is not true of a job
+   * rejection, and a rejection footed with a security notice is both wrong and
+   * slightly alarming. The default is the original sentence, so the licence
+   * alert is unchanged.
+   */
+  footerReason?: string;
 }): string {
   const { title, preheader, heading, body, siteUrl } = options;
+  const footerReason =
+    options.footerReason ??
+    `You are receiving this because it affects the security of your
+            Sparx Plug account. It is not a marketing email and there is
+            nothing to unsubscribe from.`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -104,9 +120,7 @@ ${body}
 
         <tr>
           <td style="padding:0 32px 28px 32px; font-family:${FONT}; font-size:12px; line-height:19px; color:#71717A;">
-            You are receiving this because it affects the security of your
-            Sparx Plug account. It is not a marketing email and there is
-            nothing to unsubscribe from.<br>
+            ${footerReason}<br>
             <a href="${esc(siteUrl)}" style="color:#AC419F; text-decoration:underline;">${esc(siteUrl)}</a>
           </td>
         </tr>
@@ -227,12 +241,127 @@ function licenseClaimAttempt(payload: OutboxPayload, siteUrl: string): string {
   });
 }
 
+
+/**
+ * "Someone applied to your job."
+ *
+ * NAMES THE APPLICANT, unlike the licence alert above, and the difference is
+ * not an inconsistency. That email withholds a name because naming somebody
+ * who typed a number would hand over an identity on the strength of a typo.
+ * Here the applicant deliberately and knowingly applied TO THIS EMPLOYER — the
+ * name is the thing they sent, and an email that hid it would be useless.
+ *
+ * The employer can already see the name in the panel; this is the same fact,
+ * delivered to somebody who has not logged in today.
+ */
+function applicationReceived(payload: OutboxPayload, siteUrl: string): string {
+  const name = str(payload, "full_name");
+  const applicant = str(payload, "applicant_name") ?? "Someone";
+  const jobTitle = str(payload, "job_title");
+
+  const greeting = name ? `Hi ${esc(name)},` : "Hi,";
+
+  const jobLine = jobTitle
+    ? `applied to <strong style="color:#18181B;">${esc(jobTitle)}</strong>`
+    : "applied to one of your jobs";
+
+  return shell({
+    title: "You have a new applicant",
+    // esc() HERE TOO. The preheader is inserted into the shell as raw HTML,
+    // exactly like the body — and applicant_name is a stranger's signup field,
+    // the one string in this template an attacker chooses.
+    preheader: `${esc(
+      applicant
+    )} applied. Their profile and resume are in your Applicants tab.`,
+    heading: "You have a new applicant",
+    siteUrl,
+    footerReason:
+      "You are receiving this because someone applied to a job you posted on Sparx Plug.",
+    body:
+      paragraph(greeting, 20) +
+      paragraph(
+        `<strong style="color:#18181B;">${esc(applicant)}</strong> ${jobLine}.`
+      ) +
+      paragraph(
+        "Their profile, classification and resume are on the applicant card, " +
+          "along with a Message button if you want to ask them something " +
+          "before deciding."
+      ) +
+      button("View applicants", `${siteUrl}/dashboard/applicants`),
+  });
+}
+
+/**
+ * "You were accepted" / "Update on your application."
+ *
+ * ONE TEMPLATE, TWO OUTCOMES, because the two emails differ only in their
+ * sentences — the shell, the greeting, the button and the link are identical,
+ * and splitting them would mean fixing every layout change twice.
+ *
+ * THE REJECTION DOES NOT PRETEND. No "unfortunately", no explanation invented
+ * on the employer's behalf, and no encouragement to reapply to the same job.
+ * It says what happened, points at the board, and stops — which is what
+ * somebody reading a rejection on their phone actually wants.
+ *
+ * It also never names the employer's reason, because there isn't one: nothing
+ * in the schema captures why an application was rejected, and inventing a
+ * sympathetic sentence would be putting words in the employer's mouth.
+ */
+function applicationDecision(payload: OutboxPayload, siteUrl: string): string {
+  const name = str(payload, "full_name");
+  const jobTitle = str(payload, "job_title");
+  const accepted = str(payload, "status") === "accepted";
+
+  const greeting = name ? `Hi ${esc(name)},` : "Hi,";
+  const job = jobTitle
+    ? `<strong style="color:#18181B;">${esc(jobTitle)}</strong>`
+    : "the job you applied for";
+
+  if (accepted) {
+    return shell({
+      title: "You got the job",
+      preheader: "Your application was accepted. Message the employer to sort out the details.",
+      heading: "You got the job",
+      siteUrl,
+      footerReason:
+        "You are receiving this because you applied for a job on Sparx Plug.",
+      body:
+        paragraph(greeting, 20) +
+        paragraph(`Your application for ${job} was accepted.`) +
+        paragraph(
+          "Open the application and use the Message button to agree the start " +
+            "date, the site and anything else you need before day one."
+        ) +
+        button("Open your applications", `${siteUrl}/dashboard/applications`),
+    });
+  }
+
+  return shell({
+    title: "Update on your application",
+    preheader: "Your application was not successful this time.",
+    heading: "Update on your application",
+    siteUrl,
+    footerReason:
+      "You are receiving this because you applied for a job on Sparx Plug.",
+    body:
+      paragraph(greeting, 20) +
+      paragraph(`Your application for ${job} was not successful this time.`) +
+      paragraph(
+        "There are other jobs on the board, and employers post new ones most " +
+          "weeks."
+      ) +
+      button("Browse jobs", `${siteUrl}/dashboard/jobs`),
+  });
+}
+
 /** Renderers by `email_outbox.template`. */
 const TEMPLATES: Record<
   string,
   (payload: OutboxPayload, siteUrl: string) => string
 > = {
   license_claim_attempt: licenseClaimAttempt,
+  application_received: applicationReceived,
+  application_decision: applicationDecision,
 };
 
 /**

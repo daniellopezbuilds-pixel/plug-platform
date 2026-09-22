@@ -7,6 +7,7 @@ import { StatusBadge } from "./StatusBadge";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { getBrandingPublicUrl } from "@/lib/branding";
 import { NameMeta } from "@/components/ui/NameMeta";
+import { MessageAboutJobButton } from "@/components/messaging/MessageAboutJobButton";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
 
 export function ApplicationCard({
@@ -65,9 +66,20 @@ export function ApplicationCard({
       )}
       {job?.description && <p className="text-gray-300 mb-4">{job.description}</p>}
 
-      <p className="text-gray-400 text-sm">
-        Applied on {new Date(application.created_at).toLocaleDateString()}
-      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        {/* The electrician's side of the same conversation. Shown whatever the
+            status: a question before a decision is as legitimate as one after
+            it, and an accepted applicant needs to agree a start date. */}
+        <MessageAboutJobButton
+          otherUserId={job?.user_id}
+          jobId={job?.id}
+          label="Message employer"
+        />
+
+        <p className="text-gray-400 text-sm">
+          Applied on {new Date(application.created_at).toLocaleDateString()}
+        </p>
+      </div>
 
       {application.status === "accepted" && job?.user_id && !hasReviewed && !showReviewForm && (
         <button

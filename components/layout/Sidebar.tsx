@@ -4,9 +4,34 @@ import { NavLink } from "./NavLink";
 import { RoleSwitch } from "./RoleSwitch";
 import { NotificationBell } from "./NotificationBell";
 import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
+import { useSidebarCounts } from "@/hooks/useSidebarCounts";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import type { Mode } from "@/lib/accountModes";
 import { signupTypeLabel } from "@/lib/signupRoles";
+
+/**
+ * The count beside a nav item.
+ *
+ * NOTHING AT ZERO — not a dimmed "0", not an empty circle. A badge means
+ * "there is something here"; one that is always present stops meaning anything
+ * and the eye learns to skip it, which is the one thing a badge must not
+ * teach.
+ *
+ * Caps at 9+ because the pill is a fixed 20px circle and three digits do not
+ * fit. Past nine the exact number changes no decision anyway.
+ */
+function NavCount({ value }: { value: number }) {
+  if (value <= 0) return null;
+
+  return (
+    <span
+      className="bg-accent-2 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0"
+      aria-label={`${value} unread`}
+    >
+      {value > 9 ? "9+" : value}
+    </span>
+  );
+}
 
 export function Sidebar({
   activeRole,
@@ -31,6 +56,7 @@ export function Sidebar({
   onClose: () => void;
 }) {
   const unreadCount = useUnreadMessagesCount();
+  const sidebarCounts = useSidebarCounts();
 
   // Renders the Admin entry, and nothing else. This is a convenience, NOT a
   // boundary: the hook is a client-side read of is_admin and can be forced
@@ -137,15 +163,12 @@ export function Sidebar({
           </NavLink>
           <NavLink href="/dashboard/messages" onNavigate={onClose}>
             Messages
-            {unreadCount > 0 && (
-              <span className="bg-accent-2 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
+            <NavCount value={unreadCount} />
           </NavLink>
           {!isBrand && (
             <NavLink href="/dashboard/requests" onNavigate={onClose}>
               Requests
+              <NavCount value={sidebarCounts.requests} />
             </NavLink>
           )}
 
@@ -156,6 +179,7 @@ export function Sidebar({
               </NavLink>
               <NavLink href="/dashboard/applications" onNavigate={onClose}>
                 Applications
+                <NavCount value={sidebarCounts.applications} />
               </NavLink>
               <NavLink href="/dashboard/marketplace" onNavigate={onClose}>
                 My Local Network
@@ -170,6 +194,7 @@ export function Sidebar({
               </NavLink>
               <NavLink href="/dashboard/applicants" onNavigate={onClose}>
                 Applicants
+                <NavCount value={sidebarCounts.applicants} />
               </NavLink>
               <NavLink href="/dashboard/marketplace" onNavigate={onClose}>
                 My Local Network

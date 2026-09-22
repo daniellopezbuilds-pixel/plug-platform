@@ -73,7 +73,7 @@ export type SignupField = {
    * of storage by splitSignupValues(). The profile editor renders it in the
    * main form (bound to the column) and skips it in the credentials section.
    */
-  profileColumn?: "years_experience";
+  profileColumn?: "years_experience" | "classification";
 };
 
 export type SignupType = {
@@ -262,6 +262,11 @@ export const SIGNUP_TYPES: readonly SignupType[] = [
         type: "select",
         options: ELECTRICIAN_CLASSIFICATIONS,
         required: true,
+        // profiles.classification since 20260922190000, not signup_fields —
+        // an employer reading an applicant card has to see it, and
+        // role_credentials is owner-and-admin only. Same reasoning as
+        // years_experience; see profileColumn above.
+        profileColumn: "classification",
         requiredError:
           "How you're classified on the job. Pick the closest one if none match exactly.",
       },

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useConversations } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
@@ -14,8 +15,24 @@ import { InlineLoader } from "@/components/ui/Loading";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 
+/**
+ * useSearchParams() forces the tree up to the nearest Suspense boundary to be
+ * client-rendered, and a static route that calls it WITHOUT one fails the
+ * production build — not dev, where routes render on demand and the problem
+ * stays invisible. See
+ * node_modules/next/dist/docs/01-app/03-api-reference/04-functions/use-search-params.md.
+ */
 export default function MessagesPage() {
+  return (
+    <Suspense fallback={<InlineLoader message="Loading messages" />}>
+      <MessagesInbox />
+    </Suspense>
+  );
+}
+
+function MessagesInbox() {
   const toast = useToast();
+  const searchParams = useSearchParams();
   const {
     conversations,
     loading: convLoading,
@@ -27,6 +44,26 @@ export default function MessagesPage() {
   const { contacts } = useEligibleContacts();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showNewPanel, setShowNewPanel] = useState(false);
+
+  /**
+   * ?conversation=<id> opens a thread directly, which is how the Message
+   * button on an applicant or application card lands here.
+   *
+   * SEEDS STATE RATHER THAN REPLACING IT, unlike the profile editor's tabs.
+   * A tab is a view of the page and belongs in the URL permanently; the
+   * conversation on screen changes every time somebody clicks the list, and
+   * rewriting the URL on each of those would fill the history with threads.
+   * So the parameter is an opening instruction, applied once.
+   *
+   * Keyed on the parameter so a second Message click for a different thread
+   * still opens it, and guarded so it cannot yank the user back after they
+   * have moved on within the same visit.
+   */
+  const requestedConversation = searchParams.get("conversation");
+
+  useEffect(() => {
+    if (requestedConversation) setActiveId(requestedConversation);
+  }, [requestedConversation]);
 
   const [myRole, setMyRole] = useState<string | null>(null);
   const [subscribed, setSubscribed] = useState(false);
@@ -173,6 +210,7 @@ export default function MessagesPage() {
                 hasOlder={hasOlder}
                 loadingOlder={loadingOlder}
                 onLoadOlder={loadOlder}
+                job={activeParticipantInfo?.job ?? null}
               />
             )}
           </div>

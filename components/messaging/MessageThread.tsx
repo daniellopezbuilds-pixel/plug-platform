@@ -14,6 +14,7 @@ export function MessageThread({
   hasOlder = false,
   loadingOlder = false,
   onLoadOlder,
+  job = null,
 }: {
   messages: Message[];
   currentUserId: string | null;
@@ -24,6 +25,8 @@ export function MessageThread({
   hasOlder?: boolean;
   loadingOlder?: boolean;
   onLoadOlder?: () => void;
+  /** conversations.job_id, resolved. Renders the context banner. */
+  job?: { id: string; title: string } | null;
 }) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -84,6 +87,28 @@ export function MessageThread({
 
   return (
     <div className="flex flex-col h-full">
+      {/* WHICH JOB THIS IS ABOUT — pinned, not a first message.
+          It sits above the scroller so it is still there after a hundred
+          replies, it cannot be deleted by either party, and it renders for
+          both of them regardless of the messaging paywall. An opening message
+          would have failed all three: is_messaging_blocked() refuses inserts
+          from an unsubscribed worker to an employer, which is exactly the
+          electrician clicking Message on their own application. */}
+      {/* NOT A LINK. There is no per-job route — the board opens jobs in a
+          modal — so the only destination available is /dashboard/jobs, which
+          would take someone away from their conversation and not show them the
+          job. A banner that goes nowhere is better than a link that lies. */}
+      {job && (
+        <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-zinc-800 bg-zinc-900/60">
+          <span className="text-xs uppercase tracking-wide text-gray-500 shrink-0">
+            Re
+          </span>
+          <span className="text-sm font-semibold text-white truncate">
+            {job.title}
+          </span>
+        </div>
+      )}
+
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto scrollbar-dark space-y-3 p-4"

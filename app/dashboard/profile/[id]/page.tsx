@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { UnionBadge } from "@/components/ui/UnionBadge";
-import { NameMeta } from "@/components/ui/NameMeta";
+import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { ReviewSummary } from "@/components/reviews/ReviewSummary";
 import { ReviewsList } from "@/components/reviews/ReviewsList";
-import { getBrandingPublicUrl } from "@/lib/branding";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import { PageLoader } from "@/components/ui/Loading";
@@ -23,6 +21,7 @@ export default function PublicProfilePage() {
   const [profileNumber, setProfileNumber] = useState("");
   const [fullName, setFullName] = useState("");
   const [trade, setTrade] = useState("");
+  const [classification, setClassification] = useState<string | null>(null);
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
   const [signupType, setSignupType] = useState<string | null>(null);
@@ -59,6 +58,7 @@ export default function PublicProfilePage() {
       setProfileNumber(profile.profile_number || "");
       setFullName(profile.full_name || "");
       setTrade(profile.trade || "");
+      setClassification(profile.classification || null);
       setBio(profile.bio || "");
       setLocation(profile.location || "");
       setSignupType(profile.signup_type || null);
@@ -101,60 +101,32 @@ export default function PublicProfilePage() {
        profile is a reading surface, so it keeps its measure and centres rather
        than stretching. */
     <div className="max-w-2xl mx-auto">
-      {companyBannerPath && (
-        <img
-          src={getBrandingPublicUrl(companyBannerPath)}
-          alt="Company banner"
-          className="w-full h-40 rounded-lg object-cover border border-zinc-800 mb-6"
-        />
-      )}
+      <ProfileHeader
+        profileId={profileId}
+        fullName={fullName}
+        profileNumber={profileNumber}
+        signupType={signupType}
+        companyLogoPath={companyLogoPath}
+        companyBannerPath={companyBannerPath}
+        trade={trade}
+        classification={classification}
+        location={location}
+        yearsExperience={yearsExperience}
+        unionStatus={unionStatus}
+        unionVerified={unionVerified}
+        bio={bio}
+      />
 
-      <div className="flex items-center gap-4 mb-6">
-        {companyLogoPath && (
-          <img
-            src={getBrandingPublicUrl(companyLogoPath)}
-            alt="Company logo"
-            className="w-16 h-16 rounded-full object-cover border border-zinc-700"
-          />
-        )}
-        <div>
-          <h1 className="text-4xl font-bold text-white">
-            {fullName || "User"}
-            <NameMeta
-              profileId={profileId}
-              signupType={signupType}
-              labelClassName="text-sm mt-1"
-            />
-          </h1>
-          <p className="text-gray-400 text-sm mt-1">
-            {profileNumber}
-            {trade && ` · ${trade}`}
-            {location && ` · ${location}`}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 mb-6">
-        {unionStatus && <UnionBadge status={unionStatus} verified={unionVerified} />}
-        {isEmployer && employerVerified && (
+      {isEmployer && employerVerified && (
+        <div className="mt-4">
           <span className="bg-green-950 text-green-400 border border-green-800 px-3 py-1 rounded-full text-xs font-semibold">
             Verified Employer
           </span>
-        )}
-      </div>
-
-      {bio && (
-        <div className="mb-6">
-          <p className="text-gray-300 whitespace-pre-wrap">{bio}</p>
         </div>
       )}
 
-      {yearsExperience && (
-        <p className="text-gray-400 text-sm mb-6">{yearsExperience} of experience</p>
-      )}
-
       {isEmployer && companyDescription && (
-        <div className="mb-6">
+        <div className="mt-8">
           <SectionHeading>About the Company</SectionHeading>
           <p className="text-gray-300 whitespace-pre-wrap mb-3">{companyDescription}</p>
           {companyWebsite && (

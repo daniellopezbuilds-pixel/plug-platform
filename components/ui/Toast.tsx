@@ -26,12 +26,18 @@ import {
  * error. Every error surface in the app already uses rose; these match.
  */
 
-type ToastVariant = "success" | "error";
+type ToastVariant = "success" | "error" | "notification";
 
 type ToastRecord = {
   id: number;
   message: string;
   variant: ToastVariant;
+  /**
+   * Where tapping the card goes. Only notifications carry one — a
+   * confirmation and an error are about what just happened HERE and have
+   * nowhere to send anybody.
+   */
+  href?: string;
 };
 
 /** Long enough to read a sentence, short enough not to linger. */
@@ -47,6 +53,15 @@ const MAX_VISIBLE = 4;
 type ToastApi = {
   success: (message: string) => void;
   error: (message: string) => void;
+  /**
+   * A notification that arrived while the user was somewhere else.
+   *
+   * A THIRD VARIANT RATHER THAN success() WITH A LINK. It is not a
+   * confirmation of anything the user did — it is news from elsewhere — and it
+   * reads as a different kind of thing: a bell glyph, not a tick, and a card
+   * that navigates rather than only dismisses.
+   */
+  notify: (message: string, href?: string | null) => void;
 };
 
 const ToastContext = createContext<ToastApi | null>(null);
@@ -80,17 +95,23 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((current) => current.filter((t) => t.id !== id));
   }, []);
 
-  const push = useCallback((message: string, variant: ToastVariant) => {
-    // An empty message would render an empty card. Callers pass error strings
-    // straight through from Supabase, which can be undefined in edge cases.
-    const text = (message ?? "").trim();
-    if (!text) return;
+  const push = useCallback(
+    (message: string, variant: ToastVariant, href?: string | null) => {
+      // An empty message would render an empty card. Callers pass error strings
+      // straight through from Supabase, which can be undefined in edge cases.
+      const text = (message ?? "").trim();
+      if (!text) return;
 
-    setToasts((current) => {
-      const next = [...current, { id: nextId.current++, message: text, variant }];
-      return next.slice(-MAX_VISIBLE);
-    });
-  }, []);
+      setToasts((current) => {
+        const next = [
+          ...current,
+          { id: nextId.current++, message: text, variant, href: href ?? undefined },
+        ];
+        return next.slice(-MAX_VISIBLE);
+      });
+    },
+    []
+  );
 
   // Memoised so the context value is stable and every consumer of useToast does
   // not re-render each time a toast appears or leaves.
@@ -98,6 +119,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     () => ({
       success: (message: string) => push(message, "success"),
       error: (message: string) => push(message, "error"),
+      notify: (message: string, href?: string | null) =>
+        push(message, "notification", href),
     }),
     [push]
   );
@@ -140,6 +163,7 @@ function ToastCard({
   onDismiss: (id: number) => void;
 }) {
   const isError = toast.variant === "error";
+  const isNotification = toast.variant === "notification";
 
   // Each card owns its own timer so the provider does not have to track a map
   // of them, and unmounting for any reason — dismissed by click, pushed out by
@@ -149,9 +173,17 @@ function ToastCard({
     return () => clearTimeout(timer);
   }, [toast.id, onDismiss]);
 
+  // A LINK WHEN IT HAS SOMEWHERE TO GO, a button otherwise — not a button with
+  // a router.push inside it. An anchor is what gives middle-click, open in a
+  // new tab, and the status bar preview, and a notification a user cannot open
+  // in a background tab is a notification they have to remember instead.
+  const Tag = toast.href ? "a" : "button";
+
   return (
-    <button
-      type="button"
+    <Tag
+      {...(toast.href
+        ? { href: toast.href }
+        : { type: "button" as const })}
       onClick={() => onDismiss(toast.id)}
       // Errors interrupt; confirmations wait their turn.
       role={isError ? "alert" : "status"}
@@ -175,6 +207,14 @@ function ToastCard({
               strokeLinecap="round"
               strokeLinejoin="round"
               d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+            />
+          ) : isNotification ? (
+            // The same bell as NotificationBell, drawn in the same Heroicons
+            // outline idiom as every other hand-rolled glyph here.
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
             />
           ) : (
             <path
@@ -206,6 +246,6 @@ function ToastCard({
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </span>
-    </button>
+    </Tag>
   );
 }

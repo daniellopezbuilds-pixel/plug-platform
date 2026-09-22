@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { UnionBadge } from "@/components/ui/UnionBadge";
-import { NameMeta } from "@/components/ui/NameMeta";
+import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { ReviewSummary } from "@/components/reviews/ReviewSummary";
 import { ReviewsList } from "@/components/reviews/ReviewsList";
-import { getBrandingPublicUrl } from "@/lib/branding";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import { InlineLoader } from "@/components/ui/Loading";
@@ -25,6 +23,7 @@ export function ProfilePreviewModal({
   const [profileNumber, setProfileNumber] = useState("");
   const [fullName, setFullName] = useState("");
   const [trade, setTrade] = useState("");
+  const [classification, setClassification] = useState<string | null>(null);
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
   const [signupType, setSignupType] = useState<string | null>(null);
@@ -59,6 +58,7 @@ export function ProfilePreviewModal({
       setProfileNumber(profile.profile_number || "");
       setFullName(profile.full_name || "");
       setTrade(profile.trade || "");
+      setClassification(profile.classification || null);
       setBio(profile.bio || "");
       setLocation(profile.location || "");
       setSignupType(profile.signup_type || null);
@@ -98,46 +98,32 @@ export function ProfilePreviewModal({
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-4 mb-4">
-              {companyLogoPath && (
-                <img
-                  src={getBrandingPublicUrl(companyLogoPath)}
-                  alt="Company logo"
-                  className="w-16 h-16 rounded-full object-cover border border-zinc-700"
-                />
-              )}
-              <div>
-                <h2 className="text-2xl font-bold text-white">
-                  {fullName || "User"}
-                  <NameMeta profileId={userId} signupType={signupType} />
-                </h2>
-                <p className="text-gray-400 text-sm mt-1">
-                  {profileNumber}
-                  {trade && ` · ${trade}`}
-                  {location && ` · ${location}`}
-                </p>
-              </div>
-            </div>
+            <ProfileHeader
+              size="compact"
+              profileId={userId}
+              fullName={fullName}
+              profileNumber={profileNumber}
+              signupType={signupType}
+              companyLogoPath={companyLogoPath}
+              trade={trade}
+              classification={classification}
+              location={location}
+              yearsExperience={yearsExperience}
+              unionStatus={unionStatus}
+              unionVerified={unionVerified}
+              bio={bio}
+            />
 
-            <div className="flex items-center gap-2 mb-4">
-              {unionStatus && <UnionBadge status={unionStatus} verified={unionVerified} />}
-              {isEmployer && employerVerified && (
+            {isEmployer && employerVerified && (
+              <div className="mt-3">
                 <span className="bg-green-950 text-green-400 border border-green-800 px-3 py-1 rounded-full text-xs font-semibold">
                   Verified Employer
                 </span>
-              )}
-            </div>
-
-            {bio && <p className="text-gray-300 whitespace-pre-wrap mb-4">{bio}</p>}
-
-            {yearsExperience && (
-              <p className="text-gray-400 text-sm mb-4">
-                {yearsExperience} of experience
-              </p>
+              </div>
             )}
 
             {isEmployer && companyDescription && (
-              <div className="mb-4">
+              <div className="mt-5">
                 <h3 className="text-white font-semibold mb-1">About the Company</h3>
                 <p className="text-gray-300 whitespace-pre-wrap text-sm">
                   {companyDescription}
