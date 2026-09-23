@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { NotificationBell } from "./NotificationBell";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 /**
- * The mobile-only header: hamburger, wordmark, notification bell.
+ * The mobile-only header: hamburger, logo, notification bell.
  *
  * Hidden from `md` up, where the sidebar is permanently visible and carries
  * the wordmark and bell itself.
@@ -36,9 +38,9 @@ export function MobileTopBar({ onOpenNav }: { onOpenNav: () => void }) {
         </svg>
       </button>
 
-      <span className="font-bold text-lg leading-none truncate">
-        Sparx Plug
-      </span>
+      <Link href="/dashboard" className="min-w-0 rounded-lg" aria-label="Sparx Plug Ecosystem — dashboard">
+        <BrandLogo size={30} eager />
+      </Link>
 
       <div className="ml-auto shrink-0">
         <NotificationBell />

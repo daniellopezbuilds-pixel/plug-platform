@@ -3,6 +3,7 @@
 import { UnionBadge } from "@/components/ui/UnionBadge";
 import { NameMeta } from "@/components/ui/NameMeta";
 import type { PendingUnionWorker } from "@/hooks/useUnionVerifications";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 export function UnionVerificationCard({
   worker,
@@ -13,8 +14,10 @@ export function UnionVerificationCard({
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
 }) {
+  const confirm = useConfirm();
+
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 flex items-center justify-between gap-4">
+    <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h3 className="text-white font-semibold">
           {worker.full_name || "Unnamed"}
@@ -28,14 +31,30 @@ export function UnionVerificationCard({
 
       <div className="flex gap-2 shrink-0">
         <button
-          onClick={() => onApprove(worker.id)}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-green-500 transition"
+          onClick={async () => {
+            const ok = await confirm({
+              title: `Verify ${worker.full_name || "this worker"}'s union status?`,
+              body: "Their union badge shows as confirmed to everyone on the platform.",
+              confirmLabel: "Verify union status",
+              tone: "primary",
+            });
+            if (ok) onApprove(worker.id);
+          }}
+          className="bg-accent text-on-accent px-4 min-h-11 rounded-lg font-semibold text-sm hover:bg-accent-hover transition"
         >
           Approve
         </button>
         <button
-          onClick={() => onReject(worker.id)}
-          className="border border-zinc-700 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-zinc-900 transition"
+          onClick={async () => {
+            // See useUnionVerifications: reject() is local only.
+            const ok = await confirm({
+              title: "Hide this request from the queue?",
+              body: "Rejecting is not recorded yet — this only removes it from the list until the page reloads. The worker is not notified.",
+              confirmLabel: "Hide request",
+            });
+            if (ok) onReject(worker.id);
+          }}
+          className="border border-zinc-700 text-white px-4 min-h-11 rounded-lg font-semibold text-sm hover:border-zinc-500 transition"
         >
           Reject
         </button>

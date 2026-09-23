@@ -7,6 +7,7 @@ import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { NameMeta } from "@/components/ui/NameMeta";
 import { adEndDate } from "@/lib/adPricing";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 export function AdRequestCard({
   request,
@@ -27,6 +28,7 @@ export function AdRequestCard({
   onReject: (id: string, reason: string) => Promise<{ error: string | null }>;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
@@ -76,6 +78,14 @@ export function AdRequestCard({
       return;
     }
 
+    const ok = await confirm({
+      title: `Approve “${request.title}”?`,
+      body: `It goes live on its placement from ${startDate} to ${effectiveEndDate}.`,
+      confirmLabel: "Approve ad",
+      tone: "primary",
+    });
+    if (!ok) return;
+
     setSubmitting(true);
 
     const { error } = await onApprove(request.id, {
@@ -100,7 +110,9 @@ export function AdRequestCard({
 
     if (error) {
       toast.error(error);
+      return;
     }
+    toast.success("Ad approved.");
   }
 
   async function handleReject() {
@@ -109,11 +121,22 @@ export function AdRequestCard({
       return;
     }
 
+    const ok = await confirm({
+      title: `Reject “${request.title}”?`,
+      body: "It will not run. The submitter sees your reason. A paid campaign is refunded by hand.",
+      confirmLabel: "Reject ad",
+    });
+    if (!ok) return;
+
     setSubmitting(true);
     const { error } = await onReject(request.id, reason);
     setSubmitting(false);
 
-    if (error) setReasonError(error);
+    if (error) {
+      setReasonError(error);
+      return;
+    }
+    toast.success("Ad rejected.");
   }
 
   const linkLabel = request.link_url;
@@ -242,8 +265,8 @@ export function AdRequestCard({
       )}
 
       {isPrepaid && (
-        <div className="mb-4 rounded-lg border border-green-800 bg-green-950/30 p-3">
-          <p className="text-xs font-semibold text-green-400 mb-1">
+        <div className="mb-4 rounded-lg border border-accent/40 bg-accent/10 p-3">
+          <p className="text-xs font-semibold text-accent mb-1">
             Paid through Stripe
           </p>
           <p className="text-xs text-gray-300">
@@ -331,7 +354,7 @@ export function AdRequestCard({
           <button
             onClick={handleApprove}
             disabled={submitting}
-            className="bg-green-950 text-green-400 border border-green-800 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-green-900 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            className="bg-accent text-on-accent px-5 min-h-11 rounded-lg font-semibold text-sm hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             <ButtonSpinner active={submitting} />
             {submitting ? "Approving..." : "Approve"}

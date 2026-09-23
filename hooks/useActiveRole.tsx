@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabase";
 import { resolveSignupType } from "@/lib/onboarding";
 import type { Mode } from "@/lib/accountModes";
 
+export type ActiveProfile = Profile;
+
 type Profile = {
   /** = auth.users.id. Needed by anything keying per-user storage off it. */
   id: string;

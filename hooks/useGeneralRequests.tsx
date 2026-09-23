@@ -27,7 +27,7 @@ export function useGeneralRequests() {
         .from("general_requests")
         .select("id, submitted_by, subject, message, status, admin_notes, created_at")
         .eq("status", "pending")
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true }).order("id", { ascending: true });
 
       if (limit) query = query.range(offset, offset + limit - 1);
 
@@ -62,6 +62,7 @@ export function useGeneralRequests() {
       return;
     }
 
+    toast.success("Request resolved.");
     await load();
   }
 
@@ -76,6 +77,7 @@ export function useGeneralRequests() {
       return;
     }
 
+    toast.success("Request dismissed.");
     await load();
   }
 

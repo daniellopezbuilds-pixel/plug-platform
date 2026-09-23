@@ -172,7 +172,7 @@ export function useBadgeRequests() {
       )
       .eq("badge_key", "license_verified")
       .eq("status", "pending")
-      .order("requested_at", { ascending: true });
+      .order("requested_at", { ascending: true }).order("id", { ascending: true });
 
     if (limit) query = query.range(offset, offset + limit - 1);
 

@@ -33,12 +33,12 @@ export type AdDurationMonths = (typeof AD_DURATIONS_MONTHS)[number];
  * One: a placement is sold to a single advertiser for the dates it covers.
  *
  * THIS GATES SALES, NOT RENDERING, AND IT IS NOT A GUARANTEE OF EXCLUSIVITY.
- * usePublicAds rotates through everything eligible, and two write paths insert
+ * usePublicAds rotates through everything eligible, and one write path inserts
  * listings without consulting this at all — the admin's direct create in
- * hooks/useAds.tsx and the free request flow in hooks/useSubmitAdRequest.tsx.
- * A paying brand can therefore still end up rotating against a house ad added
- * afterwards. Do not call the spot "exclusive" in brand-facing copy until those
- * two paths check capacity too.
+ * hooks/useAds.tsx. (A second, the free ad request on /dashboard/requests, was
+ * removed on 2026-09-23.) A paying brand can therefore still end up rotating
+ * against a house ad added afterwards. Do not call the spot "exclusive" in
+ * brand-facing copy until that path checks capacity too.
  *
  * The corollary bites the other way as well. countOverlappingAds counts house
  * ads (payment_status 'n/a') alongside paid ones, so at a cap of one, a single

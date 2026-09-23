@@ -4,6 +4,7 @@ import { useState } from "react";
 import { NameMeta } from "@/components/ui/NameMeta";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { timeAgo } from "@/lib/relativeTime";
 import {
   CSLB_LOOKUP_URL,
@@ -59,6 +60,7 @@ export function BadgeRequestCard({
   ) => Promise<{ error: string | null }>;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const reason = cslbReasonCopy(request.reason);
 
   const [expiresOn, setExpiresOn] = useState(request.checked_expires_on ?? "");
@@ -102,6 +104,16 @@ export function BadgeRequestCard({
       return;
     }
 
+    const ok = await confirm({
+      title: "Verify this licence?",
+      body: transfer
+        ? "The licence badge moves to this account and is removed from the account that currently holds it."
+        : "The account gets the verified licence badge, shown beside their name everywhere.",
+      confirmLabel: "Verify licence",
+      tone: "primary",
+    });
+    if (!ok) return;
+
     setSubmitting(true);
     await onApprove(request.id, {
       expiresOn,
@@ -119,6 +131,13 @@ export function BadgeRequestCard({
       toast.error("Give a reason. The contractor sees this one.");
       return;
     }
+
+    const ok = await confirm({
+      title: "Reject this licence claim?",
+      body: "The contractor is told it was not approved, with your reason.",
+      confirmLabel: "Reject claim",
+    });
+    if (!ok) return;
 
     setSubmitting(true);
     await onReject(request.id, {
@@ -151,8 +170,8 @@ export function BadgeRequestCard({
           className={[
             "shrink-0 px-3 py-1 rounded-full text-xs font-semibold border",
             reason.onLicence
-              ? "border-red-900 bg-red-950 text-red-300"
-              : "border-amber-900 bg-amber-950 text-amber-300",
+              ? "border-rose-900 bg-rose-950 text-rose-300"
+              : "border-accent-2/50 bg-accent-2/10 text-accent-2-soft",
           ].join(" ")}
         >
           {reason.label}
@@ -172,13 +191,13 @@ export function BadgeRequestCard({
       )}
 
       {request.conflict && (
-        <div className="rounded-lg border border-red-900 bg-red-950/40 p-3">
-          <p className="text-red-200 text-sm font-semibold">
+        <div className="rounded-lg border border-rose-900 bg-rose-950/40 p-3">
+          <p className="text-rose-200 text-sm font-semibold">
             Also claimed by{" "}
             {request.conflict.fullName || "another account"}
           </p>
 
-          <p className="text-red-200/80 text-sm mt-1">
+          <p className="text-rose-200/80 text-sm mt-1">
             {transfer ? (
               <>
                 That account currently holds the verified badge for this
@@ -198,7 +217,7 @@ export function BadgeRequestCard({
             href={`/dashboard/profile/${request.conflict.profileId}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-red-200 text-sm font-semibold hover:underline inline-block mt-2"
+            className="text-rose-200 text-sm font-semibold hover:underline inline-flex items-center min-h-11 mt-1"
           >
             Open the other account ↗
           </a>
@@ -256,7 +275,7 @@ export function BadgeRequestCard({
                     className={[
                       "px-2 py-0.5 rounded border text-xs",
                       isC10
-                        ? "border-green-900 bg-green-950 text-green-300 font-semibold"
+                        ? "border-accent/60 bg-accent/10 text-accent font-semibold"
                         : "border-zinc-700 bg-zinc-800 text-gray-300",
                     ].join(" ")}
                   >
@@ -266,7 +285,7 @@ export function BadgeRequestCard({
               })}
 
               {!request.checked_classifications.includes("C10") && (
-                <span className="px-2 py-0.5 rounded border border-red-900 bg-red-950 text-red-300 text-xs font-semibold">
+                <span className="px-2 py-0.5 rounded border border-rose-900 bg-rose-950 text-rose-300 text-xs font-semibold">
                   No C-10
                 </span>
               )}
@@ -356,12 +375,12 @@ export function BadgeRequestCard({
         )}
 
         {transfer && !rejecting && (
-          <label className="flex items-start gap-2 text-sm text-red-200">
+          <label className="flex items-start gap-2 text-sm text-rose-200">
             <input
               type="checkbox"
               checked={confirmedTransfer}
               onChange={(event) => setConfirmedTransfer(event.target.checked)}
-              className="mt-0.5 accent-red-600"
+              className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
             />
             <span>
               Revoke {transfer.fullName || "the other account"}&rsquo;s verified
@@ -374,7 +393,7 @@ export function BadgeRequestCard({
           <button
             onClick={handleApprove}
             disabled={submitting}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-green-500 transition disabled:opacity-60 inline-flex items-center justify-center gap-2"
+            className="bg-accent text-on-accent px-4 min-h-11 rounded-lg font-semibold text-sm hover:bg-accent-hover transition disabled:opacity-60 inline-flex items-center justify-center gap-2"
           >
             <ButtonSpinner active={submitting && !rejecting} />
             {transfer ? "Transfer and verify" : "Verify licence"}
@@ -393,7 +412,7 @@ export function BadgeRequestCard({
               <button
                 onClick={handleReject}
                 disabled={submitting}
-                className="bg-red-700 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-red-600 transition disabled:opacity-60 inline-flex items-center justify-center gap-2"
+                className="border border-rose-900 text-rose-300 px-4 min-h-11 rounded-lg font-semibold text-sm hover:border-rose-700 hover:text-rose-200 transition disabled:opacity-60 inline-flex items-center justify-center gap-2"
               >
                 <ButtonSpinner active={submitting} />
                 Confirm rejection

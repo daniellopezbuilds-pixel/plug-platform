@@ -5,6 +5,14 @@ import { useCallback, useEffect, useState } from "react";
 /**
  * Paging for a list hook: one page on mount, more on demand.
  *
+ * EVERY fetchPage MUST END ITS ORDER WITH A UNIQUE COLUMN — `.order("id")`
+ * after the timestamp. range() paging over a sort key with ties is
+ * nondeterministic: Postgres may return tied rows in a different order on
+ * each request, so one row lands on two pages and another on none. The
+ * dedupe below hides the repeat, which leaves the skip invisible. Found on
+ * 2026-09-23 in the admin licence queue, where two claims share a
+ * requested_at; walked one row per page, one claim was never shown.
+ *
  * LIFTED OUT OF useAds RATHER THAN INVENTED. Infinite scroll was built on
  * 2026-09-15 and wired into exactly one list — the brand's own ad submissions.
  * Every other list on the platform fetched its whole table and rendered all of

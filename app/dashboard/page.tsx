@@ -1,70 +1,95 @@
 "use client";
 
-import { useActiveRole } from "@/hooks/useActiveRole";
-import { WorkerDashboard } from "@/components/dashboard/WorkerDashboard";
-import { EmployerDashboard } from "@/components/dashboard/EmployerDashboard";
-import { BrandDashboard } from "@/components/dashboard/BrandDashboard";
-import { signupTypeLabel } from "@/lib/signupRoles";
+import { useDashboardProfile } from "@/components/layout/DashboardProfile";
+import { RailColumns, useRailBreakpoints } from "@/components/layout/RailColumns";
 import { PageHeading } from "@/components/layout/PageHeading";
+import { AttentionCard } from "@/components/dashboard/AttentionCard";
+import { WorkerDashboardMain, WorkerStats } from "@/components/dashboard/WorkerDashboard";
+import { EmployerDashboardMain, EmployerStats } from "@/components/dashboard/EmployerDashboard";
+import { BrandCampaignsCard } from "@/components/dashboard/BrandDashboard";
+import { ProfileSummaryCard } from "@/components/feed/FeedRail";
 import { PageLoader } from "@/components/ui/Loading";
-import { ProfileCompletionBanner } from "@/components/dashboard/ProfileCompletionBanner";
+import { signupTypeLabel } from "@/lib/signupRoles";
 import { profileCompletionPercentage } from "@/lib/profileCompletion";
 
+/**
+ * The dashboard.
+ *
+ * WHAT IT IS FOR. The first screen after logging in, so it answers two
+ * questions in order: is anything waiting for me (AttentionCard), and what
+ * should I do next — jobs asking for my classification if I am working, my
+ * job posts and who has applied if I am hiring, my campaigns if I am a brand.
+ * It used to lead with four stat tiles and three buttons, which answered
+ * neither.
+ *
+ * The numbers are still here, in the rail, and each now links to the page
+ * behind it. Below 1280 they follow the main column.
+ *
+ * READS THE PROFILE FROM THE LAYOUT (DashboardProfile context) rather than
+ * calling useActiveRole() again — the layout has already fetched it, and it
+ * updates when the mode switcher changes it.
+ */
 export default function DashboardPage() {
-  const { profile, loading } = useActiveRole();
+  const profile = useDashboardProfile();
+  const { withRail } = useRailBreakpoints();
 
-  if (loading || !profile) {
+  if (!profile) {
     return <PageLoader message="Loading your dashboard" />;
   }
 
-  // ONE DEFINITION, shared with the banner below. This used to be an inline
-  // count over full_name, username, trade, bio and email — a different list
-  // from the banner's, which is how the dashboard came to show "100%" directly
-  // above "Your profile is missing one thing". Both now call the same function
-  // on the same row, so they cannot disagree. See lib/profileCompletion.tsx.
-  const completionPercentage = profileCompletionPercentage(profile);
+  const isBrand = profile.signup_type === "brand";
+  const isEmployer = profile.active_role === "employer";
+  const name = (isBrand ? profile.brand_name : null) || profile.full_name || "there";
 
-  // "SP-000001 · C-10 contractor · Worker mode"
-  //
-  // Brands show no mode — they have no switcher. Accounts created before this
-  // signup form carry no signup_type, so they keep the old behaviour of
-  // printing active_role rather than showing a gap.
   const typeLabel = signupTypeLabel(profile.signup_type);
-  const modeLabel =
-    profile.active_role === "employer" ? "Employer mode" : "Worker mode";
+  const modeLabel = isEmployer ? "Employer mode" : "Worker mode";
+  const subtitle = [
+    profile.profile_number,
+    typeLabel,
+    !isBrand && typeLabel ? modeLabel : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
-  const subtitle = !typeLabel
-    ? `${profile.profile_number} • ${profile.active_role}`
-    : profile.signup_type === "brand"
-    ? `${profile.profile_number} · ${typeLabel}`
-    : `${profile.profile_number} · ${typeLabel} · ${modeLabel}`;
+  // Brands carry role 'employer' so the signup trigger works unchanged, which
+  // would otherwise show them job and applicant stats. Branch on signup_type
+  // first.
+  const stats = isBrand ? null : isEmployer ? (
+    <EmployerStats />
+  ) : (
+    <WorkerStats
+      xp={profile.xp || 0}
+      completionPercentage={profileCompletionPercentage(profile)}
+    />
+  );
 
   return (
-    <div>
-      <PageHeading
-        title={`Welcome back, ${profile.full_name || "User"}`}
-        subtitle={subtitle}
-      />
-
-      {/* Under the heading, above the dashboard proper, and it renders nothing
-          at all for a complete profile, a brand, or anyone who has dismissed
-          it. The component decides — this page does not branch on it, so there
-          is one place the rule lives. */}
-      <ProfileCompletionBanner userId={profile.id} profile={profile} />
-
-      {/* Brands carry role 'employer' so the signup trigger works unchanged,
-          which would otherwise show them job and applicant stats. Branch on
-          signup_type first. */}
-      {profile.signup_type === "brand" ? (
-        <BrandDashboard />
-      ) : (
+    <RailColumns
+      withRail={withRail}
+      split={false}
+      rightLabel="Your profile and numbers"
+      right={
         <>
-          {profile.active_role === "worker" && (
-            <WorkerDashboard xp={profile.xp || 0} completionPercentage={completionPercentage} />
-          )}
-          {profile.active_role === "employer" && <EmployerDashboard />}
+          <ProfileSummaryCard />
+          {stats}
         </>
-      )}
-    </div>
+      }
+    >
+      <PageHeading title={`Welcome back, ${name}`} size="compact" subtitle={subtitle} />
+
+      <div className="space-y-4">
+        <AttentionCard profile={profile} />
+
+        {isBrand ? (
+          <BrandCampaignsCard userId={profile.id} />
+        ) : isEmployer ? (
+          <EmployerDashboardMain />
+        ) : (
+          <WorkerDashboardMain />
+        )}
+
+        {!withRail && stats}
+      </div>
+    </RailColumns>
   );
 }

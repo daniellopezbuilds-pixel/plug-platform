@@ -5,6 +5,7 @@ import { usePostComments } from "@/hooks/usePostComments";
 import { InlineLoader } from "@/components/ui/Loading";
 import { NameMeta } from "@/components/ui/NameMeta";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 export function CommentSection({
   postId,
@@ -16,6 +17,16 @@ export function CommentSection({
   onViewProfile: (userId: string) => void;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
+
+  async function handleDelete(id: string) {
+    const ok = await confirm({
+      title: "Delete this comment?",
+      body: "It is removed from the post for everyone. This cannot be undone.",
+      confirmLabel: "Delete comment",
+    });
+    if (ok) deleteComment(id);
+  }
   const { comments, loading, addComment, deleteComment } = usePostComments(postId);
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -38,17 +49,17 @@ export function CommentSection({
   }
 
   return (
-    <div className="mt-4 border-t border-zinc-800 pt-4">
+    <div className="pt-3">
       {loading ? (
         <InlineLoader message="Loading comments" />
       ) : (
-        <div className="space-y-3 mb-4">
+        <div className="mb-3 space-y-2.5">
           {comments.map((comment) => {
             const isMe = comment.author_id === currentUserId;
 
             return (
-              <div key={comment.id} className="flex justify-between items-start gap-3">
-                <div>
+              <div key={comment.id} className="flex items-start justify-between gap-2">
+                <div className="min-w-0 break-words pt-0.5">
                   <button
                     onClick={() => onViewProfile(comment.author_id)}
                     className="text-white font-semibold text-sm mr-2 hover:underline"
@@ -64,8 +75,8 @@ export function CommentSection({
                 </div>
                 {isMe && (
                   <button
-                    onClick={() => deleteComment(comment.id)}
-                    className="text-xs text-rose-400 hover:text-rose-300 shrink-0"
+                    onClick={() => handleDelete(comment.id)}
+                    className="-my-2 min-h-11 shrink-0 rounded-md px-2 text-xs text-gray-500 transition hover:text-rose-400"
                   >
                     Delete
                   </button>
@@ -86,12 +97,13 @@ export function CommentSection({
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          className="flex-1 p-2.5 rounded bg-zinc-800 border border-zinc-700 text-white text-base sm:text-sm"
+          aria-label="Write a comment"
+          className="min-h-11 min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 text-base text-white placeholder:text-gray-500 [color-scheme:dark] focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
         <button
           onClick={handleSubmit}
           disabled={submitting}
-          className="bg-accent text-on-accent px-4 py-2 rounded font-semibold text-sm disabled:opacity-50"
+          className="min-h-11 shrink-0 rounded-lg bg-accent px-4 text-sm font-semibold text-on-accent transition hover:bg-accent-hover disabled:opacity-50"
         >
           {submitting ? "..." : "Post"}
         </button>

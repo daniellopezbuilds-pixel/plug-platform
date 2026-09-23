@@ -57,9 +57,9 @@ const IMAGE_PATH_PATTERN = /^ad-\d+\.(png|jpe?g|webp)$/i;
  * bare domain gets https:// prepended because the form's own placeholder
  * ("yourbrand.com/offer") invites one.
  *
- * NOTE: the other two write paths — the admin form in hooks/useAds.tsx and
- * useSubmitAdRequest — still store this column raw. Fixing those is a separate
- * change and is called out in the handover rather than done here.
+ * NOTE: the admin form in hooks/useAds.tsx still stores this column raw.
+ * (The free ad request, useSubmitAdRequest, was the other raw path; it was
+ * removed on 2026-09-23.)
  */
 function normalizeAdLinkUrl(raw: string): {
   url: string | null;

@@ -26,7 +26,7 @@ export function useUnionVerifications() {
         .select("id, full_name, trade, union_status, signup_type")
         .eq("union_verified", false)
         .not("union_status", "is", null)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }).order("id", { ascending: false });
 
       if (limit) query = query.range(offset, offset + limit - 1);
 
@@ -62,6 +62,7 @@ export function useUnionVerifications() {
     }
 
     setPending((prev) => prev.filter((p) => p.id !== profileId));
+    toast.success("Union status verified.");
   }
 
   function reject(profileId: string) {

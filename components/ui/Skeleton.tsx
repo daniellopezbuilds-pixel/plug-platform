@@ -28,17 +28,20 @@ function SkeletonList({
   count,
   label,
   children,
+  gap = "space-y-5",
 }: {
   count: number;
   label: string;
   children: React.ReactNode;
+  /** Must match the gap of the list it stands in for, or it jumps on load. */
+  gap?: string;
 }) {
   return (
     <>
       <span role="status" className="sr-only">
         {label}
       </span>
-      <div aria-hidden="true" className="space-y-5">
+      <div aria-hidden="true" className={gap}>
         {Array.from({ length: count }).map((_, i) => (
           <div key={i}>{children}</div>
         ))}
@@ -47,34 +50,50 @@ function SkeletonList({
   );
 }
 
-/** Matches PostCard: bg-zinc-900 card, author line, body, reaction row. */
+/** Matches PostCard: avatar + author line, body, action band. */
 export function PostSkeleton({ count = 3 }: { count?: number }) {
   return (
-    <SkeletonList count={count} label="Loading posts">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
-        <div className="mb-3">
-          <SkeletonBlock className="h-4 w-40 mb-2" />
-          <SkeletonBlock className="h-3 w-24" />
+    <SkeletonList count={count} label="Loading posts" gap="space-y-3">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-xl">
+        <div className="px-4 pt-3.5">
+          <div className="flex items-center gap-3 mb-3">
+            <SkeletonBlock className="h-10 w-10 rounded-full shrink-0" />
+            <div className="flex-1">
+              <SkeletonBlock className="h-3.5 w-40 mb-2" />
+              <SkeletonBlock className="h-2.5 w-24" />
+            </div>
+          </div>
+          <SkeletonBlock className="h-3 w-full mb-2" />
+          <SkeletonBlock className="h-3 w-11/12 mb-2" />
+          <SkeletonBlock className="h-3 w-2/3" />
         </div>
-        <SkeletonBlock className="h-3 w-full mb-2" />
-        <SkeletonBlock className="h-3 w-11/12 mb-2" />
-        <SkeletonBlock className="h-3 w-2/3 mb-4" />
-        <SkeletonBlock className="h-8 w-48" />
+        <div className="mt-3 border-t border-zinc-800/80 px-4 py-3 flex justify-between">
+          <SkeletonBlock className="h-5 w-20" />
+          <SkeletonBlock className="h-5 w-24" />
+        </div>
       </div>
     </SkeletonList>
   );
 }
 
-/** Matches JobCard: title, meta line, description, action row. */
+/** Matches JobCard: eyebrow, title, pay, fact grid, footer button. */
 export function JobSkeleton({ count = 3 }: { count?: number }) {
   return (
-    <SkeletonList count={count} label="Loading jobs">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
-        <SkeletonBlock className="h-6 w-2/3 mb-3" />
+    <SkeletonList count={count} label="Loading jobs" gap="space-y-3">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
+        <SkeletonBlock className="h-3 w-28 mb-3" />
+        <SkeletonBlock className="h-6 w-2/3 mb-2" />
         <SkeletonBlock className="h-3 w-1/3 mb-4" />
-        <SkeletonBlock className="h-3 w-full mb-2" />
-        <SkeletonBlock className="h-3 w-4/5 mb-4" />
-        <SkeletonBlock className="h-9 w-28" />
+        <SkeletonBlock className="h-5 w-24 mb-4" />
+        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-2 mb-5">
+          <SkeletonBlock className="h-3 w-3/4" />
+          <SkeletonBlock className="h-3 w-2/3" />
+          <SkeletonBlock className="h-3 w-1/2" />
+          <SkeletonBlock className="h-3 w-3/5" />
+        </div>
+        <div className="border-t border-zinc-800 pt-4 flex sm:justify-end">
+          <SkeletonBlock className="h-11 w-full sm:w-32" />
+        </div>
       </div>
     </SkeletonList>
   );

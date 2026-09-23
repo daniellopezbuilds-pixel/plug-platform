@@ -19,7 +19,7 @@ export function useUnreadMessagesCount() {
 
       const { data: participation } = await supabase
         .from("conversation_participants")
-        .select("conversation_id, last_read_at")
+        .select("conversation_id, last_read_at, hidden_at")
         .eq("user_id", user.id);
 
       const rows = participation || [];
@@ -40,7 +40,12 @@ export function useUnreadMessagesCount() {
           .limit(1)
           .maybeSingle();
 
-        if (lastMsg && lastMsg.sender_id !== user.id) {
+        // A conversation deleted from the inbox is not in the list, so it must
+        // not be in the badge either — unless a message arrived after it was
+        // hidden, which is exactly when useConversations brings it back.
+        const hiddenSince = row.hidden_at && lastMsg && new Date(lastMsg.created_at) <= new Date(row.hidden_at);
+
+        if (lastMsg && lastMsg.sender_id !== user.id && !hiddenSince) {
           if (!row.last_read_at || new Date(lastMsg.created_at) > new Date(row.last_read_at)) {
             unread++;
           }
@@ -57,7 +62,13 @@ export function useUnreadMessagesCount() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user || channelRef.current) return;
+      // Checked AFTER the await, not only before it. getUser() is a network
+      // call, and a component that unmounts while it is in flight has already
+      // run its cleanup — which found no channel to remove. Subscribing now
+      // would leave a channel nothing will ever close, still recounting on
+      // every message. The dashboard's attention card mounts this and
+      // unmounts on every navigation away, so the race was routine.
+      if (!user || !isMounted || channelRef.current) return;
 
       const channel = supabase
         .channel(`unread-messages-${user.id}-${Date.now()}`)

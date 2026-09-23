@@ -4,14 +4,49 @@ import { useRouter } from "next/navigation";
 import { usePosts } from "@/hooks/usePosts";
 import { LoadMore } from "@/components/ui/LoadMore";
 import { usePostReactions } from "@/hooks/usePostReactions";
+import { usePublicAds } from "@/hooks/usePublicAds";
 import { CreatePostForm } from "@/components/feed/CreatePostForm";
 import { PostCard } from "@/components/feed/PostCard";
+import {
+  NewMembersCard,
+  ProfileSummaryCard,
+  RecentJobsCard,
+} from "@/components/feed/FeedRail";
+import { SponsoredRail } from "@/components/ads/SponsoredRail";
 import { ProfilePreviewModal } from "@/components/profile/ProfilePreviewModal";
 import { PageHeading } from "@/components/layout/PageHeading";
-import { PageWithSponsoredRail } from "@/components/ads/PageWithSponsoredRail";
+import { RailColumns, useRailBreakpoints } from "@/components/layout/RailColumns";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ListError } from "@/components/ui/ListError";
 import { useState } from "react";
 import { PostSkeleton } from "@/components/ui/Skeleton";
 
+/**
+ * The feed.
+ *
+ * WHAT WAS WRONG WITH THE LAYOUT. The post column was capped at 720px and
+ * centred, with the sponsored slot as the only thing in a 320px rail beside
+ * it — so at any desktop width the page was a narrow strip of posts, one small
+ * advert, and a lot of black. The rail now holds things worth its width (see
+ * components/feed/FeedRail.tsx), and the columns fill the content area
+ * instead of floating in the middle of it.
+ *
+ * THREE LAYOUTS, chosen by width:
+ *
+ *   under 1280    one column: heading, the sponsored slot, composer, posts.
+ *                 The rail cards are not mounted at all — on a phone they
+ *                 would push the posts down, and a hidden card still fetches.
+ *   1280-1719     posts | rail (sponsored, your profile, new jobs, new members)
+ *   1720 and up   you | posts | rail. The rail is split across both sides so
+ *                 neither column runs out of content halfway down the screen.
+ *
+ * Rails are sticky and scroll on their own when taller than the window — see
+ * components/layout/RailColumns.tsx, which also owns the breakpoints.
+ *
+ * THE SPONSORED SLOT is queried once, here, and rendered in exactly one place
+ * for the current width. usePublicAds records impressions itself, so moving
+ * the card between positions does not double-count anything.
+ */
 export default function FeedPage() {
   const router = useRouter();
   const {
@@ -23,8 +58,13 @@ export default function FeedPage() {
     userId,
     createPost,
     deletePost,
+    error: postsError,
+    reload: reloadPosts,
   } = usePosts();
   const { summaries, react } = usePostReactions(posts.map((p) => p.id));
+  const { ad, adIndex, adCount, selectAd, loading: adLoading } = usePublicAds("feed");
+
+  const { withRail, split } = useRailBreakpoints();
 
   const [previewUserId, setPreviewUserId] = useState<string | null>(null);
 
@@ -36,45 +76,60 @@ export default function FeedPage() {
     setPreviewUserId(targetUserId);
   }
 
+  const sponsored = (
+    <SponsoredRail
+      ad={ad}
+      index={adIndex}
+      total={adCount}
+      onSelect={selectAd}
+      loading={adLoading}
+    />
+  );
+
   return (
-    <div>
-      {/*
-        The ad used to live in the stream: a card after the third post, or at
-        the top of a short feed. Both are gone — the slot is in the rail now,
-        like every other page, so it is not interleaved with people's posts and
-        the post list no longer reflows when an ad arrives.
-
-        This also removed FEED_AD_AFTER_INDEX / FEED_AD_MIN_POSTS and the
-        adInStream / adAtTop pair that existed only to place it.
-      */}
-      {/* measure="reading": the container caps at 1600, which would leave the
-          post column around 1150px wide with the rail beside it. Posts are
-          prose and prose does not get better at 1150px — around 720 is 85-ish
-          characters, which is the top of the comfortable range. The pair is
-          centred and the slack goes to the outer edges.
-
-          The cap is passed as contentClassName, NOT wrapped around the children
-          here. On the flex item it stops the column growing; on an inner div it
-          only narrows the text and leaves 450px of empty column sitting against
-          the rail. See the note in PageWithRail. */}
-      <PageWithSponsoredRail
-        placement="feed"
-        heading={<PageHeading title="Community Feed" />}
-        measure="reading"
-        readingWidth={720}
-        contentClassName="max-w-2xl mx-auto xl:mx-0"
+    <>
+      <RailColumns
+        withRail={withRail}
+        split={split}
+        // Posts are prose; past ~800px lines get too long to read. The rails
+        // take the extra width instead.
+        mainMax={800}
+        leftLabel="Your profile and people"
+        left={
+          <>
+            <ProfileSummaryCard />
+            <NewMembersCard onViewProfile={handleViewProfile} />
+          </>
+        }
+        rightLabel="Sponsored and suggestions"
+        right={
+          <>
+            {sponsored}
+            {!split && <ProfileSummaryCard />}
+            <RecentJobsCard />
+            {!split && <NewMembersCard onViewProfile={handleViewProfile} />}
+          </>
+        }
       >
-        <div>
-          <CreatePostForm onCreate={createPost} />
-
+          <PageHeading title="Community Feed" size="compact" />
+  
+          {!withRail && <div className="mb-4 empty:hidden">{sponsored}</div>}
+  
+          <div className="mb-4">
+            <CreatePostForm onCreate={createPost} />
+          </div>
+  
           {loading ? (
             <PostSkeleton />
+          ) : postsError ? (
+            <ListError what="the feed" message={postsError} onRetry={reloadPosts} />
           ) : posts.length === 0 ? (
-            <p className="text-gray-400">
-              No posts yet. Be the first to share something!
-            </p>
+            <EmptyState icon="chat" title="No posts yet">
+              Share an update or a job opportunity to get the conversation
+              started.
+            </EmptyState>
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-3">
               {posts.map((post) => (
                 <PostCard
                   key={post.id}
@@ -93,7 +148,7 @@ export default function FeedPage() {
                   onViewProfile={handleViewProfile}
                 />
               ))}
-
+  
               <LoadMore
                 hasMore={hasMore}
                 loadingMore={loadingMore}
@@ -102,8 +157,7 @@ export default function FeedPage() {
               />
             </div>
           )}
-        </div>
-      </PageWithSponsoredRail>
+      </RailColumns>
 
       {previewUserId && (
         <ProfilePreviewModal
@@ -111,6 +165,6 @@ export default function FeedPage() {
           onClose={() => setPreviewUserId(null)}
         />
       )}
-    </div>
+    </>
   );
 }

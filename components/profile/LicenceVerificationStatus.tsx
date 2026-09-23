@@ -41,7 +41,7 @@ export function LicenceVerificationStatus() {
     status.tone === "good"
       ? "border-accent/50 bg-accent/5"
       : status.tone === "action"
-        ? "border-amber-900 bg-amber-950/30"
+        ? "border-accent-2/50 bg-accent-2/10"
         : "border-zinc-700 bg-zinc-900/40";
 
   return (

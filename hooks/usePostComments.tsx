@@ -26,7 +26,7 @@ export function usePostComments(postId: string) {
 
     const { data, error } = await supabase
       .from("post_comments")
-      .select("id, post_id, author_id, content, created_at, author:profiles(full_name, signup_type)")
+      .select("id, post_id, author_id, content, created_at, author:profiles!post_comments_author_id_fkey(full_name, signup_type)")
       .eq("post_id", postId)
       .order("created_at", { ascending: true });
 
@@ -74,6 +74,7 @@ export function usePostComments(postId: string) {
     }
 
     setComments((prev) => prev.filter((c) => c.id !== id));
+    toast.success("Comment deleted.");
   }
 
   return { comments, loading, addComment, deleteComment, reload: load };

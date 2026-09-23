@@ -41,7 +41,7 @@ export function useAdRequests() {
         // review_notes do now exist — the baseline confirms both — but naming
         // columns here 400s the whole admin tab the moment one is missing, so
         // the wildcard stays as insurance against the next additive column.
-        .select("*, profiles!submitted_by(full_name, profile_number, signup_type)")
+        .select("*, profiles!sponsored_listings_submitted_by_fkey(full_name, profile_number, signup_type)")
         .eq("status", "pending")
         // An unpaid campaign never reaches review. A brand that starts checkout
         // and closes the tab leaves a pending row behind; it is theirs to finish
@@ -52,7 +52,7 @@ export function useAdRequests() {
         // /dashboard/requests submissions carry payment_status 'n/a' and must
         // still appear here.
         .neq("payment_status", "unpaid")
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true }).order("id", { ascending: true });
 
       if (limit) query = query.range(offset, offset + limit - 1);
 

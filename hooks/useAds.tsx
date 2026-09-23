@@ -67,7 +67,7 @@ export function useAds(filters?: {
       let query = supabase
         .from("sponsored_listings")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }).order("id", { ascending: false });
 
       if (submittedBy) query = query.eq("submitted_by", submittedBy);
       if (source) query = query.eq("source", source);
@@ -222,6 +222,7 @@ export function useAds(filters?: {
     setAds((prev) =>
       prev.map((ad) => (ad.id === id ? { ...ad, is_active: !currentValue } : ad))
     );
+    toast.success(currentValue ? "Ad deactivated." : "Ad activated.");
   }
 
   async function deleteAd(id: string) {
@@ -233,6 +234,7 @@ export function useAds(filters?: {
     }
 
     setAds((prev) => prev.filter((ad) => ad.id !== id));
+    toast.success("Ad deleted.");
   }
 
   return {

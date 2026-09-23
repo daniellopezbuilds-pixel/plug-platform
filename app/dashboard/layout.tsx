@@ -10,6 +10,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { NotificationToaster } from "@/components/layout/NotificationToaster";
+import { DashboardProfileProvider } from "@/components/layout/DashboardProfile";
 import { availableModes } from "@/lib/accountModes";
 import { ScreenLoader } from "@/components/ui/Loading";
 
@@ -169,26 +170,21 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
           page needs its own scroll container. */}
       <section className="flex-1 overflow-y-auto scrollbar-dark">
         {/*
-          Centred content column, applied once so no page carries its own
-          wrapper.
+          FULL WIDTH, NOT A CENTRED BOX. This used to be capped at 1600px and
+          centred, which left empty margins either side on a wide screen — on
+          Jobs the filter rail started well in from the sidebar and the right
+          rail stopped well short of the edge. Content now fills the section
+          with a fixed gutter: 16px on a phone, 32px from lg.
 
-          1600px, RAISED FROM 1200. At 1920 the shell spends 256px on the
-          sidebar, leaving 1664 for this section; a 1200px cap left ~230px of
-          dead space on each side, which read as sparse once there was real
-          content in the pages rather than one or two rows. 1600 fills that
-          with 32px of breathing room either side and still stops a 2560
-          monitor from running text to the edges.
+          WIDER IS NOT AUTOMATICALLY BETTER, but the fix is per column, not a
+          box round the page. A reading column (a post, a message thread) caps
+          itself through the `mainMax` prop on RailColumns, and the rails
+          beside it take up the slack — so the page still fills the screen
+          while the text stays a readable width.
 
-          WIDER IS NOT AUTOMATICALLY BETTER, and the cap alone does not make a
-          page good. A single column stretched to 1500px reads worse than one
-          at 700. Pages spend the extra width by adding columns — a rail, or
-          more cards per row — and reading surfaces cap themselves through
-          PageWithRail's `measure`. That component is where the decision lives.
-
-          Padding is tighter under lg — a phone cannot spare 40px a side. The
-          messages page sizes its chat panel against the VERTICAL padding here
-          AND against the mobile top bar height; see lib/layout.tsx. px is free
-          to change, py is not.
+          The messages page sizes its chat panel against the VERTICAL padding
+          here AND against the mobile top bar height; see lib/layout.tsx. px is
+          free to change; py is not, without changing that file to match.
         */}
         {/* Renders nothing. Inside DashboardBody so it is past AuthGuard and
             therefore only ever mounted for a signed-in user. It and the bell
@@ -196,8 +192,8 @@ function DashboardBody({ children }: { children: React.ReactNode }) {
             at module level for exactly this reason — see that hook. */}
         <NotificationToaster />
 
-        <div className="mx-auto w-full max-w-[1600px] px-4 py-6 lg:px-10 lg:py-10">
-          {children}
+        <div className="w-full px-4 py-6 lg:px-8 lg:py-8">
+          <DashboardProfileProvider value={profile}>{children}</DashboardProfileProvider>
         </div>
       </section>
     </main>

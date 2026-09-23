@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactionType, PostReactionSummary } from "@/hooks/usePostReactions";
+import { Icon } from "@/components/ui/Icon";
 
 const reactionConfig: Record<ReactionType, { label: string; emoji: string }> = {
   like: { label: "Like", emoji: "👍" },
@@ -48,8 +49,12 @@ export function ReactionBar({
   );
 
   return (
-    <div className="relative flex items-center gap-3">
-      <div className="relative" ref={containerRef}>
+    <div className="relative flex items-center gap-1">
+      {/* Like and the picker toggle are one segmented control: two 44px
+          targets side by side. The toggle used to be a 16px circle
+          overlapping the corner of the Like button — too small to hit on a
+          phone, and it sat on top of the thing it was not. */}
+      <div className="relative flex items-center" ref={containerRef}>
         <button
           onClick={() => {
             if (summary.userReaction) {
@@ -62,10 +67,8 @@ export function ReactionBar({
             e.preventDefault();
             setPickerOpen(!pickerOpen);
           }}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm border transition ${
-            summary.userReaction
-              ? "bg-transparent border-accent text-white"
-              : "bg-zinc-800 border-zinc-700 text-gray-400 hover:text-white"
+          className={`inline-flex min-h-11 items-center gap-1.5 rounded-l-lg pl-3 pr-2 text-sm font-semibold transition hover:bg-zinc-900 ${
+            summary.userReaction ? "text-accent" : "text-gray-400 hover:text-white"
           }`}
         >
           {summary.userReaction
@@ -75,14 +78,16 @@ export function ReactionBar({
 
         <button
           onClick={() => setPickerOpen(!pickerOpen)}
-          className="absolute -top-1 -right-1 w-4 h-4 bg-zinc-800 rounded-full text-[10px] flex items-center justify-center text-gray-300 hover:bg-zinc-800"
+          aria-label="More reactions"
+          aria-expanded={pickerOpen}
           title="More reactions"
+          className="flex min-h-11 w-8 items-center justify-center rounded-r-lg text-gray-500 transition hover:bg-zinc-900 hover:text-white"
         >
-          ▾
+          <Icon name="chevronDown" className="h-4 w-4" />
         </button>
 
         {pickerOpen && (
-          <div className="absolute bottom-full left-0 mb-2 bg-zinc-800 border border-zinc-700 rounded-lg p-2 flex gap-1 z-10 shadow-lg">
+          <div className="absolute bottom-full left-0 mb-2 bg-zinc-900 border border-zinc-700 rounded-lg p-1 flex gap-1 z-10">
             {(Object.keys(reactionConfig) as ReactionType[]).map((type) => (
               <button
                 key={type}
@@ -91,7 +96,8 @@ export function ReactionBar({
                   setPickerOpen(false);
                 }}
                 title={reactionConfig[type].label}
-                className="text-2xl hover:scale-125 transition-transform p-1.5 rounded hover:bg-zinc-800"
+                aria-label={reactionConfig[type].label}
+                className="flex h-11 w-11 items-center justify-center rounded-md text-2xl transition-transform hover:scale-110 hover:bg-zinc-800"
               >
                 {reactionConfig[type].emoji}
               </button>
@@ -104,7 +110,8 @@ export function ReactionBar({
         <div className="relative" ref={listRef}>
           <button
             onClick={() => setListOpen(!listOpen)}
-            className="flex items-center gap-1 text-sm text-gray-400 hover:text-white transition"
+            aria-label={`${summary.total} reactions — see who reacted`}
+            className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-gray-400 transition hover:bg-zinc-900 hover:text-white"
           >
             {activeReactions.map((type) => (
               <span key={type}>{reactionConfig[type].emoji}</span>
@@ -113,7 +120,7 @@ export function ReactionBar({
           </button>
 
           {listOpen && (
-            <div className="absolute bottom-full left-0 mb-2 bg-zinc-800 border border-zinc-700 rounded-lg p-2 min-w-[180px] max-h-48 overflow-y-auto scrollbar-dark z-10 shadow-lg space-y-1">
+            <div className="absolute bottom-full left-0 mb-2 bg-zinc-900 border border-zinc-700 rounded-lg p-1 min-w-[180px] max-h-48 overflow-y-auto scrollbar-dark z-10 space-y-0.5">
               {summary.reactors.map((reactor, i) => {
                 const isMe = reactor.id === currentUserId;
                 const name = isMe ? "You" : reactor.full_name || "User";
@@ -127,7 +134,7 @@ export function ReactionBar({
                         setListOpen(false);
                       }
                     }}
-                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-gray-200 text-left ${
+                    className={`w-full min-h-11 flex items-center gap-2 px-2 rounded text-sm text-gray-200 text-left ${
                       isMe ? "cursor-default" : "hover:bg-zinc-800"
                     }`}
                   >

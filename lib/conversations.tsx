@@ -124,3 +124,48 @@ export async function openJobConversation(options: {
 
   return { conversationId: conv.id as string, error: null };
 }
+
+/**
+ * Open the one-to-one conversation with this person, creating it if there
+ * isn't one, and return its id.
+ *
+ * The same as openJobConversation minus the job: for a Message button on a
+ * person rather than on an application. Creating the participant rows is
+ * still checked by can_message() in RLS, so this only succeeds for someone
+ * the viewer may message — a connection, or the other side of an application.
+ */
+export async function openDirectConversation(options: {
+  userId: string;
+  otherUserId: string;
+}): Promise<{ conversationId: string | null; error: string | null }> {
+  const { userId, otherUserId } = options;
+
+  const existingId = await findExistingOneOnOne(userId, otherUserId);
+  if (existingId) return { conversationId: existingId, error: null };
+
+  const { data: conv, error: convError } = await supabase
+    .from("conversations")
+    .insert([{ created_by: userId, is_group: false }])
+    .select("id")
+    .single();
+
+  if (convError || !conv) {
+    return {
+      conversationId: null,
+      error: convError?.message ?? "Could not start the conversation.",
+    };
+  }
+
+  const { error: participantsError } = await supabase
+    .from("conversation_participants")
+    .insert([
+      { conversation_id: conv.id, user_id: userId },
+      { conversation_id: conv.id, user_id: otherUserId },
+    ]);
+
+  if (participantsError) {
+    return { conversationId: null, error: participantsError.message };
+  }
+
+  return { conversationId: conv.id as string, error: null };
+}

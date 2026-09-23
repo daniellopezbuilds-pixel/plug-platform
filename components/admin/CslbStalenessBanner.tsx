@@ -28,14 +28,14 @@ export function CslbStalenessBanner({ info }: { info: CslbImportInfo }) {
   if (!neverImported && !stale) return null;
 
   return (
-    <div className="border border-amber-900 bg-amber-950 rounded-lg p-4 mb-4">
-      <p className="text-amber-200 font-semibold">
+    <div className="border border-accent-2/50 bg-accent-2/10 rounded-lg p-4 mb-4">
+      <p className="text-accent-2-soft font-semibold">
         {neverImported
           ? "No CSLB file has been imported."
           : `CSLB data is ${info.ageDays} days old — download and import the latest file.`}
       </p>
 
-      <p className="text-amber-200/80 text-sm mt-1">
+      <p className="text-gray-300 text-sm mt-1">
         {neverImported
           ? "Every C-10 signup is going straight to this queue because there is nothing to check licences against."
           : "Automatic verification is paused past 30 days, so new C-10 signups are arriving here instead of verifying themselves."}{" "}
@@ -43,12 +43,12 @@ export function CslbStalenessBanner({ info }: { info: CslbImportInfo }) {
         its own licence date, whatever the age of the file.
       </p>
 
-      <p className="text-amber-200/60 text-sm mt-2 font-mono">
+      <p className="text-gray-400 text-sm mt-2 font-mono">
         node --env-file=.env.local scripts/import-cslb.mjs --as-of &lt;file date&gt;
       </p>
 
       {info.sourceAsOf && (
-        <p className="text-amber-200/60 text-xs mt-2">
+        <p className="text-gray-400 text-xs mt-2">
           Current import: {info.rowCount?.toLocaleString()} C-10 licences, file
           dated {info.sourceAsOf}.
         </p>

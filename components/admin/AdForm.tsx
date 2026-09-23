@@ -257,7 +257,7 @@ export function AdForm({
         </p>
       )}
 
-      {fileInfo && <p className="text-sm text-green-400 mb-3">✓ {fileInfo}</p>}
+      {fileInfo && <p className="text-sm text-gray-300 mb-3"><span className="text-accent">✓</span> {fileInfo}</p>}
 
       {formError && (
         <p className="text-sm text-rose-400 mb-3 bg-rose-950/40 border border-rose-900 rounded p-2">

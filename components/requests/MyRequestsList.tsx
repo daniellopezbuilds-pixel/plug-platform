@@ -1,21 +1,27 @@
 "use client";
 
 import type { MyRequest } from "@/hooks/useMyRequests";
-import { InlineLoader } from "@/components/ui/Loading";
+import { RailCard, RailSkeleton } from "@/components/layout/RailCard";
+import { timeAgo } from "@/lib/relativeTime";
 
 const typeLabels: Record<MyRequest["type"], string> = {
-  employer_verification: "Employer Verification",
-  union_verification: "Union Verification",
-  ad_request: "Ad Request",
-  general_concern: "General Concern",
+  employer_verification: "Employer verification",
+  union_verification: "Union verification",
+  ad_request: "Ad request",
+  general_concern: "General concern",
 };
 
+/**
+ * THEME COLOURS. Approved and resolved were raw green. A finished-in-your-
+ * favour request is now the orange accent; rejected keeps rose, the palette's
+ * one error colour, quietly (outline only); pending and dismissed are neutral.
+ */
 const statusStyles: Record<MyRequest["status"], string> = {
-  pending: "bg-zinc-800/60 text-gray-300 border-zinc-700",
-  approved: "bg-green-950 text-green-400 border-green-800",
-  rejected: "bg-rose-950 text-rose-400 border-rose-800",
-  resolved: "bg-green-950 text-green-400 border-green-800",
-  dismissed: "bg-zinc-800 text-gray-400 border-zinc-700",
+  pending: "border-zinc-700 text-gray-300",
+  approved: "border-accent/60 bg-accent/10 text-accent",
+  rejected: "border-rose-900 text-rose-400",
+  resolved: "border-accent/60 bg-accent/10 text-accent",
+  dismissed: "border-zinc-800 text-gray-500",
 };
 
 const statusLabels: Record<MyRequest["status"], string> = {
@@ -26,6 +32,14 @@ const statusLabels: Record<MyRequest["status"], string> = {
   dismissed: "Dismissed",
 };
 
+/**
+ * Your requests and where they stand.
+ *
+ * Beside the form rather than on a tab of its own: whether your last request
+ * is still pending is exactly what you want to know while filing the next
+ * one. The help-centre pattern (Stripe, Zendesk) — pick a type, fill it in,
+ * with your history in view.
+ */
 export function MyRequestsList({
   requests,
   loading,
@@ -33,40 +47,35 @@ export function MyRequestsList({
   requests: MyRequest[];
   loading: boolean;
 }) {
-  if (loading) {
-    return <InlineLoader message="Loading your requests" />;
-  }
-
-  if (requests.length === 0) {
-    return <p className="text-gray-400">You haven't submitted any requests yet.</p>;
-  }
-
   return (
-    <div className="space-y-3">
-      {requests.map((request) => (
-        <div
-          key={`${request.type}-${request.id}`}
-          className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 flex items-center justify-between"
-        >
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">
-              {typeLabels[request.type]}
-            </p>
-            <h4 className="text-white font-semibold">{request.title}</h4>
-            {request.created_at && (
-              <p className="text-xs text-gray-400 mt-1">
-                Submitted {new Date(request.created_at).toLocaleDateString()}
-              </p>
-            )}
-          </div>
-
-          <span
-            className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[request.status]}`}
-          >
-            {statusLabels[request.status]}
-          </span>
-        </div>
-      ))}
-    </div>
+    <RailCard title="Your requests">
+      {loading ? (
+        <RailSkeleton rows={3} />
+      ) : requests.length === 0 ? (
+        <p className="px-4 py-4 text-sm text-gray-400">
+          Nothing submitted yet. Requests you send appear here with their
+          status.
+        </p>
+      ) : (
+        <ul className="divide-y divide-zinc-800">
+          {requests.map((request) => (
+            <li key={`${request.type}-${request.id}`} className="flex items-start gap-3 px-4 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-gray-500">{typeLabels[request.type]}</p>
+                <p className="truncate text-sm font-semibold text-white">{request.title}</p>
+                {request.created_at && (
+                  <p className="text-xs text-gray-500">Sent {timeAgo(request.created_at)}</p>
+                )}
+              </div>
+              <span
+                className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusStyles[request.status]}`}
+              >
+                {statusLabels[request.status]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </RailCard>
   );
 }

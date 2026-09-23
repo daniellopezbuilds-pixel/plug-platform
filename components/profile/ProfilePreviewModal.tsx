@@ -116,7 +116,7 @@ export function ProfilePreviewModal({
 
             {isEmployer && employerVerified && (
               <div className="mt-3">
-                <span className="bg-green-950 text-green-400 border border-green-800 px-3 py-1 rounded-full text-xs font-semibold">
+                <span className="bg-accent/10 text-accent border border-accent/60 px-3 py-1 rounded-full text-xs font-semibold">
                   Verified Employer
                 </span>
               </div>

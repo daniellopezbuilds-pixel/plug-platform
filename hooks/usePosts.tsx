@@ -22,7 +22,7 @@ export type Post = {
 };
 
 const COLUMNS =
-  "id, author_id, post_type, content, job_title, job_location, created_at, author:profiles(full_name, trade, company_logo_path, signup_type)";
+  "id, author_id, post_type, content, job_title, job_location, created_at, author:profiles!posts_author_id_fkey(full_name, trade, company_logo_path, signup_type)";
 
 /**
  * 10: about two screens of feed, and the ad rail places a card every fifth
@@ -51,7 +51,7 @@ export function usePosts() {
       let query = supabase
         .from("posts")
         .select(COLUMNS)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }).order("id", { ascending: false });
 
       if (limit) query = query.range(offset, offset + limit - 1);
 
@@ -69,6 +69,7 @@ export function usePosts() {
     hasMore,
     loadMore,
     reload: load,
+    error,
   } = usePagedList<Post>({
     pageSize: PAGE_SIZE,
     fetchPage,
@@ -110,6 +111,7 @@ export function usePosts() {
     }
 
     setPosts((prev) => prev.filter((p) => p.id !== id));
+    toast.success("Post deleted.");
   }
 
   return {
@@ -122,5 +124,6 @@ export function usePosts() {
     createPost,
     deletePost,
     reload: load,
+    error,
   };
 }

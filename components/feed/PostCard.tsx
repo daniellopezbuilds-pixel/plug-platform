@@ -4,9 +4,28 @@ import { useState } from "react";
 import { ReactionBar } from "./ReactionBar";
 import { CommentSection } from "./CommentSection";
 import { NameMeta } from "@/components/ui/NameMeta";
+import { Avatar } from "@/components/ui/Avatar";
+import { Icon } from "@/components/ui/Icon";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { timeAgo } from "@/lib/relativeTime";
 import type { Post } from "@/hooks/usePosts";
 import type { PostReactionSummary, ReactionType } from "@/hooks/usePostReactions";
 
+/**
+ * One post.
+ *
+ * DENSER THAN IT WAS, ON PURPOSE. 20px of padding on every side and 20px
+ * between cards meant three short posts filled a laptop screen. The padding
+ * is 16px, the gap between cards 12px, and the author line is one row — photo,
+ * name, trade, time — instead of a name stacked over a date.
+ *
+ * RELATIVE TIME, with the exact date on hover. "3h ago" is what a feed is
+ * scanned for; the full date is there for anyone who needs it.
+ *
+ * The action row is a separate band under a rule, so the post's own text
+ * ends cleanly and the controls read as controls. Every control in it is
+ * 44px tall.
+ */
 export function PostCard({
   post,
   currentUserId,
@@ -23,60 +42,97 @@ export function PostCard({
   onViewProfile: (userId: string) => void;
 }) {
   const [showComments, setShowComments] = useState(false);
+  const confirm = useConfirm();
+
+  async function handleDelete() {
+    const ok = await confirm({
+      title: "Delete this post?",
+      body: "It is removed from the feed for everyone, with its reactions and comments. This cannot be undone.",
+      confirmLabel: "Delete post",
+    });
+    if (ok) onDelete(post.id);
+  }
 
   const isMe = post.author_id === currentUserId;
+  const name = post.author?.full_name || "User";
+  const isJob = post.post_type === "job";
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
-      <div className="flex items-start justify-between mb-3">
-        <div>
+    <article className="rounded-xl border border-zinc-800 bg-zinc-950">
+      <div className="px-4 pt-3.5">
+        <div className="flex items-start gap-3">
           <button
+            type="button"
             onClick={() => onViewProfile(post.author_id)}
-            className="text-white font-semibold hover:underline"
+            className="shrink-0 rounded-full"
+            aria-label={`View ${name}'s profile`}
           >
-            {post.author?.full_name || "User"}
+            <Avatar name={name} photoPath={post.author?.company_logo_path} />
           </button>
-          <NameMeta
-            profileId={post.author_id}
-            signupType={post.author?.signup_type}
-            inline
-          />
-          {post.author?.trade && (
-            <span className="text-gray-400 font-normal text-sm"> · {post.author.trade}</span>
+
+          <div className="min-w-0 flex-1">
+            <p className="break-words leading-snug">
+              <button
+                type="button"
+                onClick={() => onViewProfile(post.author_id)}
+                className="font-semibold text-white hover:underline"
+              >
+                {name}
+              </button>
+              <NameMeta
+                profileId={post.author_id}
+                signupType={post.author?.signup_type}
+                inline
+              />
+            </p>
+            <p className="truncate text-xs text-gray-500">
+              {post.author?.trade && <>{post.author.trade} · </>}
+              <time
+                dateTime={post.created_at}
+                title={new Date(post.created_at).toLocaleString()}
+              >
+                {timeAgo(post.created_at)}
+              </time>
+            </p>
+          </div>
+
+          {isMe && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              aria-label="Delete post"
+              title="Delete post"
+              className="-mr-2 -mt-1.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-zinc-900 hover:text-rose-400"
+            >
+              <Icon name="trash" />
+            </button>
           )}
-          <p className="text-xs text-gray-400">
-            {new Date(post.created_at).toLocaleDateString()}
-          </p>
         </div>
 
-        {post.post_type === "job" && (
-          <span className="bg-transparent text-white border border-accent px-3 py-1 rounded-full text-xs font-semibold">
-            Job Opportunity
-          </span>
+        {isJob && (
+          <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+            <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-accent">
+              <Icon name="briefcase" className="h-3.5 w-3.5" />
+              Job opportunity
+            </p>
+            {post.job_title && (
+              <p className="break-words font-semibold text-white">{post.job_title}</p>
+            )}
+            {post.job_location && (
+              <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-gray-400">
+                <Icon name="mapPin" className="h-3.5 w-3.5 shrink-0" />
+                {post.job_location}
+              </p>
+            )}
+          </div>
         )}
 
-        {isMe && (
-          <button
-            onClick={() => onDelete(post.id)}
-            className="text-xs text-rose-400 hover:text-rose-300 ml-2"
-          >
-            Delete
-          </button>
-        )}
+        <p className="mt-2.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-gray-200">
+          {post.content}
+        </p>
       </div>
 
-      {post.post_type === "job" && post.job_title && (
-        <div className="mb-2">
-          <p className="text-white font-semibold">{post.job_title}</p>
-          {post.job_location && (
-            <p className="text-gray-400 text-sm">{post.job_location}</p>
-          )}
-        </div>
-      )}
-
-      <p className="text-gray-300 whitespace-pre-wrap mb-4">{post.content}</p>
-
-      <div className="flex items-center justify-between">
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-zinc-800/80 px-2 py-1">
         <ReactionBar
           summary={reactionSummary}
           currentUserId={currentUserId}
@@ -84,20 +140,27 @@ export function PostCard({
           onViewProfile={onViewProfile}
         />
         <button
+          type="button"
           onClick={() => setShowComments(!showComments)}
-          className="text-gray-400 hover:text-white text-sm font-semibold"
+          aria-expanded={showComments}
+          className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition hover:bg-zinc-900 ${
+            showComments ? "text-white" : "text-gray-400 hover:text-white"
+          }`}
         >
-          {showComments ? "Hide Comments" : "Comments"}
+          <Icon name="chat" className="h-5 w-5" />
+          {showComments ? "Hide comments" : "Comment"}
         </button>
       </div>
 
       {showComments && (
-        <CommentSection
-          postId={post.id}
-          currentUserId={currentUserId}
-          onViewProfile={onViewProfile}
-        />
+        <div className="border-t border-zinc-800/80 px-4 pb-3">
+          <CommentSection
+            postId={post.id}
+            currentUserId={currentUserId}
+            onViewProfile={onViewProfile}
+          />
+        </div>
       )}
-    </div>
+    </article>
   );
 }

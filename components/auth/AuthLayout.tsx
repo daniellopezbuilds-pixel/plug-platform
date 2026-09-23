@@ -1,4 +1,4 @@
-import { MarketingIcon } from "@/components/marketing/MarketingIcon";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 /**
  * The shell behind /login and /signup.
@@ -60,17 +60,21 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
 function BrandPanel() {
   return (
     <div className="text-center lg:text-left mb-8 lg:mb-0">
-      <span className="inline-flex h-12 w-12 lg:h-16 lg:w-16 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-950 text-accent">
-        <MarketingIcon name="bolt" className="w-6 h-6 lg:w-8 lg:h-8" />
-      </span>
+      {/* Two arrangements, because this element does two different jobs.
+          Under lg it is a header above a form, and the stacked logo would push
+          the form a screen down — so it is the horizontal one. At lg it is the
+          left half of the page and has to hold that half on its own, which is
+          what the stacked logo, as drawn, is for.
 
-      {/* Three sizes, because this element does two different jobs. Under lg it
-          is a header above a form and stays at the size it has always been; at
-          lg it becomes the left half of the page and has to hold that half on
-          its own. leading-[1.05] stops the two lines drifting apart at the top
-          end. */}
-      <h1 className="mt-5 lg:mt-8 text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold leading-[1.05] text-balance">
-        Sparx Plug <span className="text-accent-2-soft">Ecosystem</span>
+          The <h1> wraps the images, so the page heading is the logo's alt
+          text plus "Ecosystem": "Sparx Plug Ecosystem". */}
+      <h1>
+        <span className="lg:hidden">
+          <BrandLogo size={44} eager />
+        </span>
+        <span className="hidden lg:inline-flex">
+          <BrandLogo variant="stacked" size={260} eager className="lg:items-start" />
+        </span>
       </h1>
 
       <p className="mt-3 lg:mt-6 font-technical text-[11px] sm:text-xs lg:text-sm tracking-[0.2em] uppercase text-gray-500">

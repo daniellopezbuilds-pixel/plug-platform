@@ -5,6 +5,9 @@ import { RoleSwitch } from "./RoleSwitch";
 import { NotificationBell } from "./NotificationBell";
 import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
 import { useSidebarCounts } from "@/hooks/useSidebarCounts";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import Link from "next/link";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import type { Mode } from "@/lib/accountModes";
 import { signupTypeLabel } from "@/lib/signupRoles";
@@ -56,6 +59,20 @@ export function Sidebar({
   onClose: () => void;
 }) {
   const unreadCount = useUnreadMessagesCount();
+  const confirm = useConfirm();
+
+  // Asked, not just done: a stray tap at the bottom of the drawer on a phone
+  // used to sign someone out mid-task. Primary tone — it is not destructive,
+  // and nothing is lost by it.
+  async function handleLogout() {
+    const ok = await confirm({
+      title: "Log out of Sparx Plug?",
+      body: "You will need your email and password to sign back in on this device.",
+      confirmLabel: "Log out",
+      tone: "primary",
+    });
+    if (ok) onLogout();
+  }
   const sidebarCounts = useSidebarCounts();
 
   // Renders the Admin entry, and nothing else. This is a convenience, NOT a
@@ -123,10 +140,12 @@ export function Sidebar({
           width with a scrollbar. */}
       <div className="shrink-0">
         <div className="flex items-start justify-between mb-10 pr-12 lg:pr-0">
-          <h1 className="text-3xl font-bold leading-tight">
-            Sparx Plug
-            <span className="block text-lg text-accent-2-soft">Ecosystem</span>
-          </h1>
+          {/* The logo, not an <h1>: every page has its own heading, and a
+              second h1 in the sidebar made the outline start with the brand
+              on every page. */}
+          <Link href="/dashboard" onClick={onClose} className="rounded-lg" aria-label="Sparx Plug Ecosystem — dashboard">
+            <BrandLogo size={36} eager />
+          </Link>
           <div className="hidden lg:block">
             <NotificationBell />
           </div>
@@ -243,7 +262,7 @@ export function Sidebar({
             {typeLabel && ` · ${typeLabel}`}
           </p>
         </div>
-        <button onClick={onLogout} className="flex items-center min-h-11 lg:min-h-0 text-rose-400 hover:text-rose-300 transition">
+        <button onClick={handleLogout} className="flex items-center min-h-11 lg:min-h-0 text-rose-400 hover:text-rose-300 transition">
           Logout
         </button>
       </div>

@@ -18,7 +18,9 @@ import { AdListItem } from "@/components/admin/AdListItem";
 import { AdRequestCard } from "@/components/admin/AdRequestCard";
 import { GeneralRequestCard } from "@/components/admin/GeneralRequestCard";
 import { PageHeading } from "@/components/layout/PageHeading";
-import { Tabs } from "@/components/ui/Tabs";
+import { RailColumns, useRailBreakpoints } from "@/components/layout/RailColumns";
+import { FIELD_CONTROL } from "@/components/ui/Form";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { LoadMore } from "@/components/ui/LoadMore";
 import { PageLoader } from "@/components/ui/Loading";
 import { InlineLoader } from "@/components/ui/Loading";
@@ -127,6 +129,7 @@ export default function AdminPage() {
    * it avoids querying for a visitor who is about to be refused.
    */
   const { counts } = useAdminCounts(isAdmin);
+  const { withRail } = useRailBreakpoints();
 
   if (loading) {
     return <PageLoader message="Checking permissions" />;
@@ -153,8 +156,22 @@ export default function AdminPage() {
   const anyRequestsLoading =
     loadingEmployers || loadingUnionWorkers || loadingAdRequests || loadingGeneralRequests;
 
+  const queues: { key: AdminTab; label: string; icon: IconName; count?: number }[] = [
+    { key: "requests", label: "All requests", icon: "inbox", count: totalPendingRequests },
+    { key: "employers", label: "Employer verification", icon: "briefcase", count: counts.employers },
+    { key: "union", label: "Union verification", icon: "userGroup", count: counts.union },
+    { key: "badges", label: "Licence reviews", icon: "shieldCheck", count: counts.badges },
+    { key: "ad-requests", label: "Advertisement requests", icon: "megaphone", count: counts.brandAdRequests },
+    { key: "ads", label: "Ads", icon: "photo" },
+  ];
+
   return (
-    <div className="max-w-4xl mx-auto">
+    <RailColumns
+      withRail={withRail}
+      split={withRail}
+      leftLabel="Queues"
+      left={<QueueNav queues={queues} active={activeTab} onChange={setActiveTab} />}
+    >
       {/* THE ONE NUMBER AN ADMIN NEEDS BEFORE OPENING ANYTHING: is there work?
           Distinct items, not the sum of the tab badges — All Requests already
           aggregates four queues and the brand slice is part of a fifth, so
@@ -166,6 +183,7 @@ export default function AdminPage() {
           name. */}
       <PageHeading
         title="Admin Panel"
+        size="compact"
         actions={
           counts.total > 0 ? (
             <span className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent">
@@ -183,25 +201,29 @@ export default function AdminPage() {
         }
       />
 
-      {/* Counts live on the tab defs rather than in the markup, so the strip is
-          data and the component that draws it is shared with the profile
-          editor. See components/ui/Tabs.tsx. */}
-      <Tabs
-        tabs={[
-          { key: "requests", label: "All Requests", badge: totalPendingRequests },
-          { key: "employers", label: "Employer Verification", badge: counts.employers },
-          { key: "union", label: "Union Verification", badge: counts.union },
-          { key: "badges", label: "Badge Requests", badge: counts.badges },
-          {
-            key: "ad-requests",
-            label: "Advertisement Requests",
-            badge: counts.brandAdRequests,
-          },
-          { key: "ads", label: "Ads" },
-        ]}
-        active={activeTab}
-        onChange={setActiveTab}
-      />
+      {/* Under 1280 the queue list is not on screen, so the queues are a
+          select — six tabs with badges used to wrap or scroll sideways on a
+          phone, hiding the counts that are the point of them. */}
+      {!withRail && (
+        <div className="mb-4">
+          <label htmlFor="admin-queue" className="sr-only">
+            Queue
+          </label>
+          <select
+            id="admin-queue"
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as AdminTab)}
+            className={FIELD_CONTROL}
+          >
+            {queues.map((q) => (
+              <option key={q.key} value={q.key}>
+                {q.label}
+                {q.count ? ` (${q.count})` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {activeTab === "requests" && (
         <div className="space-y-8">
@@ -216,7 +238,7 @@ export default function AdminPage() {
               <h3 className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-3">
                 Employer Verifications
               </h3>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 items-start gap-3 @5xl:grid-cols-2">
                 {pendingEmployers.map((employer) => (
                   <EmployerVerificationCard
                     key={employer.document_id}
@@ -234,7 +256,7 @@ export default function AdminPage() {
               <h3 className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-3">
                 Union Verifications
               </h3>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 items-start gap-3 @5xl:grid-cols-2">
                 {pendingUnionWorkers.map((worker) => (
                   <UnionVerificationCard
                     key={worker.id}
@@ -252,7 +274,7 @@ export default function AdminPage() {
               <h3 className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-3">
                 Ad Requests
               </h3>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 items-start gap-3 @5xl:grid-cols-2">
                 {pendingAdRequests.map((request) => (
                   <AdRequestCard
                     key={request.id}
@@ -270,7 +292,7 @@ export default function AdminPage() {
               <h3 className="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-3">
                 General Concerns
               </h3>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 items-start gap-3 @5xl:grid-cols-2">
                 {pendingGeneralRequests.map((request) => (
                   <GeneralRequestCard
                     key={request.id}
@@ -286,7 +308,7 @@ export default function AdminPage() {
       )}
 
       {activeTab === "employers" && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {loadingEmployers && <InlineLoader message="Loading verifications" />}
           {!loadingEmployers && pendingEmployers.length === 0 && (
             <p className="text-gray-400">No employers awaiting verification.</p>
@@ -311,7 +333,7 @@ export default function AdminPage() {
       )}
 
       {activeTab === "union" && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {loadingUnionWorkers && <InlineLoader message="Loading verifications" />}
           {!loadingUnionWorkers && pendingUnionWorkers.length === 0 && (
             <p className="text-gray-400">No workers awaiting union verification.</p>
@@ -342,12 +364,12 @@ export default function AdminPage() {
               means no new contractor can verify. */}
           <CslbStalenessBanner info={cslbImportInfo} />
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {loadingBadgeRequests && (
               <InlineLoader message="Loading badge requests" />
             )}
             {!loadingBadgeRequests && badgeRequestsError && (
-              <p className="text-red-300">
+              <p className="text-rose-300">
                 Could not load the review queue: {badgeRequestsError}
               </p>
             )}
@@ -376,7 +398,7 @@ export default function AdminPage() {
       )}
 
       {activeTab === "ad-requests" && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {loadingAdRequests && <InlineLoader message="Loading ad requests" />}
           {!loadingAdRequests && brandAdRequests.length === 0 && (
             <p className="text-gray-400">No ads waiting for review.</p>
@@ -421,6 +443,53 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-    </div>
+    </RailColumns>
+  );
+}
+/**
+ * The admin queues as a list, with the live count beside each.
+ *
+ * Replaces the tab strip from 1280px. A queue list reads as a to-do list —
+ * the triage layout of Zendesk views and GitHub notifications — which is what
+ * admin work is: clearing queues, not browsing them. The counts are the same
+ * realtime numbers the tab badges showed (useAdminCounts).
+ */
+function QueueNav({
+  queues,
+  active,
+  onChange,
+}: {
+  queues: { key: AdminTab; label: string; icon: IconName; count?: number }[];
+  active: AdminTab;
+  onChange: (key: AdminTab) => void;
+}) {
+  return (
+    <nav aria-label="Admin queues" className="rounded-xl border border-zinc-800 bg-zinc-950 p-1.5">
+      <ul className="space-y-0.5">
+        {queues.map((q) => {
+          const selected = q.key === active;
+          return (
+            <li key={q.key}>
+              <button
+                type="button"
+                onClick={() => onChange(q.key)}
+                aria-current={selected ? "page" : undefined}
+                className={`flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-sm transition ${
+                  selected ? "bg-zinc-800 font-semibold text-white" : "text-gray-300 hover:bg-zinc-900"
+                }`}
+              >
+                <Icon name={q.icon} className={`h-4 w-4 shrink-0 ${selected ? "text-accent" : "text-gray-500"}`} />
+                <span className="min-w-0 flex-1 truncate">{q.label}</span>
+                {!!q.count && (
+                  <span className="shrink-0 rounded-full bg-accent-2 px-2 text-xs font-bold text-white">
+                    {q.count}
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }

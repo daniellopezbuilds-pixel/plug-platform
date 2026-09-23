@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Card } from "@/components/ui/Card";
+import { Icon } from "@/components/ui/Icon";
+import { timeAgo } from "@/lib/relativeTime";
 import { StatusBadge } from "./StatusBadge";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
@@ -10,6 +11,7 @@ import { MessageAboutJobButton } from "@/components/messaging/MessageAboutJobBut
 import { getResumeSignedUrl } from "@/lib/resume";
 import type { ApplicantWithJob } from "@/hooks/useApplicants";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 /**
  * One applicant, with enough on it to decide without leaving the page.
@@ -30,6 +32,9 @@ import { useToast } from "@/components/ui/Toast";
  * where a character count gives one line on one and half a paragraph on the
  * other. View profile is right there for the rest.
  */
+const SECONDARY =
+  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-zinc-700 px-3 text-sm font-semibold text-white transition hover:border-zinc-500 disabled:opacity-50";
+
 export function ApplicantCard({
   applicant,
   isUpdating,
@@ -44,6 +49,16 @@ export function ApplicantCard({
   onReviewed: () => void;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
+
+  async function handleDecline() {
+    const ok = await confirm({
+      title: `Decline ${profile?.full_name || "this applicant"}?`,
+      body: `They are told their application for ${applicant.jobs?.title ?? "this job"} was not successful. You can undo the decision, but not the notification.`,
+      confirmLabel: "Decline applicant",
+    });
+    if (ok) onUpdateStatus(applicant.id, "rejected");
+  }
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [openingResume, setOpeningResume] = useState(false);
@@ -70,10 +85,16 @@ export function ApplicantCard({
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  const decided = applicant.status === "accepted" || applicant.status === "rejected";
+
   return (
     <>
-      <Card>
-        <div className="flex items-start justify-between gap-3 mb-4">
+      <article
+        className={`flex h-full flex-col rounded-xl border bg-zinc-950 p-4 ${
+          applicant.status === "accepted" ? "border-accent/50" : "border-zinc-800"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <ProfileHeader
               size="compact"
@@ -94,94 +115,109 @@ export function ApplicantCard({
         </div>
 
         {profile?.bio && (
-          <p className="text-sm text-gray-300 whitespace-pre-wrap mb-4 line-clamp-3">
+          <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm text-gray-300">
             {profile.bio}
           </p>
         )}
 
-        <p className="text-gray-400 text-sm mb-4">
-          Applied for{" "}
-          <span className="font-semibold text-gray-300">
-            {applicant.jobs?.title ?? "a job"}
-          </span>{" "}
-          on {new Date(applicant.created_at).toLocaleDateString()}
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-gray-500">
+          <Icon name="briefcase" className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 truncate">
+            Applied for{" "}
+            <span className="font-semibold text-gray-300">{applicant.jobs?.title ?? "a job"}</span>{" "}
+            {timeAgo(applicant.created_at)}
+          </span>
         </p>
 
-        {/* LOOKING, then DECIDING, in two rows separated by a rule. Finding out
-            more is one question — "do I know enough yet" — and accept/reject is
-            a different one. A single row of five buttons put an irreversible
-            action beside a harmless one at the same weight. */}
-        <div className="flex flex-wrap gap-2 mb-3">
-          <button
-            type="button"
-            onClick={() => setShowProfile(true)}
-            className="bg-zinc-800 hover:bg-zinc-700 text-gray-200 px-4 py-2 rounded-lg text-sm font-semibold transition"
-          >
-            View profile
+        {/* LOOKING, then DECIDING, in two rows separated by a rule. Finding
+            out more is one question and accept/decline is a different one; a
+            single row put an irreversible action beside a harmless one at the
+            same weight. */}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={() => setShowProfile(true)} className={SECONDARY}>
+            <Icon name="user" />
+            Profile
           </button>
 
-          {/* Absent, not disabled, when there is no resume. A greyed-out button
-              reads as "broken"; nothing reads as "they did not upload one",
-              which the line below says outright. */}
+          {/* Absent, not disabled, when there is no resume — a greyed-out
+              button reads as broken. The line below says it outright. */}
           {profile?.resume_path && (
-            <button
-              type="button"
-              onClick={handleViewResume}
-              disabled={openingResume}
-              className="bg-zinc-800 hover:bg-zinc-700 text-gray-200 px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50"
-            >
-              {openingResume ? "Opening..." : "View resume"}
+            <button type="button" onClick={handleViewResume} disabled={openingResume} className={SECONDARY}>
+              <Icon name="document" />
+              {openingResume ? "Opening..." : "Résumé"}
             </button>
           )}
 
           <MessageAboutJobButton
             otherUserId={applicant.worker_id}
             jobId={applicant.jobs?.id}
+            className={SECONDARY}
           />
         </div>
 
-        {!profile?.resume_path && (
-          <p className="text-xs text-gray-500 mb-3">No resume uploaded.</p>
-        )}
+        {!profile?.resume_path && <p className="mt-2 text-xs text-gray-500">No résumé uploaded.</p>}
 
-        <div className="flex flex-wrap gap-3 border-t border-zinc-800 pt-4">
-          <button
-            onClick={() => onUpdateStatus(applicant.id, "accepted")}
-            disabled={isUpdating || applicant.status === "accepted"}
-            className="bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
-          >
-            Accept
-          </button>
-          <button
-            onClick={() => onUpdateStatus(applicant.id, "rejected")}
-            disabled={isUpdating || applicant.status === "rejected"}
-            className="bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
-          >
-            Reject
-          </button>
-          {applicant.status !== "pending" && (
-            <button
-              onClick={() => onUpdateStatus(applicant.id, "pending")}
-              disabled={isUpdating}
-              className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition"
-            >
-              Reset
-            </button>
-          )}
+        {/* THEME COLOURS. Accept and Reject were solid green and solid red.
+            Accept is the orange primary; Decline is an outline, because
+            turning someone down should not be the loudest thing on the card;
+            Undo puts a decision back to pending. */}
+        <div className="mt-auto pt-4">
+          <div className="flex flex-wrap items-center gap-2 border-t border-zinc-800 pt-3">
+            {!decided ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onUpdateStatus(applicant.id, "accepted")}
+                  disabled={isUpdating}
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-accent px-4 text-sm font-semibold text-on-accent transition hover:bg-accent-hover disabled:opacity-40"
+                >
+                  <Icon name="check" />
+                  Accept
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDecline}
+                  disabled={isUpdating}
+                  className="inline-flex min-h-11 items-center rounded-lg border border-zinc-700 px-4 text-sm font-semibold text-gray-300 transition hover:border-zinc-500 hover:text-white disabled:opacity-40"
+                >
+                  Decline
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="text-sm text-gray-400">
+                  {applicant.status === "accepted" ? "You accepted this applicant." : "You declined this applicant."}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onUpdateStatus(applicant.id, "pending")}
+                  disabled={isUpdating}
+                  className="min-h-11 rounded-lg px-3 text-sm font-semibold text-accent-2-soft transition hover:bg-zinc-900 hover:text-white disabled:opacity-40"
+                >
+                  Undo
+                </button>
+              </>
+            )}
+  
+            {applicant.status === "accepted" && !hasReviewed && !showReviewForm && (
+              <button
+                type="button"
+                onClick={() => setShowReviewForm(true)}
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-accent-2-soft transition hover:bg-zinc-900 hover:text-white"
+              >
+                <Icon name="star" />
+                Review worker
+              </button>
+            )}
+  
+            {applicant.status === "accepted" && hasReviewed && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-gray-400">
+                <Icon name="checkCircle" className="h-4 w-4 text-accent" />
+                Reviewed
+              </span>
+            )}
+          </div>
         </div>
-
-        {applicant.status === "accepted" && !hasReviewed && !showReviewForm && (
-          <button
-            onClick={() => setShowReviewForm(true)}
-            className="text-accent-2-soft hover:text-white text-sm font-semibold mt-4 block"
-          >
-            Leave a review →
-          </button>
-        )}
-
-        {applicant.status === "accepted" && hasReviewed && (
-          <p className="text-green-400 text-sm mt-4">You reviewed this worker ✓</p>
-        )}
 
         {showReviewForm && (
           <ReviewForm
@@ -193,7 +229,7 @@ export function ApplicantCard({
             }}
           />
         )}
-      </Card>
+      </article>
 
       {showProfile && (
         <ProfilePreviewModal

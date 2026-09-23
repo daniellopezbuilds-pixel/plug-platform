@@ -114,10 +114,18 @@ submitted_by   fk -> profiles.id
 created_at
 ```
 
-Two write paths exist. `hooks/useSubmitAdRequest.tsx` (user-facing, from
-`/dashboard/requests`) inserts `status: 'pending'`, `is_active: false`.
-`hooks/useAds.tsx` (admin, from `/dashboard/admin`) inserts
-`status: 'approved'`, `is_active: true` directly. Approval in
+Two write paths exist. The brand checkout (`/dashboard/branding-deals`, via
+`app/api/stripe/checkout/ad/route.tsx`) inserts `status: 'pending'` with
+`source: 'brand'` and a Stripe payment. `hooks/useAds.tsx` (admin, from
+`/dashboard/admin`) inserts `status: 'approved'`, `is_active: true` directly.
+
+A third path, `hooks/useSubmitAdRequest.tsx` — a free ad request on
+`/dashboard/requests` with no price, payment, term or capacity check — was
+**removed on 2026-09-23** so an ad cannot be obtained without going through
+branding deals. Neither project held any rows created by it. **The
+`sponsored_listings` INSERT policy still lets any user insert their own
+pending row with any payment fields**, so removing the form did not remove the
+capability; a policy or trigger change is needed for that. Approval in
 `hooks/useAdRequests.tsx` sets `status: 'approved'`, `is_active: true`, and
 overwrites dates plus the payment fields.
 
@@ -734,10 +742,10 @@ is acceptable, but the copy must not imply the targeting is active.
    write a second validator.
 6. **Review** — submit for approval, or save as draft.
 
-`components/requests/SubmitAdRequest.tsx` is the working precedent for sections
-2, 5 and 6 — same validation, same feedback pattern, same submit shape. Build
-the brand form as a superset of it rather than from scratch, and consider
-whether the two should converge on one component.
+The brand form on `/dashboard/branding-deals` covers sections 2, 5 and 6 today.
+This section used to point at `components/requests/SubmitAdRequest.tsx`, the
+free request form, as the precedent; that form was removed on 2026-09-23 — see
+section 0.4.
 
 ### Pricing
 

@@ -155,7 +155,7 @@ export function BadgesSection() {
                       status.tone === "good"
                         ? "border-accent text-gray-300"
                         : status.tone === "action"
-                          ? "border-amber-600 text-gray-300"
+                          ? "border-accent-2/60 text-gray-300"
                           : "border-zinc-700 text-gray-400"
                     }`}
                   >

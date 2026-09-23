@@ -1,16 +1,40 @@
 "use client";
 
+import { useState } from "react";
 import { useDirectory } from "@/hooks/useDirectory";
 import { useConnections } from "@/hooks/useConnections";
+import { usePublicAds } from "@/hooks/usePublicAds";
 import { ProfileCard } from "@/components/marketplace/ProfileCard";
-import { ConnectionRequestCard } from "@/components/marketplace/ConnectionRequestCard";
+import { ConnectionRequestsPanel } from "@/components/marketplace/ConnectionRequestCard";
+import { DirectoryFilters } from "@/components/marketplace/DirectoryFilters";
+import { SponsoredRail } from "@/components/ads/SponsoredRail";
 import { PageHeading } from "@/components/layout/PageHeading";
-import { PageWithSponsoredRail } from "@/components/ads/PageWithSponsoredRail";
+import { RailColumns, useRailBreakpoints } from "@/components/layout/RailColumns";
 import { CardSkeleton } from "@/components/ui/Skeleton";
-import { SectionHeading } from "@/components/ui/SectionHeading";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ListError } from "@/components/ui/ListError";
+import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
 import { LoadMore } from "@/components/ui/LoadMore";
 
+/**
+ * My Local Network.
+ *
+ * THE MAIN COLUMN IS THE PEOPLE, TWO ACROSS. Three across left each card
+ * stretched with its action stranded on a row of its own; two gives each
+ * person room without dead space. One column below 1024.
+ *
+ * CONNECTION REQUESTS SIT ABOVE THE CARDS, at every width. They briefly lived
+ * in the right rail, where a pending request read as a sidebar number rather
+ * than something waiting on you — they are the one thing on this page that
+ * needs an answer.
+ *
+ *   under 1280    heading, requests, sponsored slot, a Filters toggle, cards
+ *   1280-1719     requests + cards | sponsored, filters
+ *   1720 and up   filters (352px, so the union tiles fit) | requests + cards | sponsored
+ *
+ * Rails are sticky and scroll on their own — see RailColumns.
+ */
 export default function MarketplacePage() {
   const toast = useToast();
   const {
@@ -25,16 +49,26 @@ export default function MarketplacePage() {
     setLocation,
     unionStatus,
     setUnionStatus,
+    error: directoryError,
+    refresh: reloadDirectory,
   } = useDirectory();
 
   const {
     connectionMap,
     incomingRequests,
+    incomingTotal,
+    hasMoreIncoming,
+    loadingMoreIncoming,
+    loadMoreIncoming,
     loading: connectionsLoading,
     actingId,
     sendRequest,
     respondToRequest,
   } = useConnections();
+
+  const { ad, adIndex, adCount, selectAd, loading: adLoading } = usePublicAds("marketplace");
+  const { withRail, split } = useRailBreakpoints();
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   async function handleConnect(recipientId: string) {
     const { error } = await sendRequest(recipientId);
@@ -47,116 +81,168 @@ export default function MarketplacePage() {
     status: "accepted" | "rejected"
   ) {
     const { error } = await respondToRequest(connectionId, requesterId, status);
-    if (error) toast.error(error);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    toast.success(status === "accepted" ? "Connection accepted." : "Request declined.");
   }
 
   const loading = profilesLoading || connectionsLoading;
+  const activeFilters = [trade.trim(), location, unionStatus].filter(Boolean).length;
+
+  function clearFilters() {
+    setTrade("");
+    setLocation("");
+    setUnionStatus(null);
+  }
+
+  const sponsored = (
+    <SponsoredRail ad={ad} index={adIndex} total={adCount} onSelect={selectAd} loading={adLoading} />
+  );
+
+  const requests = (
+    <ConnectionRequestsPanel
+      requests={incomingRequests}
+      total={incomingTotal}
+      hasMore={hasMoreIncoming}
+      loadingMore={loadingMoreIncoming}
+      onLoadMore={loadMoreIncoming}
+      actingId={actingId}
+      onRespond={handleRespond}
+    />
+  );
+
+  const filters = (idPrefix: string) => (
+    <DirectoryFilters
+      idPrefix={idPrefix}
+      trade={trade}
+      onTrade={setTrade}
+      location={location}
+      onLocation={setLocation}
+      union={unionStatus}
+      onUnion={setUnionStatus}
+    />
+  );
 
   return (
-    <div>
+    <RailColumns
+      withRail={withRail}
+      split={split}
+      leftLabel="Filters"
+      left={filters("network-filter-left")}
+      leftWidth={352}
+      rightLabel="Sponsored and filters"
+      right={
+        <>
+          {sponsored}
+          {!split && filters("network-filter-right")}
+        </>
+      }
+    >
+      <PageHeading
+        title="My Local Network"
+        size="compact"
+        subtitle="Electricians, contractors and instructors on Sparx Plug."
+      />
 
-      <PageWithSponsoredRail
-        placement="marketplace"
-        heading={<PageHeading title="My Local Network" />}
-      >
-        {incomingRequests.length > 0 && (
-          <section className="mb-10">
-            <SectionHeading>
-              Connection Requests ({incomingRequests.length})
-            </SectionHeading>
-            {/* Same column rhythm as the profile grid below, so the two
-                sections line up rather than one being a list and the other a
-                grid. A request card is a name and two buttons — it does not
-                need a full row. */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-4">
-              {incomingRequests.map((req) => (
-                <ConnectionRequestCard
-                  key={req.id}
-                  request={req}
-                  isActing={actingId === req.id}
-                  onRespond={handleRespond}
-                />
-              ))}
-            </div>
-          </section>
-        )}
+      <div className="mb-4 empty:hidden">{requests}</div>
 
-        <section>
-          <SectionHeading>Discover</SectionHeading>
+      {!withRail && (
+        <>
+          <div className="mb-4 empty:hidden">{sponsored}</div>
 
-          <div className="flex flex-wrap gap-3 mb-8">
-            <input
-              type="text"
-              placeholder="Filter by trade"
-              value={trade}
-              onChange={(e) => setTrade(e.target.value)}
-              className="p-3 rounded bg-zinc-900 border border-zinc-800 text-white flex-1 min-w-[180px]"
-            />
-            <input
-              type="text"
-              placeholder="Filter by location"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="p-3 rounded bg-zinc-900 border border-zinc-800 text-white flex-1 min-w-[180px]"
-            />
-            <select
-              value={unionStatus || ""}
-              onChange={(e) => setUnionStatus(e.target.value || null)}
-              className="p-3 rounded bg-zinc-900 border border-zinc-800 text-white"
+          <div className="mb-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((open) => !open)}
+              aria-expanded={filtersOpen}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
+                activeFilters > 0 || filtersOpen
+                  ? "border-accent text-white"
+                  : "border-zinc-700 text-gray-300 hover:border-zinc-500"
+              }`}
             >
-              <option value="">Any Union Status</option>
-              <option value="union">Union</option>
-              <option value="non_union">Non-Union</option>
-            </select>
+              Filters
+              {activeFilters > 0 && (
+                <span className="rounded-full bg-accent px-1.5 text-xs font-bold text-on-accent">
+                  {activeFilters}
+                </span>
+              )}
+              <Icon
+                name="chevronDown"
+                className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {activeFilters > 0 && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="min-h-11 rounded-lg px-3 text-sm font-semibold text-accent-2-soft transition hover:text-white"
+              >
+                Clear
+              </button>
+            )}
           </div>
 
-          {loading ? (
-            <CardSkeleton />
-          ) : profiles.length === 0 ? (
-            <p className="text-gray-400">No profiles match these filters.</p>
-          ) : (
-            // Column count tracks how much width the rail leaves, which is not
-            // a straight line:
-            //   < lg    one column
-            //   lg–xl   two — the rail is stacked above, so this column is full
-            //           width (~688px at 1024, ~944px at 1279)
-            //   xl      back to one — the rail takes 320px and this column
-            //           drops to ~592px, where two cards would be ~280px each
-            //   2xl+    two again — ~848px at 1536, ~1168px at 1920
-            //
-            // lg rather than md for the two-column step. At exactly 768 the
-            // sidebar stops being a drawer and becomes a static 256px column,
-            // so the content area COLLAPSES from 343px to 432px-wide-total —
-            // the narrowest the page ever gets on a real device. Two cards
-            // there were about 204px each. That pinch is a property of the
-            // shell, not of this grid, but this grid should not make it worse.
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-6">
-              {profiles.map((profile) => (
-                <ProfileCard
-                  key={profile.id}
-                  profile={profile}
-                  connection={connectionMap.get(profile.id)}
-                  isActing={actingId === profile.id}
-                  onConnect={handleConnect}
-                />
-              ))}
-            </div>
-          )}
+          {filtersOpen && <div className="mb-4">{filters("network-filter-top")}</div>}
+        </>
+      )}
 
-          {/* Outside the grid: a sentinel that is a grid item would be laid
-              out as a column and could sit off to one side of the last row
-              rather than below it. */}
-          {!loading && profiles.length > 0 && (
-            <LoadMore
-              hasMore={hasMore}
-              loadingMore={loadingMore}
-              onLoadMore={loadMore}
-              endMessage="That's everyone nearby."
-              showEndMessage={profiles.length >= 24}
-            />
-          )}
-        </section>
-      </PageWithSponsoredRail>
-    </div>
+      {loading ? (
+        <CardSkeleton />
+      ) : directoryError ? (
+        <ListError what="the directory" message={directoryError} onRetry={reloadDirectory} />
+      ) : profiles.length === 0 ? (
+        activeFilters > 0 ? (
+          <EmptyState
+            icon="userGroup"
+            title="Nobody matches these filters"
+            action={
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="min-h-11 rounded-lg border border-zinc-700 px-5 font-semibold text-white transition hover:border-zinc-500"
+              >
+                Clear filters
+              </button>
+            }
+          >
+            Try a broader trade or a different city.
+          </EmptyState>
+        ) : (
+          <EmptyState icon="userGroup" title="No one here yet">
+            As electricians and contractors join Sparx Plug they appear here.
+          </EmptyState>
+        )
+      ) : (
+        <>
+          {/* Two across from 1024, one below — never three. */}
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {profiles.map((profile) => (
+              <ProfileCard
+                key={profile.id}
+                profile={profile}
+                connection={connectionMap.get(profile.id)}
+                isActing={actingId === profile.id}
+                onConnect={handleConnect}
+                onAccept={(connectionId, requesterId) =>
+                  handleRespond(connectionId, requesterId, "accepted")
+                }
+              />
+            ))}
+          </div>
+
+          {/* Outside the grid, so the sentinel is not laid out as a card. */}
+          <LoadMore
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            onLoadMore={loadMore}
+            endMessage="That's everyone nearby."
+            showEndMessage={profiles.length >= 24}
+          />
+        </>
+      )}
+    </RailColumns>
   );
 }

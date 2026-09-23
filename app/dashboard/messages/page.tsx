@@ -6,14 +6,19 @@ import { supabase } from "@/lib/supabase";
 import { useConversations } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
 import { useEligibleContacts } from "@/hooks/useEligibleContacts";
-import { ConversationList } from "@/components/messaging/ConversationList";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { ConversationList, displayName } from "@/components/messaging/ConversationList";
 import { MessageThread } from "@/components/messaging/MessageThread";
+import { ConversationDetails } from "@/components/messaging/ConversationDetails";
 import { NewConversationPanel } from "@/components/messaging/NewConversationPanel";
 import { useConversationParticipants } from "@/hooks/useConversationParticipants";
 import { FULL_HEIGHT_PANEL_CLASS } from "@/lib/layout";
 import { InlineLoader } from "@/components/ui/Loading";
 import { Spinner } from "@/components/ui/Spinner";
+import { Avatar } from "@/components/ui/Avatar";
+import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 /**
  * useSearchParams() forces the tree up to the nearest Suspense boundary to be
@@ -30,8 +35,26 @@ export default function MessagesPage() {
   );
 }
 
+/**
+ * Messages.
+ *
+ * THREE PANES, as in every messaging product people already use: the inbox,
+ * the thread, and — from 1280px — the person and job the thread is about.
+ * Under 1280 the details open as a sheet from the thread header's info
+ * button; under lg the inbox and thread are one pane at a time, as before.
+ *
+ * FULL WIDTH, NO LONGER A CENTRED 1280px BOX. The thread column is the one
+ * that grows, but its bubbles are capped at 560px, so the lines stay
+ * readable however wide the window; the details panel is what uses the
+ * width that remains.
+ *
+ * NOTHING BLANK. With no thread open the middle pane offers the people you
+ * can message, one tap from a conversation, instead of "Select a
+ * conversation".
+ */
 function MessagesInbox() {
   const toast = useToast();
+  const confirm = useConfirm();
   const searchParams = useSearchParams();
   const {
     conversations,
@@ -44,20 +67,15 @@ function MessagesInbox() {
   const { contacts } = useEligibleContacts();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showNewPanel, setShowNewPanel] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const wide = useMediaQuery("(min-width: 1280px)");
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   /**
    * ?conversation=<id> opens a thread directly, which is how the Message
-   * button on an applicant or application card lands here.
-   *
-   * SEEDS STATE RATHER THAN REPLACING IT, unlike the profile editor's tabs.
-   * A tab is a view of the page and belongs in the URL permanently; the
-   * conversation on screen changes every time somebody clicks the list, and
-   * rewriting the URL on each of those would fill the history with threads.
-   * So the parameter is an opening instruction, applied once.
-   *
-   * Keyed on the parameter so a second Message click for a different thread
-   * still opens it, and guarded so it cannot yank the user back after they
-   * have moved on within the same visit.
+   * button on an applicant or application card lands here. An opening
+   * instruction applied once per value, not a URL kept in sync with the
+   * selection — rewriting the URL on every click would fill the history.
    */
   const requestedConversation = searchParams.get("conversation");
 
@@ -78,7 +96,7 @@ function MessagesInbox() {
     sendMessage,
     deleteMessage,
   } = useMessages(activeId);
-  const activeParticipantInfo = useConversationParticipants(activeId);
+  const activeInfo = useConversationParticipants(activeId);
 
   useEffect(() => {
     async function loadMyProfile() {
@@ -103,6 +121,11 @@ function MessagesInbox() {
     loadMyProfile();
   }, []);
 
+  function openConversation(id: string | null) {
+    setActiveId(id);
+    setDetailsOpen(false);
+  }
+
   async function handleStart(participantIds: string[], title?: string) {
     const { error, conversationId } = await startConversation(participantIds, title);
     if (error) {
@@ -110,7 +133,7 @@ function MessagesInbox() {
       return;
     }
     setShowNewPanel(false);
-    if (conversationId) setActiveId(conversationId);
+    if (conversationId) openConversation(conversationId);
   }
 
   async function handleSend(content: string) {
@@ -122,100 +145,161 @@ function MessagesInbox() {
     refresh();
   }
 
-  function handleDeleteConversation(id: string) {
-    if (activeId === id) setActiveId(null);
+  async function handleDeleteConversation() {
+    if (!activeId) return;
+    const ok = await confirm({
+      title: "Remove this conversation from your inbox?",
+      body: "The other person keeps their copy. It comes back to your inbox if they send you a new message.",
+      confirmLabel: "Remove conversation",
+    });
+    if (!ok) return;
+    const id = activeId;
+    openConversation(null);
     deleteConversation(id);
   }
 
   const isLocked =
     myRole === "worker" &&
     !subscribed &&
-    !!activeParticipantInfo &&
-    !activeParticipantInfo.is_group &&
-    activeParticipantInfo.participants.length === 1 &&
-    activeParticipantInfo.participants[0].role === "employer";
+    !!activeInfo &&
+    !activeInfo.is_group &&
+    activeInfo.participants.length === 1 &&
+    activeInfo.participants[0].role === "employer";
+
+  // The inbox row has the name already; a thread opened from a link before
+  // the inbox has loaded falls back to the participants the thread fetched.
+  const activeSummary = conversations.find((c) => c.id === activeId);
+  const activeTitle = activeSummary
+    ? displayName(activeSummary)
+    : activeInfo
+    ? activeInfo.participants.map((p) => p.full_name || "Member").join(", ") || "Conversation"
+    : "Conversation";
+
+  const details = (
+    <ConversationDetails
+      info={activeInfo}
+      title={activeTitle}
+      viewerId={userId}
+      onDeleteConversation={handleDeleteConversation}
+    />
+  );
 
   return (
-    /* Capped and centred. The container went to 1600px, and a chat thread is
-       the one surface that gets actively worse with width — the conversation
-       list stays 320 and every extra pixel goes to the message pane, so at
-       1920 the bubbles were stretching to about 1200px. */
-    <div className={`relative mx-auto w-full max-w-[1280px] ${FULL_HEIGHT_PANEL_CLASS}`}>
-      <div className="flex h-full border border-zinc-800 rounded-xl overflow-hidden">
-        {/*
-          Two panes side by side from lg. Under lg there is no room for both
-          (the list alone was a fixed 320px on a 375px screen), so it becomes
-          one pane at a time: the list until a conversation is picked, then the
-          thread with a back button. activeId is the switch.
-        */}
+    <div className={`relative w-full ${FULL_HEIGHT_PANEL_CLASS}`}>
+      <div className="flex h-full overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
+        {/* INBOX */}
         <div
-          className={`w-full lg:w-80 lg:flex border-r border-zinc-800 flex-col ${
+          className={`w-full flex-col border-zinc-800 lg:flex lg:w-80 lg:shrink-0 lg:border-r ${
             activeId ? "hidden" : "flex"
           }`}
         >
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between gap-3">
-            <h1 className="text-xl font-bold text-white">Messages</h1>
+          <div className="flex items-center justify-between gap-3 px-3 py-3">
+            <h1 className="pl-1 text-xl font-bold text-white">Messages</h1>
             <button
+              type="button"
               onClick={() => setShowNewPanel(true)}
-              className="bg-accent text-on-accent px-4 min-h-11 lg:min-h-0 lg:py-1.5 rounded-lg text-sm font-semibold shrink-0"
+              className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-sm font-semibold text-on-accent transition hover:bg-accent-hover"
             >
+              <Icon name="plus" className="h-4 w-4" />
               New
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto scrollbar-dark p-2">
-            {convLoading ? (
-              <InlineLoader message="Loading conversations" />
-            ) : (
-              <ConversationList
-                conversations={conversations}
-                activeId={activeId}
-                onSelect={setActiveId}
-                onDelete={handleDeleteConversation}
-              />
-            )}
-          </div>
-        </div>
 
-        <div className={`flex-1 min-w-0 flex-col ${activeId ? "flex" : "hidden lg:flex"}`}>
-          {/* Back to the list. Under lg the thread covers the whole panel, so
-              without this there is no way out of a conversation. */}
-          {activeId && (
-            <button
-              type="button"
-              onClick={() => setActiveId(null)}
-              className="lg:hidden flex items-center gap-2 min-h-11 px-4 border-b border-zinc-800 text-sm text-gray-300 hover:text-white transition"
-            >
-              <span aria-hidden="true">&larr;</span> All conversations
-            </button>
+          {convLoading ? (
+            <InlineLoader message="Loading conversations" />
+          ) : conversations.length === 0 && !isDesktop ? (
+            // Under lg the middle pane is not on screen, so an empty inbox
+            // gets the start panel here instead of a one-line "no
+            // conversations" with nothing to do next.
+            <StartPanel
+              contacts={contacts}
+              hasConversations={false}
+              onStart={(id) => handleStart([id])}
+              onNew={() => setShowNewPanel(true)}
+            />
+          ) : (
+            <ConversationList
+              conversations={conversations}
+              activeId={activeId}
+              currentUserId={userId}
+              onSelect={openConversation}
+            />
           )}
+        </div>
 
-          <div className="flex-1 min-h-0">
-            {!activeId ? (
-              <div className="h-full flex items-center justify-center text-gray-400 p-4 text-center">
-                Select a conversation or start a new one.
-              </div>
-            ) : msgLoading ? (
-              <div className="h-full flex flex-col items-center justify-center gap-3">
-                <Spinner label="" />
-                <p className="text-sm text-gray-400">Loading messages</p>
-              </div>
-            ) : (
-              <MessageThread
-                messages={messages}
-                currentUserId={userId}
-                sending={sending}
-                onSend={handleSend}
-                onDelete={deleteMessage}
-                locked={isLocked}
-                hasOlder={hasOlder}
-                loadingOlder={loadingOlder}
-                onLoadOlder={loadOlder}
-                job={activeParticipantInfo?.job ?? null}
-              />
-            )}
+        {/* THREAD */}
+        <div className={`min-w-0 flex-1 flex-col ${activeId ? "flex" : "hidden lg:flex"}`}>
+          {!activeId ? (
+            <StartPanel
+              contacts={contacts}
+              hasConversations={conversations.length > 0}
+              onStart={(id) => handleStart([id])}
+              onNew={() => setShowNewPanel(true)}
+            />
+          ) : msgLoading ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3">
+              <Spinner label="" />
+              <p className="text-sm text-gray-400">Loading messages</p>
+            </div>
+          ) : (
+            <MessageThread
+              messages={messages}
+              currentUserId={userId}
+              sending={sending}
+              onSend={handleSend}
+              onDelete={deleteMessage}
+              locked={isLocked}
+              hasOlder={hasOlder}
+              loadingOlder={loadingOlder}
+              onLoadOlder={loadOlder}
+              info={activeInfo}
+              title={activeTitle}
+              onBack={() => openConversation(null)}
+              onShowDetails={wide ? undefined : () => setDetailsOpen(true)}
+            />
+          )}
+        </div>
+
+        {/* DETAILS — a third pane from 1280 */}
+        {wide && activeId && (
+          <aside
+            aria-label="Conversation details"
+            className="scrollbar-dark w-80 shrink-0 overflow-y-auto border-l border-zinc-800"
+          >
+            {details}
+          </aside>
+        )}
+      </div>
+
+      {/* DETAILS — a sheet below 1280 */}
+      {!wide && detailsOpen && activeId && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-black/70"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDetailsOpen(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Conversation details"
+            className="scrollbar-dark flex h-full w-full max-w-sm flex-col overflow-y-auto border-l border-zinc-800 bg-zinc-950"
+          >
+            <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-2 py-2">
+              <p className="pl-2 font-semibold text-white">Details</p>
+              <button
+                type="button"
+                onClick={() => setDetailsOpen(false)}
+                aria-label="Close details"
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-400 transition hover:bg-zinc-900 hover:text-white"
+              >
+                <Icon name="x" className="h-5 w-5" />
+              </button>
+            </div>
+            {details}
           </div>
         </div>
-      </div>
+      )}
 
       {showNewPanel && (
         <NewConversationPanel
@@ -224,6 +308,78 @@ function MessagesInbox() {
           onClose={() => setShowNewPanel(false)}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * The middle pane with no thread open.
+ *
+ * The people you are allowed to message — connections, and the other side of
+ * any application — each one tap from a conversation. That list already
+ * existed behind the New button; surfacing the first few here turns an empty
+ * panel into the obvious next step.
+ */
+function StartPanel({
+  contacts,
+  hasConversations,
+  onStart,
+  onNew,
+}: {
+  contacts: { id: string; full_name: string | null; trade: string | null }[];
+  hasConversations: boolean;
+  onStart: (id: string) => void;
+  onNew: () => void;
+}) {
+  const shown = contacts.slice(0, 6);
+
+  return (
+    <div className="scrollbar-dark flex h-full flex-col items-center justify-center overflow-y-auto p-6 text-center">
+      <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-800 text-accent">
+        <Icon name="chat" className="h-6 w-6" strokeWidth={1.75} />
+      </span>
+      <p className="text-lg font-semibold text-white">
+        {hasConversations ? "Pick a conversation" : "No messages yet"}
+      </p>
+      <p className="mt-1 max-w-sm text-sm text-gray-400">
+        {shown.length > 0
+          ? "Or start one with someone you are connected to or have a job in common with."
+          : "You can message your connections, and anyone on the other side of a job application. Connect with people in My Local Network to get started."}
+      </p>
+
+      {shown.length > 0 && (
+        <ul className="mt-5 w-full max-w-sm divide-y divide-zinc-800 rounded-xl border border-zinc-800 text-left">
+          {shown.map((c) => (
+            <li key={c.id}>
+              <button
+                type="button"
+                onClick={() => onStart(c.id)}
+                className="flex min-h-14 w-full items-center gap-3 px-3 py-2 transition hover:bg-zinc-900"
+              >
+                <Avatar name={c.full_name} size="sm" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-white">
+                    {c.full_name || "Member"}
+                  </span>
+                  {c.trade && (
+                    <span className="block truncate text-xs text-gray-400">{c.trade}</span>
+                  )}
+                </span>
+                <Icon name="chat" className="h-4 w-4 shrink-0 text-gray-500" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <button
+        type="button"
+        onClick={onNew}
+        className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg border border-zinc-700 px-4 text-sm font-semibold text-white transition hover:border-zinc-500"
+      >
+        <Icon name="plus" className="h-4 w-4" />
+        New message
+      </button>
     </div>
   );
 }

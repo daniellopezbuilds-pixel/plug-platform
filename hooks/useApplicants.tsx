@@ -43,7 +43,7 @@ const COLUMNS = `
     title,
     user_id
   ),
-  profiles (
+  profiles!applications_worker_id_fkey (
     full_name,
     profile_number,
     union_status,
@@ -67,6 +67,14 @@ export function useApplicants() {
   const [resolvingUser, setResolvingUser] = useState(true);
   const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  /**
+   * Which job, and which status. Both are applied in the query so paging
+   * runs over the filtered set; changing either changes fetchPage, which
+   * usePagedList treats as a new list. Applicant trackers work job by job
+   * because that is how an employer reviews — one role at a time.
+   */
+  const [jobId, setJobId] = useState<string>("");
+  const [status, setStatus] = useState<"" | "pending" | "accepted" | "rejected">("");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -98,15 +106,18 @@ export function useApplicants() {
       let query = supabase
         .from("applications")
         .select(COLUMNS)
-        .eq("jobs.user_id", userId)
-        .order("created_at", { ascending: false });
+        .eq("jobs.user_id", userId);
+
+      if (jobId) query = query.eq("job_id", jobId);
+      if (status) query = query.eq("status", status);
+      query = query.order("created_at", { ascending: false }).order("id", { ascending: false });
 
       if (limit) query = query.range(offset, offset + limit - 1);
 
       const { data, error } = await query;
       return { data: (data as unknown as ApplicantWithJob[]) ?? null, error };
     },
-    [userId]
+    [userId, jobId, status]
   );
 
   const {
@@ -117,6 +128,7 @@ export function useApplicants() {
     hasMore,
     loadMore,
     reload,
+    error,
   } = usePagedList<ApplicantWithJob>({
     pageSize: PAGE_SIZE,
     fetchPage,
@@ -157,5 +169,11 @@ export function useApplicants() {
     updatingId,
     updateStatus,
     refresh,
+    error,
+    reload,
+    jobId,
+    setJobId,
+    status,
+    setStatus,
   };
 }

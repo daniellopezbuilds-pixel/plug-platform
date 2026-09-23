@@ -10,6 +10,7 @@ export type DirectoryProfile = {
   full_name: string | null;
   profile_number: string | null;
   trade: string | null;
+  classification: string | null;
   location: string | null;
   bio: string | null;
   union_status: string | null;
@@ -25,7 +26,7 @@ export type DirectoryProfile = {
 };
 
 const COLUMNS =
-  "id, full_name, profile_number, trade, location, bio, union_status, union_verified, active_role, years_experience, resume_path, company_logo_path, company_description, company_website, employer_verified, signup_type";
+  "id, full_name, profile_number, trade, classification, location, bio, union_status, union_verified, active_role, years_experience, resume_path, company_logo_path, company_description, company_website, employer_verified, signup_type";
 
 /**
  * 24: three full rows at the widest grid and eight at the narrowest, so the
@@ -84,7 +85,7 @@ export function useDirectory() {
       if (locationFilter) query = query.ilike("location", `%${locationFilter}%`);
       if (unionStatus) query = query.eq("union_status", unionStatus);
 
-      query = query.order("created_at", { ascending: false });
+      query = query.order("created_at", { ascending: false }).order("id", { ascending: false });
       if (limit) query = query.range(offset, offset + limit - 1);
 
       const { data, error } = await query;
@@ -105,6 +106,7 @@ export function useDirectory() {
   return {
     profiles: paged.items,
     loading: paged.loading,
+    error: paged.error,
     loadingMore: paged.loadingMore,
     hasMore: paged.hasMore,
     loadMore: paged.loadMore,

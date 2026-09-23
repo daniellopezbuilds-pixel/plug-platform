@@ -59,7 +59,7 @@ export function useRecentActivity(mode: Mode) {
         const { data: applications } = await supabase
           .from("applications")
           .select(
-            "id, status, created_at, jobs!inner(title, user_id), profiles(full_name)"
+            "id, status, created_at, jobs!inner(title, user_id), profiles!applications_worker_id_fkey(full_name)"
           )
           .eq("jobs.user_id", user.id)
           .order("created_at", { ascending: false })

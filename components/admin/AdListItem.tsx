@@ -4,6 +4,7 @@ import { useState } from "react";
 import { getAdPublicUrl } from "@/lib/ads";
 import type { Ad } from "@/hooks/useAds";
 import { EditAdForm } from "@/components/admin/EditAdForm";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 export function AdListItem({
   ad,
@@ -30,6 +31,7 @@ export function AdListItem({
   ) => Promise<{ error: string | null }>;
 }) {
   const [editing, setEditing] = useState(false);
+  const confirm = useConfirm();
 
   if (editing) {
     return (
@@ -76,7 +78,7 @@ export function AdListItem({
       <span
         className={`px-3 py-1 rounded-full text-xs font-semibold ${
           ad.is_active
-            ? "bg-green-950 text-green-400 border border-green-800"
+            ? "bg-accent/10 text-accent border border-accent/60"
             : "bg-zinc-800 text-gray-400 border border-zinc-700"
         }`}
       >
@@ -91,13 +93,31 @@ export function AdListItem({
           Edit
         </button>
         <button
-          onClick={() => onToggleActive(ad.id, ad.is_active)}
+          onClick={async () => {
+            // Activating is harmless; taking a running ad down is not.
+            if (ad.is_active) {
+              const ok = await confirm({
+                title: `Deactivate “${ad.title}”?`,
+                body: "It stops showing immediately. You can activate it again.",
+                confirmLabel: "Deactivate ad",
+              });
+              if (!ok) return;
+            }
+            onToggleActive(ad.id, ad.is_active);
+          }}
           className="border border-zinc-700 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-zinc-900 transition"
         >
           {ad.is_active ? "Deactivate" : "Activate"}
         </button>
         <button
-          onClick={() => onDelete(ad.id)}
+          onClick={async () => {
+            const ok = await confirm({
+              title: `Delete “${ad.title}”?`,
+              body: "The listing is removed for good. A paid campaign is not refunded by this.",
+              confirmLabel: "Delete ad",
+            });
+            if (ok) onDelete(ad.id);
+          }}
           className="bg-rose-950 text-rose-400 border border-rose-800 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-rose-900 transition"
         >
           Delete

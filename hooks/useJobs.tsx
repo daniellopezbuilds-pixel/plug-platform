@@ -45,12 +45,46 @@ export type Job = {
   requires_own_transport: boolean;
 };
 
+/**
+ * What the board can be narrowed by. Empty string means "any".
+ *
+ * `union` has one value beyond the stored ones: "open" is a job with no union
+ * requirement at all (required_union_status IS NULL), which is what a worker
+ * who is neither asking "union jobs only" nor "non-union only" usually wants
+ * to see set apart.
+ */
+export type JobFilters = {
+  /** Keyword, matched against title, company and description. */
+  q: string;
+  classification: string;
+  workType: string;
+  union: "" | "union" | "non_union" | "open";
+};
+
+export const NO_JOB_FILTERS: JobFilters = { q: "", classification: "", workType: "", union: "" };
+
+/** Filters in use, not counting the keyword — that has its own box. */
+export function activeJobFilterCount(filters: JobFilters): number {
+  return [filters.classification, filters.workType, filters.union].filter(Boolean).length;
+}
+
+/**
+ * The keyword as a PostgREST or() term. Commas and parentheses are the
+ * or() syntax itself and % and * are wildcards, so all of them are dropped
+ * from what the user typed rather than escaped — nobody searches a job board
+ * for a bracket.
+ */
+function keywordTerm(q: string): string {
+  return q.replace(/[%*,()\\]/g, " ").replace(/\s+/g, " ").trim();
+}
+
 /** 12: a screen and a half of job cards at any width. */
 const PAGE_SIZE = 12;
 
 export function useJobs() {
   const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<JobFilters>(NO_JOB_FILTERS);
 
   /**
    * WHICH JOBS YOU HAVE APPLIED TO IS FETCHED WHOLE, AND SHOULD BE.
@@ -80,19 +114,40 @@ export function useJobs() {
     if (data) setAppliedJobIds(new Set(data.map((a) => a.job_id)));
   }
 
+  /**
+   * FILTERED IN THE QUERY, NOT AFTER IT. The board pages, so filtering the
+   * loaded rows would filter twelve jobs and call it the board. A change of
+   * filter changes fetchPage, which usePagedList treats as a new list and
+   * reloads from the first page — same mechanism as the directory filters.
+   *
+   * A legacy job with no classification or work type does not match a filter
+   * on either, which is correct: it cannot be said to be that kind of job.
+   */
+  const { classification, workType, union } = filters;
+  const term = keywordTerm(filters.q);
+
   const fetchPage = useCallback(
     async (offset: number, limit: number | null) => {
-      let query = supabase
-        .from("jobs")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let query = supabase.from("jobs").select("*");
+
+      if (term) {
+        query = query.or(
+          `title.ilike.%${term}%,company.ilike.%${term}%,description.ilike.%${term}%`
+        );
+      }
+      if (classification) query = query.eq("classification", classification);
+      if (workType) query = query.eq("work_type", workType);
+      if (union === "open") query = query.is("required_union_status", null);
+      else if (union) query = query.eq("required_union_status", union);
+
+      query = query.order("created_at", { ascending: false }).order("id", { ascending: false });
 
       if (limit) query = query.range(offset, offset + limit - 1);
 
       const { data, error } = await query;
       return { data: (data as Job[]) ?? null, error };
     },
-    []
+    [term, classification, workType, union]
   );
 
   const paged = usePagedList<Job>({
@@ -135,6 +190,8 @@ export function useJobs() {
   return {
     jobs: paged.items,
     loading: paged.loading,
+    error: paged.error,
+    reload: paged.reload,
     loadingMore: paged.loadingMore,
     hasMore: paged.hasMore,
     loadMore: paged.loadMore,
@@ -142,5 +199,7 @@ export function useJobs() {
     applyingId,
     applyToJob,
     refresh,
+    filters,
+    setFilters,
   };
 }

@@ -9,7 +9,13 @@ import { ReviewsList } from "@/components/reviews/ReviewsList";
 import { useReviews } from "@/hooks/useReviews";
 import { useProfileStats } from "@/hooks/useProfileStats";
 import { PageLoader } from "@/components/ui/Loading";
-import { SectionHeading } from "@/components/ui/SectionHeading";
+import { RailColumns, useRailBreakpoints } from "@/components/layout/RailColumns";
+import { MessagePersonButton } from "@/components/messaging/MessagePersonButton";
+import { EmployerVerifiedBadge } from "@/components/ui/EmployerVerifiedBadge";
+import { UnionBadge } from "@/components/ui/UnionBadge";
+import { Icon } from "@/components/ui/Icon";
+import { useToast } from "@/components/ui/Toast";
+import { useConnections } from "@/hooks/useConnections";
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -38,6 +44,9 @@ export default function PublicProfilePage() {
 
   const { reviews, averageRating, count } = useReviews(profileId || null);
   const { hiredCount, jobsLandedCount } = useProfileStats(profileId || null);
+  const { connectionMap, actingId, sendRequest, respondToRequest } = useConnections();
+  const { withRail } = useRailBreakpoints();
+  const toast = useToast();
 
   useEffect(() => {
     async function loadProfile() {
@@ -86,21 +95,105 @@ export default function PublicProfilePage() {
   if (notFound) {
     return (
       <div className="text-white">
-        <h1 className="text-3xl font-bold mb-2">Profile Not Found</h1>
-        <p className="text-gray-400">This user doesn't exist or their profile is unavailable.</p>
+        <h1 className="mb-2 text-2xl font-bold">Profile not found</h1>
+        <p className="text-gray-400">This user doesn&apos;t exist or their profile is unavailable.</p>
       </div>
     );
   }
 
   const isEmployer = accountType === "employer";
+  const connection = connectionMap.get(profileId);
+
+  async function handleConnect() {
+    const { error } = await sendRequest(profileId);
+    if (error) toast.error(error);
+  }
+
+  async function handleAccept() {
+    if (!connection) return;
+    const { error } = await respondToRequest(connection.id, profileId, "accepted");
+    if (error) toast.error(error);
+  }
+
+  const actions = (
+    <div className="flex flex-wrap gap-2">
+      {!connection ? (
+        <button
+          type="button"
+          onClick={handleConnect}
+          disabled={actingId === profileId}
+          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-on-accent transition hover:bg-accent-hover disabled:opacity-50"
+        >
+          <Icon name="userPlus" />
+          Connect
+        </button>
+      ) : connection.status === "accepted" ? (
+        <MessagePersonButton
+          otherUserId={profileId}
+          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-on-accent transition hover:bg-accent-hover disabled:opacity-50"
+        />
+      ) : connection.status === "pending" && connection.direction === "received" ? (
+        <button
+          type="button"
+          onClick={handleAccept}
+          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-on-accent transition hover:bg-accent-hover"
+        >
+          <Icon name="check" />
+          Accept connection request
+        </button>
+      ) : (
+        <span className="inline-flex min-h-11 items-center gap-1.5 text-sm text-gray-400">
+          <Icon name="clock" />
+          {connection.status === "pending" ? "Connection request sent" : "Not connected"}
+        </span>
+      )}
+    </div>
+  );
+
+  const trust = (
+    <section className="rounded-xl border border-zinc-800 bg-zinc-950">
+      <header className="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-2.5">
+        <h2 className="text-sm font-semibold text-white">Reputation</h2>
+        <ReviewSummary averageRating={averageRating} count={count} />
+      </header>
+      {(employerVerified || unionStatus) && (
+        <div className="flex flex-wrap gap-1.5 border-b border-zinc-800 px-4 py-3">
+          <EmployerVerifiedBadge verified={isEmployer && employerVerified} />
+          <UnionBadge status={unionStatus} verified={unionVerified} />
+        </div>
+      )}
+      <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-b-xl bg-zinc-800">
+        <li className="bg-zinc-950 px-4 py-3">
+          <span className="block text-2xl font-bold text-white">{hiredCount}</span>
+          <span className="block text-xs text-gray-500">People hired</span>
+        </li>
+        <li className="bg-zinc-950 px-4 py-3">
+          <span className="block text-2xl font-bold text-white">{jobsLandedCount}</span>
+          <span className="block text-xs text-gray-500">Jobs landed</span>
+        </li>
+      </ul>
+    </section>
+  );
 
   return (
-    /* mx-auto matters now the container is 1600 wide. Without it this sat hard
-       against the left with most of the page empty to its right — which was
-       already true at 1200 and is simply more obvious at 1920. A public
-       profile is a reading surface, so it keeps its measure and centres rather
-       than stretching. */
-    <div className="max-w-2xl mx-auto">
+    /* FULL WIDTH, WITH THE TRUST SIGNALS BESIDE IT. This was a 672px column
+       centred on the page. The profile itself is a reading surface and is
+       capped at 800px; the rail beside it takes the rest and holds what a
+       reader is deciding on — how to reach this person, whether they are
+       verified, and their record — as LinkedIn's profile keeps those beside
+       the content rather than under it. */
+    <RailColumns
+      withRail={withRail}
+      split={false}
+      mainMax={800}
+      rightLabel="Connect and reputation"
+      right={
+        <>
+          <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">{actions}</section>
+          {trust}
+        </>
+      }
+    >
       <ProfileHeader
         profileId={profileId}
         fullName={fullName}
@@ -117,56 +210,37 @@ export default function PublicProfilePage() {
         bio={bio}
       />
 
-      {isEmployer && employerVerified && (
-        <div className="mt-4">
-          <span className="bg-green-950 text-green-400 border border-green-800 px-3 py-1 rounded-full text-xs font-semibold">
-            Verified Employer
-          </span>
+      {!withRail && (
+        <div className="mt-4 space-y-4">
+          {actions}
+          {trust}
         </div>
       )}
 
       {isEmployer && companyDescription && (
-        <div className="mt-8">
-          <SectionHeading>About the Company</SectionHeading>
-          <p className="text-gray-300 whitespace-pre-wrap mb-3">{companyDescription}</p>
+        <section className="mt-6 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+          <h2 className="mb-2 text-sm font-semibold text-white">About the company</h2>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-300">
+            {companyDescription}
+          </p>
           {companyWebsite && (
-            
-              <a href={
-                companyWebsite.startsWith("http") ? companyWebsite : `https://${companyWebsite}`
-              }
+            <a
+              href={companyWebsite.startsWith("http") ? companyWebsite : `https://${companyWebsite}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-accent-2-soft hover:text-white text-sm"
+              className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-accent-2-soft transition hover:text-white"
             >
+              <Icon name="link" />
               {companyWebsite}
             </a>
           )}
-        </div>
+        </section>
       )}
 
-      <div className="mt-8 border-t border-zinc-800 pt-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-white">Reputation</h2>
-          <ReviewSummary averageRating={averageRating} count={count} />
-        </div>
-
-        {(hiredCount > 0 || jobsLandedCount > 0) && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {hiredCount > 0 && (
-              <span className="bg-zinc-800 text-gray-300 px-3 py-1 rounded-full text-sm">
-                {hiredCount} {hiredCount === 1 ? "person" : "people"} hired
-              </span>
-            )}
-            {jobsLandedCount > 0 && (
-              <span className="bg-zinc-800 text-gray-300 px-3 py-1 rounded-full text-sm">
-                {jobsLandedCount} {jobsLandedCount === 1 ? "job" : "jobs"} landed
-              </span>
-            )}
-          </div>
-        )}
-
+      <section className="mt-6">
+        <h2 className="mb-3 text-lg font-semibold text-white">Reviews</h2>
         <ReviewsList reviews={reviews} />
-      </div>
-    </div>
+      </section>
+    </RailColumns>
   );
 }

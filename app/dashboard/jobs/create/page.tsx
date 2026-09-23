@@ -3,10 +3,23 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Card } from "@/components/ui/Card";
 import { PageHeading } from "@/components/layout/PageHeading";
+import { RailColumns, useRailBreakpoints } from "@/components/layout/RailColumns";
+import { JobCard } from "@/components/jobs/JobCard";
+import type { Job } from "@/hooks/useJobs";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { LocationField } from "@/components/ui/LocationField";
+import { Icon } from "@/components/ui/Icon";
+import {
+  CheckboxTile,
+  ChoiceGroup,
+  FIELD_CONTROL,
+  FIELD_LABEL,
+  Field,
+  FieldRow,
+  FormSection,
+  errorIdFor,
+} from "@/components/ui/Form";
 import {
   JOB_CLASSIFICATIONS,
   JOB_DURATIONS,
@@ -14,6 +27,7 @@ import {
   JOB_SHIFTS,
   PAY_UNITS,
   WORK_TYPES,
+  formatPay,
   jobDraftErrors,
 } from "@/lib/jobs";
 
@@ -26,53 +40,56 @@ import {
  * residential or industrial, when it started, or what shift it was. An
  * electrician could not judge a listing without applying to it.
  *
- * FOUR SECTIONS, because the questions genuinely group that way and a
- * fourteen-field flat form does not get finished. Headings are `<h2>`s inside
- * one form rather than a wizard: a job post is a single decision and paging it
- * would turn one submit into four.
+ * FOUR SECTIONS, each its own card, because the questions genuinely group that
+ * way and a fourteen-field flat form does not get finished. Not a wizard: a
+ * job post is a single decision and paging it would turn one submit into four.
+ * Within a section, fields that are answered together sit together — start,
+ * duration and shift on one row, the two ends of a pay range side by side —
+ * and every row collapses to one column on a phone.
+ *
+ * SMALL FIXED SETS ARE TILES, NOT SELECTS. Work type, pay unit and union
+ * status each have two to four options; a select hides them behind a tap and
+ * a native picker, where tiles show every choice at once and are a thumb-sized
+ * target each. Classification (seven) and the optional selects stay selects.
+ *
+ * UNION STATUS HAS AN EXPLICIT "Any". It used to be two toggle
+ * buttons where un-requiring meant clicking the selected one again, with a
+ * line of copy explaining that; a third option says it without the copy.
+ * Stored exactly as before — null, 'union' or 'non_union'.
  *
  * SIX REQUIRED FIELDS: title, classification, work type, location, pay rate
- * and unit, description. Everything else is optional. The line is editorial —
- * a post with no pay, no city and no classification is unusable to the people
- * reading the board, and the fields left optional are ones whose absence still
- * leaves a readable job. The rule lives in jobDraftErrors() in lib/jobs.tsx,
+ * and unit, description. The rule lives in jobDraftErrors() in lib/jobs.tsx,
  * not here, so the form and anything that later posts a job server-side agree.
  *
- * VALIDATION IS PER FIELD AND ON SUBMIT, not on blur. A message appearing
- * under a field the moment focus leaves it — while someone is tabbing through
- * to see what is being asked — reads as a telling-off for not having finished
- * yet.
+ * VALIDATION IS PER FIELD AND ON SUBMIT, not on blur. On a failed submit focus
+ * moves to the first field with a problem, because the button is at the
+ * bottom of a long form and the first problem is usually a screen above it.
  */
 
-const INPUT =
-  "w-full p-4 rounded bg-zinc-800 border border-zinc-700 text-white disabled:opacity-50";
-const LABEL = "block text-sm text-gray-400 mb-2";
+/** Where focus goes for each field jobDraftErrors can name, in form order. */
+const FOCUS_TARGETS: [field: string, selector: string][] = [
+  ["title", "#job-title"],
+  ["classification", "#job-classification"],
+  ["work_type", 'input[name="job-work-type"]'],
+  ["description", "#job-description"],
+  ["location", "#job-location"],
+  ["pay_rate_min", "#job-pay-min"],
+  ["pay_rate_max", "#job-pay-max"],
+  ["pay_unit", 'input[name="job-pay-unit"]'],
+];
 
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null;
-  return <p className="text-xs text-rose-400 mt-1">{message}</p>;
-}
+/** ChoiceGroup needs a string for "none"; the column stores null. */
+const NO_UNION_REQUIREMENT = "none";
 
-function Section({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="border-t border-zinc-800 pt-6 first:border-t-0 first:pt-0">
-      <h2 className="text-xl font-bold text-white">{title}</h2>
-      <p className="text-xs text-gray-400 mt-1 mb-4">{hint}</p>
-      <div className="space-y-4">{children}</div>
-    </section>
-  );
-}
+const UNION_OPTIONS = [
+  { value: NO_UNION_REQUIREMENT, label: "Any" },
+  { value: "union", label: "Union" },
+  { value: "non_union", label: "Non-union" },
+] as const;
 
 export default function CreateJobPage() {
   const router = useRouter();
+  const { withRail } = useRailBreakpoints();
 
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
@@ -112,6 +129,28 @@ export default function CreateJobPage() {
     });
   }
 
+  /** aria wiring for a control that can carry a field error. */
+  function invalidProps(field: string, id: string) {
+    return errors[field]
+      ? { "aria-invalid": true as const, "aria-describedby": errorIdFor(id) }
+      : {};
+  }
+
+  /**
+   * What the pay line will read on the board, once the rate is a number.
+   * Shown as the employer types so a range entered backwards, or a day rate
+   * left on "per hour", is obvious before it is posted.
+   */
+  const payPreview = /^\d+(\.\d{1,2})?$/.test(payRateMin.trim())
+    ? formatPay({
+        pay_rate_min: payRateMin.trim(),
+        pay_rate_max: /^\d+(\.\d{1,2})?$/.test(payRateMax.trim())
+          ? payRateMax.trim()
+          : null,
+        pay_unit: payUnit,
+      })
+    : null;
+
   async function handleSubmit() {
     const draft = {
       title,
@@ -129,6 +168,13 @@ export default function CreateJobPage() {
 
     if (Object.keys(found).length > 0) {
       setError("Some details are still needed before this can be posted.");
+
+      const first = FOCUS_TARGETS.find(([field]) => found[field]);
+      if (first) {
+        const el = document.querySelector<HTMLElement>(first[1]);
+        el?.focus();
+        el?.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
       return;
     }
 
@@ -192,51 +238,85 @@ export default function CreateJobPage() {
     router.push("/dashboard/jobs");
   }
 
+  /**
+   * The job as the board will show it, built from the form as it stands.
+   * A rate only reaches the preview once it parses as a number, which is
+   * also the only way it could be posted.
+   */
+  const rateOk = (v: string) => /^d+(.d{1,2})?$/.test(v.trim());
+  const previewJob: Job = {
+    id: "preview",
+    user_id: "",
+    title: title.trim() || "Your job title",
+    company: company.trim() || null,
+    location: location.trim() || null,
+    description: description.trim() || null,
+    created_at: new Date().toISOString(),
+    required_union_status: requiredUnionStatus,
+    pay: null,
+    classification: classification || null,
+    work_type: workType || null,
+    starts_on: startsOn || null,
+    duration: duration || null,
+    shift: shift || null,
+    pay_rate_min: rateOk(payRateMin) ? payRateMin.trim() : null,
+    pay_rate_max: rateOk(payRateMax) ? payRateMax.trim() : null,
+    pay_unit: payUnit,
+    min_years_experience: minYearsExperience || null,
+    certification_required: certificationRequired.trim() || null,
+    requires_own_tools: requiresOwnTools,
+    requires_own_transport: requiresOwnTransport,
+  };
+
+  const checklist = [
+    { done: !!title.trim() && !!classification && !!workType, label: "Title, classification and work type", required: true },
+    { done: rateOk(payRateMin), label: "A pay rate", required: true },
+    { done: !!location.trim(), label: "Where the work is", required: true },
+    { done: description.trim().length >= 120, label: "A description of a few sentences", required: true },
+    { done: !!startsOn, label: "A start date" },
+    { done: !!shift || !!duration, label: "Shift or duration" },
+  ];
+
   return (
-    <div className="max-w-3xl mx-auto">
+    <RailColumns
+      withRail={withRail}
+      split={false}
+      // A form reads badly past ~880px — labels drift from their fields. The
+      // preview rail takes the rest of the width.
+      mainMax={880}
+      rightLabel="Preview"
+      right={<PostJobPreview job={previewJob} checklist={checklist} />}
+    >
       <PageHeading
         title="Post a Job"
+        size="compact"
         subtitle="The more of this you fill in, the better an electrician can judge the job before applying."
       />
 
-      <Card>
-        <div className="space-y-8">
-          {error && (
-            <div
-              role="alert"
-              className="bg-rose-950 border border-rose-800 text-rose-300 rounded-lg p-3 text-sm"
-            >
-              {error}
-            </div>
-          )}
+      <div className="space-y-4">
+        <FormSection
+          step={1}
+          title="The work"
+          description="What the job is and who it needs."
+        >
+          <Field label="Job title" htmlFor="job-title" error={errors.title}>
+            <input
+              id="job-title"
+              type="text"
+              placeholder="e.g. Journeyman Electrician — Tenant Improvement"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                clearError("title");
+              }}
+              disabled={submitting}
+              className={FIELD_CONTROL}
+              {...invalidProps("title", "job-title")}
+            />
+          </Field>
 
-          <Section
-            title="The work"
-            hint="What the job is and who it needs."
-          >
-            <div>
-              <label htmlFor="job-title" className={LABEL}>
-                Job title
-              </label>
-              <input
-                id="job-title"
-                type="text"
-                placeholder="e.g. Journeyman Electrician — Tenant Improvement"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  clearError("title");
-                }}
-                disabled={submitting}
-                className={INPUT}
-              />
-              <FieldError message={errors.title} />
-            </div>
-
-            <div>
-              <label htmlFor="job-company" className={LABEL}>
-                Company <span className="text-gray-500">(optional)</span>
-              </label>
+          <FieldRow>
+            <Field label="Company" htmlFor="job-company" optional>
               <input
                 id="job-company"
                 type="text"
@@ -244,14 +324,15 @@ export default function CreateJobPage() {
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
                 disabled={submitting}
-                className={INPUT}
+                className={FIELD_CONTROL}
               />
-            </div>
+            </Field>
 
-            <div>
-              <label htmlFor="job-classification" className={LABEL}>
-                Classification needed
-              </label>
+            <Field
+              label="Classification needed"
+              htmlFor="job-classification"
+              error={errors.classification}
+            >
               <select
                 id="job-classification"
                 value={classification}
@@ -260,7 +341,8 @@ export default function CreateJobPage() {
                   clearError("classification");
                 }}
                 disabled={submitting}
-                className={INPUT}
+                className={FIELD_CONTROL}
+                {...invalidProps("classification", "job-classification")}
               >
                 <option value="">Select a classification</option>
                 {JOB_CLASSIFICATIONS.map((option) => (
@@ -269,97 +351,89 @@ export default function CreateJobPage() {
                   </option>
                 ))}
               </select>
-              <FieldError message={errors.classification} />
-            </div>
+            </Field>
+          </FieldRow>
 
-            <div>
-              <label htmlFor="job-work-type" className={LABEL}>
-                Work type
-              </label>
-              <select
-                id="job-work-type"
-                value={workType}
-                onChange={(e) => {
-                  setWorkType(e.target.value);
-                  clearError("work_type");
-                }}
-                disabled={submitting}
-                className={INPUT}
-              >
-                <option value="">Select a work type</option>
-                {WORK_TYPES.map((option) => (
-                  <option key={option.key} value={option.key}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <FieldError message={errors.work_type} />
-            </div>
+          <ChoiceGroup
+            name="job-work-type"
+            legend="Work type"
+            columns={4}
+            options={WORK_TYPES.map((o) => ({ value: o.key, label: o.label }))}
+            value={workType}
+            onChange={(next) => {
+              setWorkType(next);
+              clearError("work_type");
+            }}
+            disabled={submitting}
+            error={errors.work_type}
+          />
 
-            <div>
-              <label htmlFor="job-description" className={LABEL}>
-                Description
-              </label>
-              <textarea
-                id="job-description"
-                placeholder="The scope, the site, what a day looks like, anything an electrician should know before applying."
-                value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value);
-                  clearError("description");
-                }}
-                disabled={submitting}
-                className={`${INPUT} h-40`}
-              />
-              <FieldError message={errors.description} />
-            </div>
-          </Section>
-
-          <Section
-            title="Where and when"
-            hint="Only the city is required — a job with no stated start is still a readable job."
+          <Field
+            label="Description"
+            htmlFor="job-description"
+            error={errors.description}
+            hint="The scope, the site, what a day looks like — anything an electrician should know before applying."
           >
-            {/* The same control the profile editor and signup use, so a job's
-                city and a worker's city are the same vocabulary and can be
-                matched later. It opens its free-text box for anything outside
-                the list, which is also how the seven legacy rows' locations
-                stay editable. */}
-            <LocationField
-              id="job-location"
-              value={location}
-              onChange={(next) => {
-                setLocation(next);
-                clearError("location");
+            <textarea
+              id="job-description"
+              placeholder="Describe the work"
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                clearError("description");
               }}
-              className={INPUT}
-              labelClassName={LABEL}
-              error={errors.location}
+              disabled={submitting}
+              rows={7}
+              className={`${FIELD_CONTROL} min-h-40 resize-y leading-relaxed`}
+              {...invalidProps("description", "job-description")}
             />
+          </Field>
+        </FormSection>
 
-            <div>
-              <label htmlFor="job-starts-on" className={LABEL}>
-                Start date <span className="text-gray-500">(optional)</span>
-              </label>
+        <FormSection
+          step={2}
+          title="Where and when"
+          description="Only the city is required — a job with no stated start is still a readable job."
+        >
+          {/* The same control the profile editor and signup use, so a job's
+              city and a worker's city are the same vocabulary and can be
+              matched later. It opens its free-text box for anything outside
+              the list, which is also how the seven legacy rows' locations
+              stay editable. */}
+          <LocationField
+            id="job-location"
+            value={location}
+            onChange={(next) => {
+              setLocation(next);
+              clearError("location");
+            }}
+            className={FIELD_CONTROL}
+            labelClassName={FIELD_LABEL}
+            error={errors.location}
+          />
+
+          <FieldRow cols={3}>
+            <Field label="Start date" htmlFor="job-starts-on" optional>
               <input
                 id="job-starts-on"
                 type="date"
                 value={startsOn}
                 onChange={(e) => setStartsOn(e.target.value)}
                 disabled={submitting}
-                className={INPUT}
+                // appearance-none: iOS gives a date input an intrinsic width
+                // and centres its value, so without it the control sits
+                // narrower than its neighbours with the date floating mid-box.
+                className={`${FIELD_CONTROL} appearance-none text-left`}
               />
-            </div>
+            </Field>
 
-            <div>
-              <label htmlFor="job-duration" className={LABEL}>
-                Duration <span className="text-gray-500">(optional)</span>
-              </label>
+            <Field label="Duration" htmlFor="job-duration" optional>
               <select
                 id="job-duration"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 disabled={submitting}
-                className={INPUT}
+                className={FIELD_CONTROL}
               >
                 <option value="">Not specified</option>
                 {JOB_DURATIONS.map((option) => (
@@ -368,18 +442,15 @@ export default function CreateJobPage() {
                   </option>
                 ))}
               </select>
-            </div>
+            </Field>
 
-            <div>
-              <label htmlFor="job-shift" className={LABEL}>
-                Shift <span className="text-gray-500">(optional)</span>
-              </label>
+            <Field label="Shift" htmlFor="job-shift" optional>
               <select
                 id="job-shift"
                 value={shift}
                 onChange={(e) => setShift(e.target.value)}
                 disabled={submitting}
-                className={INPUT}
+                className={FIELD_CONTROL}
               >
                 <option value="">Not specified</option>
                 {JOB_SHIFTS.map((option) => (
@@ -388,99 +459,96 @@ export default function CreateJobPage() {
                   </option>
                 ))}
               </select>
-            </div>
-          </Section>
+            </Field>
+          </FieldRow>
+        </FormSection>
 
-          <Section
-            title="Pay"
-            hint="A single rate, or a range. This is the first thing most people look at."
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="job-pay-min" className={LABEL}>
-                  Rate
-                </label>
-                <input
-                  id="job-pay-min"
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="45"
-                  value={payRateMin}
-                  onChange={(e) => {
-                    setPayRateMin(e.target.value);
-                    clearError("pay_rate_min");
-                  }}
-                  disabled={submitting}
-                  className={INPUT}
-                />
-                <FieldError message={errors.pay_rate_min} />
-              </div>
+        <FormSection
+          step={3}
+          title="Pay"
+          description="A single rate, or a range. This is the first thing most people look at."
+        >
+          {/* Two-up even on a phone: they are the two ends of one range and
+              read as a pair. 150px each at 375 is plenty for a rate. */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-5">
+            <Field label="Rate" htmlFor="job-pay-min" error={errors.pay_rate_min}>
+              <MoneyInput
+                id="job-pay-min"
+                placeholder="45"
+                value={payRateMin}
+                onChange={(next) => {
+                  setPayRateMin(next);
+                  clearError("pay_rate_min");
+                }}
+                disabled={submitting}
+                invalid={invalidProps("pay_rate_min", "job-pay-min")}
+              />
+            </Field>
 
-              <div>
-                <label htmlFor="job-pay-max" className={LABEL}>
-                  Up to <span className="text-gray-500">(optional)</span>
-                </label>
-                <input
-                  id="job-pay-max"
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="55"
-                  value={payRateMax}
-                  onChange={(e) => {
-                    setPayRateMax(e.target.value);
-                    clearError("pay_rate_max");
-                  }}
-                  disabled={submitting}
-                  className={INPUT}
-                />
-                <FieldError message={errors.pay_rate_max} />
-              </div>
+            <Field
+              label="Up to"
+              htmlFor="job-pay-max"
+              optional
+              error={errors.pay_rate_max}
+            >
+              <MoneyInput
+                id="job-pay-max"
+                placeholder="55"
+                value={payRateMax}
+                onChange={(next) => {
+                  setPayRateMax(next);
+                  clearError("pay_rate_max");
+                }}
+                disabled={submitting}
+                invalid={invalidProps("pay_rate_max", "job-pay-max")}
+              />
+            </Field>
+          </div>
 
-              <div>
-                <label htmlFor="job-pay-unit" className={LABEL}>
-                  Per
-                </label>
-                <select
-                  id="job-pay-unit"
-                  value={payUnit}
-                  onChange={(e) => {
-                    setPayUnit(e.target.value);
-                    clearError("pay_unit");
-                  }}
-                  disabled={submitting}
-                  className={INPUT}
-                >
-                  {PAY_UNITS.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <FieldError message={errors.pay_unit} />
-              </div>
-            </div>
+          <ChoiceGroup
+            name="job-pay-unit"
+            legend="Paid"
+            options={PAY_UNITS.map((o) => ({ value: o.key, label: o.label }))}
+            value={payUnit}
+            onChange={(next) => {
+              setPayUnit(next);
+              clearError("pay_unit");
+            }}
+            disabled={submitting}
+            error={errors.pay_unit}
+          />
 
-            <p className="text-xs text-gray-400">
-              Leave <span className="font-semibold">Up to</span> empty for a
-              single rate. Numbers only — the currency and the unit are added
-              for you.
+          <div className="flex flex-col gap-1 rounded-lg border border-zinc-800 bg-zinc-900/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-400">Shows on the board as</p>
+            <p
+              className={`font-semibold ${
+                payPreview ? "text-accent text-lg" : "text-gray-500 text-sm"
+              }`}
+              aria-live="polite"
+            >
+              {payPreview ?? "Enter a rate to preview"}
             </p>
-          </Section>
+          </div>
+          <p className="text-xs text-gray-500 -mt-2">
+            Leave <span className="font-semibold text-gray-400">Up to</span>{" "}
+            empty for a single rate. Numbers only — the currency and the unit
+            are added for you.
+          </p>
+        </FormSection>
 
-          <Section
-            title="Requirements"
-            hint="All optional. Leave anything you do not insist on empty rather than guessing."
-          >
-            <div>
-              <label htmlFor="job-min-experience" className={LABEL}>
-                Minimum experience
-              </label>
+        <FormSection
+          step={4}
+          title="Requirements"
+          description="All optional. Leave anything you do not insist on empty rather than guessing."
+        >
+          <FieldRow>
+            <Field label="Minimum experience" htmlFor="job-min-experience" optional>
               <select
                 id="job-min-experience"
                 value={minYearsExperience}
                 onChange={(e) => setMinYearsExperience(e.target.value)}
                 disabled={submitting}
-                className={INPUT}
+                className={FIELD_CONTROL}
               >
                 <option value="">No minimum</option>
                 {JOB_EXPERIENCE_BANDS.map((band) => (
@@ -489,99 +557,177 @@ export default function CreateJobPage() {
                   </option>
                 ))}
               </select>
-            </div>
+            </Field>
 
-            <div>
-              <label htmlFor="job-certification" className={LABEL}>
-                Certification required
-              </label>
+            <Field label="Certification required" htmlFor="job-certification" optional>
               <input
                 id="job-certification"
                 type="text"
-                placeholder="e.g. OSHA 30, fire alarm certification"
+                placeholder="e.g. OSHA 30, fire alarm"
                 value={certificationRequired}
                 onChange={(e) => setCertificationRequired(e.target.value)}
                 disabled={submitting}
-                className={INPUT}
+                className={FIELD_CONTROL}
               />
-            </div>
+            </Field>
+          </FieldRow>
 
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={requiresOwnTools}
-                  onChange={(e) => setRequiresOwnTools(e.target.checked)}
-                  disabled={submitting}
-                  className="w-5 h-5 rounded border-zinc-700 bg-zinc-800 accent-[var(--color-accent)]"
-                />
-                <span className="text-white">Must have own tools</span>
-              </label>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <CheckboxTile
+              checked={requiresOwnTools}
+              onChange={setRequiresOwnTools}
+              disabled={submitting}
+              label="Must have own tools"
+              description="Hand tools and meters brought to site."
+            />
+            <CheckboxTile
+              checked={requiresOwnTransport}
+              onChange={setRequiresOwnTransport}
+              disabled={submitting}
+              label="Must have own transport"
+              description="Getting to and between sites."
+            />
+          </div>
 
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={requiresOwnTransport}
-                  onChange={(e) => setRequiresOwnTransport(e.target.checked)}
-                  disabled={submitting}
-                  className="w-5 h-5 rounded border-zinc-700 bg-zinc-800 accent-[var(--color-accent)]"
-                />
-                <span className="text-white">Must have own transport</span>
-              </label>
-            </div>
-
-            <div>
-              <label className={LABEL}>Union status</label>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setRequiredUnionStatus(
-                      requiredUnionStatus === "union" ? null : "union"
-                    )
-                  }
-                  disabled={submitting}
-                  className={`px-5 py-3 rounded-lg font-semibold border transition disabled:opacity-50 ${
-                    requiredUnionStatus === "union"
-                      ? "bg-transparent border-accent text-white"
-                      : "bg-zinc-800 border-zinc-700 text-gray-400"
-                  }`}
-                >
-                  Union Required
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setRequiredUnionStatus(
-                      requiredUnionStatus === "non_union" ? null : "non_union"
-                    )
-                  }
-                  disabled={submitting}
-                  className={`px-5 py-3 rounded-lg font-semibold border transition disabled:opacity-50 ${
-                    requiredUnionStatus === "non_union"
-                      ? "bg-transparent border-accent text-white"
-                      : "bg-zinc-800 border-zinc-700 text-gray-400"
-                  }`}
-                >
-                  Non-Union Required
-                </button>
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                Click a selected option again to remove the requirement.
-              </p>
-            </div>
-          </Section>
-
-          <button
-            onClick={handleSubmit}
+          <ChoiceGroup
+            name="job-union-status"
+            legend="Union status"
+            columns={3}
+            options={UNION_OPTIONS}
+            value={requiredUnionStatus ?? NO_UNION_REQUIREMENT}
+            onChange={(next) =>
+              setRequiredUnionStatus(next === NO_UNION_REQUIREMENT ? null : next)
+            }
             disabled={submitting}
-            className="bg-accent text-on-accent px-6 py-4 rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 min-h-11"
-          >
-            <ButtonSpinner active={submitting} />
-            {submitting ? "Posting..." : "Post Job"}
-          </button>
+          />
+        </FormSection>
+
+        {/* SUBMIT. The error sits here, beside the button, rather than at the
+            top of the form: the button is where the person is looking when
+            it appears, and the top is a long scroll away on a phone. */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-4 sm:px-6">
+          {error && (
+            <div
+              role="alert"
+              className="mb-4 flex items-start gap-2 rounded-lg border border-rose-900 bg-rose-950/60 p-3 text-sm text-rose-300"
+            >
+              <Icon name="exclamation" className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0 break-words">{error}</span>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-400">
+              Your job appears on the Jobs Board as soon as it is posted.
+            </p>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-accent px-6 py-3 font-semibold text-on-accent transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
+              <ButtonSpinner active={submitting} />
+              {submitting ? "Posting..." : "Post job"}
+            </button>
+          </div>
         </div>
-      </Card>
+      </div>
+    </RailColumns>
+  );
+}
+
+/**
+ * The board card, live, beside the form — borrowed from Indeed's post-a-job
+ * preview. An employer otherwise cannot see what an electrician sees until
+ * after posting, and a missing rate or a vague title is obvious in the card
+ * in a way it is not in a form field.
+ *
+ * `inert`: it is the real JobCard, button and all, and none of it should be
+ * clickable or focusable here.
+ *
+ * The checklist is what the board needs to be judged on, not a score. The
+ * first four are what jobDraftErrors() requires (plus a description long
+ * enough to be useful); the last two are optional and marked as such.
+ */
+function PostJobPreview({
+  job,
+  checklist,
+}: {
+  job: Job;
+  checklist: { done: boolean; label: string; required?: boolean }[];
+}) {
+  return (
+    <>
+      <section>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          On the Jobs Board
+        </p>
+        <div inert>
+          <JobCard job={job} hasApplied={false} onViewDetails={() => {}} />
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-zinc-800 bg-zinc-950">
+        <header className="border-b border-zinc-800 px-4 py-2.5">
+          <h2 className="text-sm font-semibold text-white">What electricians look for</h2>
+        </header>
+        <ul className="space-y-2 px-4 py-3">
+          {checklist.map((item) => (
+            <li key={item.label} className="flex items-start gap-2 text-sm">
+              <span
+                className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                  item.done ? "border-accent bg-accent text-on-accent" : "border-zinc-600"
+                }`}
+              >
+                {item.done && <Icon name="check" className="h-3 w-3" strokeWidth={3} />}
+              </span>
+              <span className={item.done ? "text-gray-300" : "text-gray-400"}>
+                {item.label}
+                {!item.required && <span className="text-gray-600"> · optional</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </>
+  );
+}
+
+/** A rate input with a fixed "$" in front, so nobody types one. */
+function MoneyInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  invalid,
+}: {
+  id: string;
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  disabled: boolean;
+  invalid: Record<string, unknown>;
+}) {
+  return (
+    <div className="relative">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-gray-500"
+      >
+        $
+      </span>
+      <input
+        id={id}
+        type="text"
+        inputMode="decimal"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={`${FIELD_CONTROL} pl-8`}
+        {...invalid}
+      />
     </div>
   );
 }

@@ -165,7 +165,7 @@ export function ChangePasswordSection() {
         )}
 
         {done && (
-          <p className="text-sm text-emerald-300 bg-emerald-950/40 border border-emerald-900 rounded-lg p-3">
+          <p className="text-sm text-gray-200 bg-accent/10 border border-accent/40 rounded-lg p-3">
             Password updated.
           </p>
         )}

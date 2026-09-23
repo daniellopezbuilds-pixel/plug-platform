@@ -101,7 +101,7 @@ export function useAdminCounts(enabled: boolean) {
         // verified. !inner so the profiles filter actually restricts the join.
         supabase
           .from("employer_documents")
-          .select("id, profiles!inner(employer_verified)", head)
+          .select("id, profiles!employer_documents_user_id_fkey!inner(employer_verified)", head)
           .eq("profiles.employer_verified", false),
 
         supabase

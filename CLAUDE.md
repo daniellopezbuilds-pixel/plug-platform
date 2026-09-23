@@ -33,6 +33,62 @@ Enforced by the `sparx/require-route-auth` ESLint rule. A genuinely public
 route opts out with a `@public-route` comment naming what protects it instead.
 Full rationale is in the header of `lib/apiAuth.tsx`.
 
+### Embeds of `profiles` must name the foreign key
+
+In a PostgREST select, never write a bare `profiles(...)`, `profiles!inner(...)`,
+an alias such as `author:profiles(...)`, or a column hint such as
+`profiles!submitted_by(...)`. Always name the constraint:
+
+```
+profiles!<table>_<column>_fkey(...)         e.g. profiles!applications_worker_id_fkey(full_name)
+author:profiles!posts_author_id_fkey(...)   aliases keep the alias, add the name
+profiles!employer_documents_user_id_fkey!inner(...)
+```
+
+The result key does not change (`profiles`, or the alias), so naming it is free.
+
+**Why.** A bare embed has two ways to fail, and the app shows both as an
+empty list with no error on screen:
+
+1. **Two foreign keys to `profiles`** — PostgREST cannot choose, returns
+   PGRST201, and the query gets no rows. Tables with two today: `reviews`,
+   `connections`, `user_badges`, `user_badge_reviews`. Adding a second FK to
+   any other table breaks every bare embed of it retroactively.
+2. **No foreign key at all** — PGRST200, "Could not find a relationship".
+   `jobs.user_id` has **no** FK to `profiles`, so `jobs ( profiles (...) )`
+   has never resolved. Naming the constraint forces you to find it in the
+   schema, which is where you discover it does not exist. Look the profile up
+   by id in a second query instead (`hooks/useApplications.tsx`,
+   `hooks/useProfileSummary.tsx`).
+
+The error is invisible because `usePagedList` turns a failed query into an
+empty list. Pages now render `ListError` when a list hook returns `error` —
+any new list must do the same rather than checking only for emptiness.
+
+**It has cost us twice so far:**
+
+- **Admin Badge Requests queue showed "No licences awaiting review" with four
+  queued.** `user_badges` has two FKs to `profiles` (`profile_id`,
+  `reviewed_by`); the bare embed was ambiguous. Fixed with
+  `profiles!user_badges_profile_id_fkey` in `hooks/useBadgeRequests.tsx`.
+- **My Applications showed "No applications yet" beside tab counts reading
+  7.** The list embedded `profiles` through `jobs`, which has no FK to
+  `profiles`. The counts came from a separate query that worked, which is the
+  only reason it was noticed. Broken from 2026-09-16 to 2026-09-23.
+
+A third bug is often grouped with these but has a different cause: the
+**ApplicationCard pay field** read the legacy free-text `jobs.pay` instead of
+`formatPay()` (fixed in `6f2a5d3`). It is related only in that it shipped in
+the same commit as the broken My Applications embed, so the fix was never
+visible — the list it lived on never rendered.
+
+Every `profiles` embed in `hooks/` was converted to the named form on
+2026-09-23 and checked against staging. Find FK names with:
+
+```
+npx supabase db query --linked "select conrelid::regclass, conname from pg_constraint where contype='f' and confrelid='public.profiles'::regclass order by 1"
+```
+
 ### Auth boundaries
 
 `components/auth/AuthGuard.tsx` guards `/dashboard`, and it is **client-side
@@ -131,3 +187,15 @@ surfaces that do not exist.
  don't use Chrome browser
 automation for verification. It's slow and expensive. Build,
 typecheck, lint, and report — I test in the browser myself.
+
+Add to CLAUDE.md: never use a bare profiles! embed in a
+PostgREST query. Always name the constraint explicitly —
+profiles!<table>_<column>_fkey — because a table with two FKs to
+profiles will silently resolve to the wrong one and the error is
+invisible.
+
+This has now caused three bugs: My Applications showing empty
+with correct counts, the admin Badge Requests queue showing
+empty, and the ApplicationCard pay field. Record it as a
+convention with those examples so it isn't rediscovered a fourth
+time.

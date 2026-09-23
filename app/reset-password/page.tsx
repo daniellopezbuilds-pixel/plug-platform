@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { MIN_PASSWORD_LENGTH, PASSWORD_RULE, validatePassword } from "@/lib/passwords";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { Spinner } from "@/components/ui/Spinner";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 
 const inputClass =
@@ -140,8 +141,8 @@ export default function ResetPasswordPage() {
     <main className="min-h-screen bg-black text-white flex items-center justify-center px-6 py-10">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold">
-            Sparx Plug <span className="text-accent-2-soft">Ecosystem</span>
+          <h1 className="flex justify-center">
+            <BrandLogo size={44} eager />
           </h1>
           <p className="text-gray-400 text-sm mt-1">Connect. Build. Grow.</p>
         </div>

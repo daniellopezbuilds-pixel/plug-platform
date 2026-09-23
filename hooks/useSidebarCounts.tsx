@@ -89,7 +89,7 @@ export function useSidebarCounts() {
         // employer verification.
         supabase
           .from("employer_documents")
-          .select("id, profiles!inner(employer_verified)", head)
+          .select("id, profiles!employer_documents_user_id_fkey!inner(employer_verified)", head)
           .eq("user_id", userId)
           .eq("profiles.employer_verified", false),
 

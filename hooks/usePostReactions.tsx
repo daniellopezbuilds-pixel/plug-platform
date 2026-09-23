@@ -38,7 +38,7 @@ export function usePostReactions(postIds: string[]) {
 
     const { data, error } = await supabase
       .from("post_reactions")
-      .select("post_id, user_id, reaction_type, profiles(id, full_name)")
+      .select("post_id, user_id, reaction_type, profiles!post_reactions_user_id_fkey(id, full_name)")
       .in("post_id", postIds);
 
     if (error || !data) {

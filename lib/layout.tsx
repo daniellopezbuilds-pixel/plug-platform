@@ -12,7 +12,7 @@
  * The arithmetic, against `app/dashboard/layout.tsx`:
  *
  *   under lg   3.5rem mobile top bar (h-14) + 3rem page padding (py-6)  = 6.5rem
- *   lg and up  no top bar          + 5rem page padding (py-10)          = 5rem
+ *   lg and up  no top bar          + 4rem page padding (py-8)           = 4rem
  *
  * Two values because the top bar eats height that does not exist on desktop.
  * A class string rather than an inline style, because an inline style cannot
@@ -28,4 +28,4 @@
  * bottom — the message composer — ends up under the browser chrome.
  */
 export const FULL_HEIGHT_PANEL_CLASS =
-  "h-[calc(100dvh-6.5rem)] lg:h-[calc(100vh-5rem)]";
+  "h-[calc(100dvh-6.5rem)] lg:h-[calc(100vh-4rem)]";

@@ -1,15 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { findExistingOneOnOne } from "@/lib/conversations";
 import { useToast } from "@/components/ui/Toast";
+
+export type ConversationParticipant = {
+  id: string;
+  full_name: string | null;
+  role: string | null;
+  trade: string | null;
+  company_logo_path: string | null;
+  signup_type: string | null;
+};
+
+type EmbeddedJob = { id: string; title: string };
 
 export type ConversationSummary = {
   id: string;
   title: string | null;
   is_group: boolean;
-  participants: { id: string; full_name: string | null; role: string | null }[];
+  participants: ConversationParticipant[];
+  /** conversations.job_id, resolved — the job a thread from an application is about. */
+  job: { id: string; title: string } | null;
   lastMessage: { content: string; created_at: string; sender_id: string; deleted_at: string | null } | null;
   isUnread: boolean;
 };
@@ -20,12 +33,23 @@ export function useConversations() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
 
-  useEffect(() => {
-    load();
-  }, []);
+  /**
+   * LIVE. The list used to load once and then only on your own send, so a
+   * message arriving in a different conversation changed nothing on screen —
+   * no new preview, no unread dot, no reordering — until a reload. It now
+   * reloads on any INSERT into messages (RLS limits delivery to threads you
+   * are in) and on your own participant row changing (last_read_at when a
+   * thread is opened, hidden_at when one is deleted), debounced so a burst
+   * of messages is one reload. Both tables are in supabase_realtime since
+   * 20260923120000.
+   *
+   * SILENT RELOADS. Only the first load shows the loader; later ones swap the
+   * list in place, so it does not flash empty every time a message lands.
+   */
 
-  async function load() {
-    setLoading(true);
+  // `loading` starts true and is never set back to true: only the first
+  // load shows the loader.
+  const load = useCallback(async () => {
 
     const {
       data: { user },
@@ -62,7 +86,9 @@ export function useConversations() {
         id,
         title,
         is_group,
-        conversation_participants ( user_id, profiles ( id, full_name, role ) )
+        job_id,
+        jobs ( id, title ),
+        conversation_participants ( user_id, profiles!conversation_participants_user_id_fkey ( id, full_name, role, trade, company_logo_path, signup_type ) )
       `
       )
       .in("id", convIds);
@@ -96,10 +122,15 @@ export function useConversations() {
         (!lastReadAt || new Date(lastMsg.created_at) > new Date(lastReadAt))
       );
 
+      // A to-one embed is typed as an array and returned as an object.
+      const embeddedJob = (conv as { jobs?: EmbeddedJob | EmbeddedJob[] | null }).jobs;
+      const job = Array.isArray(embeddedJob) ? embeddedJob[0] ?? null : embeddedJob ?? null;
+
       summaries.push({
         id: conv.id,
         title: conv.title,
         is_group: conv.is_group,
+        job: job ? { id: job.id, title: job.title } : null,
         participants: (conv.conversation_participants || [])
           .map((p: any) => p.profiles)
           .filter((p: any) => p && p.id !== user.id),
@@ -116,7 +147,45 @@ export function useConversations() {
 
     setConversations(summaries);
     setLoading(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(load, 400);
+    };
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user || cancelled) return;
+      // First load from the callback rather than the effect body, alongside
+      // the subscription that keeps it current.
+      load();
+      channel = supabase
+        .channel(`conversation-list-${user.id}-${Date.now()}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, schedule)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "conversation_participants",
+            filter: `user_id=eq.${user.id}`,
+          },
+          schedule
+        )
+        .subscribe();
+    });
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [load]);
 
   async function startConversation(participantIds: string[], title?: string) {
     if (!userId) return { error: "Not logged in.", conversationId: null };
@@ -174,6 +243,7 @@ export function useConversations() {
     }
 
     setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+    toast.success("Conversation removed from your inbox.");
   }
 
   return { conversations, loading, userId, startConversation, deleteConversation, refresh: load };

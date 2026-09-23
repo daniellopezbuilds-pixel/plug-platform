@@ -47,10 +47,10 @@ export function useEmployerVerifications() {
       let query = supabase
         .from("employer_documents")
         .select(
-          "id, label, file_path, user_id, profiles!inner(id, full_name, company_description, company_logo_path, employer_verified, signup_type)"
+          "id, label, file_path, user_id, profiles!employer_documents_user_id_fkey!inner(id, full_name, company_description, company_logo_path, employer_verified, signup_type)"
         )
         .eq("profiles.employer_verified", false)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }).order("id", { ascending: false });
 
       if (limit) query = query.range(offset, offset + limit - 1);
 
@@ -107,6 +107,7 @@ export function useEmployerVerifications() {
     }
 
     setPending((prev) => prev.filter((p) => p.id !== profileId));
+    toast.success("Employer verified.");
   }
 
   function reject(profileId: string) {

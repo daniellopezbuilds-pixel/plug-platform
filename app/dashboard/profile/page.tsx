@@ -37,6 +37,28 @@ import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
 import { TRADES, OTHER_TRADE, isListedTrade } from "@/lib/trades";
 import { nudgeEmailQueue } from "@/lib/emailOutbox";
 import { LocationField } from "@/components/ui/LocationField";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { RailColumns, useRailBreakpoints } from "@/components/layout/RailColumns";
+import { ProfileSummaryCard } from "@/components/feed/FeedRail";
+import { Avatar } from "@/components/ui/Avatar";
+import { Icon } from "@/components/ui/Icon";
+import {
+  ChoiceGroup,
+  FIELD_CONTROL,
+  FIELD_LABEL,
+  Field,
+  FieldRow,
+  FormSection,
+} from "@/components/ui/Form";
+
+/** File inputs: the native button styled to match, full width, 48px tall. */
+const FILE_CONTROL =
+  "block min-h-12 w-full min-w-0 rounded-lg border border-zinc-700 bg-zinc-900 p-2.5 text-sm text-gray-300 transition focus:border-accent focus:outline-none disabled:opacity-50 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-zinc-700";
+
+const UNION_OPTIONS = [
+  { value: "union", label: "Union" },
+  { value: "non_union", label: "Non-union" },
+] as const;
 
 /**
  * The four tabs, in order.
@@ -94,6 +116,8 @@ export default function ProfilePage() {
 
 function ProfileEditor() {
   const toast = useToast();
+  const confirm = useConfirm();
+  const { withRail } = useRailBreakpoints();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -412,6 +436,18 @@ function ProfileEditor() {
    */
   async function handleSaveSignupFields() {
     if (!signupTypeDef) return;
+
+    // The one save on this page that loses something: editing verified
+    // credentials sends them back to unverified. The warning above the button
+    // says so; this makes it a decision rather than a click.
+    if (credentialsVerified && signupFieldsChanged) {
+      const ok = await confirm({
+        title: "Save and remove your verified status?",
+        body: "Your credentials go back to unverified and your verification badge is removed until an administrator reviews them again.",
+        confirmLabel: "Save and clear verification",
+      });
+      if (!ok) return;
+    }
 
     const {
       data: { user },
@@ -764,8 +800,40 @@ function ProfileEditor() {
     );
   }
 
+  const reputation = (
+    <section className="rounded-xl border border-zinc-800 bg-zinc-950">
+      <header className="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-2.5">
+        <h2 className="text-sm font-semibold text-white">Reputation</h2>
+        <ReviewSummary averageRating={averageRating} count={count} />
+      </header>
+      <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-b-xl bg-zinc-800">
+        <li className="bg-zinc-950 px-4 py-3">
+          <span className="block text-2xl font-bold text-white">{hiredCount}</span>
+          <span className="block text-xs text-gray-500">People hired</span>
+        </li>
+        <li className="bg-zinc-950 px-4 py-3">
+          <span className="block text-2xl font-bold text-white">{jobsLandedCount}</span>
+          <span className="block text-xs text-gray-500">Jobs landed</span>
+        </li>
+      </ul>
+    </section>
+  );
+
   return (
-    <div className="max-w-2xl mx-auto">
+    <RailColumns
+      withRail={withRail}
+      split={false}
+      // A form past ~880px reads badly — labels drift from their fields. The
+      // rail takes the rest of the width.
+      mainMax={880}
+      rightLabel="How others see you"
+      right={
+        <>
+          <ProfileSummaryCard />
+          {reputation}
+        </>
+      }
+    >
       {/* YOUR OWN PROFILE, AS EVERYONE ELSE SEES IT, above the form that edits
           it. The page opened with "Edit Profile" in 48px and then a stack of
           inputs — which told you what the page was for and nothing about what
@@ -802,365 +870,347 @@ function ProfileEditor() {
         role="tabpanel"
         aria-labelledby="tab-profile"
       >
-      <div className="space-y-5">
-        <div>
-          <label className="block text-sm text-gray-400 mb-2">Profile Number</label>
-          <div className="w-full p-4 rounded bg-zinc-900 border border-zinc-700 text-white font-semibold">
-            {profileNumber}
-          </div>
-        </div>
-
-        <input
-          type="text"
-          placeholder="Full Name"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-        />
-
-        <input
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-        />
-
-        {/* Trade.
-            A select over lib/trades.tsx, with "Other" revealing a text box so
-            nothing a user already typed is lost — profiles.trade is free text
-            with no constraint, and plenty of rows predate this list. The stored
-            value is whatever is in `trade`, whichever control produced it. */}
-        <div className="space-y-2">
-          <select
-            aria-label="Trade"
-            value={isListedTrade(trade) || trade === "" ? trade : OTHER_TRADE}
-            onChange={(e) => {
-              // Switching TO Other clears the field so the text box starts
-              // empty rather than holding the listed trade they just left.
-              // Switching to a listed trade stores it directly.
-              setTrade(e.target.value === OTHER_TRADE ? "" : e.target.value);
-              setTradeIsOther(e.target.value === OTHER_TRADE);
-            }}
-            className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-          >
-            <option value="">Select your trade</option>
-            {TRADES.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-            <option value={OTHER_TRADE}>Other</option>
-          </select>
-
-          {showOtherTrade && (
-            <input
-              type="text"
-              placeholder="Your trade"
-              aria-label="Your trade"
-              value={trade}
-              onChange={(e) => setTrade(e.target.value)}
-              className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-            />
-          )}
-        </div>
-
-        {/* Classification — how you are classified on the job, as opposed to
-            `trade`, which is what kind of work you do. Shown for everyone
-            rather than only for electrician accounts: a C-10 who also works on
-            the tools has one, and the column is free to be null for anyone who
-            does not. */}
-        <div>
-          <label
-            htmlFor="profile-classification"
-            className="block text-sm text-gray-400 mb-2"
-          >
-            Classification
-          </label>
-          <select
-            id="profile-classification"
-            value={classification}
-            onChange={(e) => {
-              setClassification(e.target.value);
-              setProfileErrors({});
-            }}
-            className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-          >
-            <option value="">Not specified</option>
-            {ELECTRICIAN_CLASSIFICATIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-          {profileErrors.classification && (
-            <p className="text-xs text-rose-400 mt-1">
-              {profileErrors.classification}
-            </p>
-          )}
-        </div>
-
-        <textarea
-          placeholder="Bio"
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
-          className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 h-40 text-white"
-        />
-
-        {/* Location.
-            Same treatment as Trade above and for the same reason: a select over
-            a shared list, with Other revealing a text box so nothing already
-            stored is lost. profiles.location is free text with no constraint
-            and most existing rows read "Los Angeles, CA", which listedCityFor()
-            resolves to the Los Angeles option rather than pushing into Other. */}
-        <LocationField
-          id="profile-location"
-          value={location}
-          onChange={setLocation}
-          className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-          labelClassName="block text-sm text-gray-400 mb-2"
-        />
-
-        <div>
-          <label
-            htmlFor="profile-contact-number"
-            className="block text-sm text-gray-400 mb-2"
-          >
-            Contact number
-          </label>
-          <input
-            id="profile-contact-number"
-            type="tel"
-            autoComplete="tel"
-            placeholder="(555) 123-4567"
-            value={contactNumber}
-            onChange={(e) => setContactNumber(e.target.value)}
-            className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-          />
-        </div>
-
-        {/* Years of experience — a band, and this is the ONLY editor for it.
-            It is the signup field that lives in a profiles column rather than
-            in signup_fields (see profileColumn in lib/signupRoles.tsx), because
-            it is printed on other people's screens. The credentials section
-            below therefore skips it; two controls for one value is how the two
-            get to disagree. */}
-        <div>
-          <label
-            htmlFor="profile-years-experience"
-            className="block text-sm text-gray-400 mb-2"
-          >
-            Years of experience
-          </label>
-          <select
-            id="profile-years-experience"
-            value={yearsExperience}
-            onChange={(e) => {
-              setYearsExperience(e.target.value);
-              setProfileErrors({});
-            }}
-            className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-          >
-            <option value="">Select a range</option>
-            {EXPERIENCE_BANDS.map((band) => (
-              <option key={band} value={band}>
-                {band}
-              </option>
-            ))}
-            {/* A value outside the list — hand-written, or from a band that has
-                since been renamed — stays selectable instead of rendering as an
-                empty select that silently clears it on the next save. */}
-            {yearsExperience &&
-              !(EXPERIENCE_BANDS as readonly string[]).includes(
-                yearsExperience
-              ) && <option value={yearsExperience}>{yearsExperience}</option>}
-          </select>
-          {profileErrors.years_experience && (
-            <p className="text-xs text-rose-400 mt-1">
-              {profileErrors.years_experience}
-            </p>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-400 mb-2">Union Status</label>
-          <div className="flex flex-wrap gap-3 mb-2">
-            <button
-              type="button"
-              onClick={() => setUnionStatus("union")}
-              className={`px-5 py-3 rounded-lg font-semibold border transition ${
-                unionStatus === "union"
-                  ? "bg-transparent border-accent text-white"
-                  : "bg-zinc-900 border-zinc-800 text-gray-400"
-              }`}
+      {/* GROUPED, NOT ONE COLUMN OF FIFTEEN INPUTS. The fields were a single
+          stack with placeholders standing in for labels — which vanish as
+          soon as you type, so a filled-in form no longer said what anything
+          was. They are now four labelled sections, related fields side by
+          side, each collapsing to one column on a phone. */}
+      <div className="space-y-4">
+        <FormSection title="Photo and name" description="What people see beside everything you post, apply to or send.">
+          <div className="flex items-center gap-4">
+            <Avatar name={fullName} photoPath={companyLogoPath} size="lg" />
+            {/* "Profile photo" first: for an individual account that is what
+                this is — company_logo_path is the round image beside the name
+                on every card, and there is no other image column. */}
+            <Field
+              label={<>Profile photo <span className="text-gray-500">/ company logo</span></>}
+              htmlFor="profile-photo"
+              className="flex-1"
             >
-              Union
-            </button>
-            <button
-              type="button"
-              onClick={() => setUnionStatus("non_union")}
-              className={`px-5 py-3 rounded-lg font-semibold border transition ${
-                unionStatus === "non_union"
-                  ? "bg-transparent border-accent text-white"
-                  : "bg-zinc-900 border-zinc-800 text-gray-400"
-              }`}
-            >
-              Non-Union
-            </button>
+              <input
+                id="profile-photo"
+                type="file"
+                accept="image/*"
+                onChange={handleLogoUpload}
+                disabled={uploadingLogo}
+                className={FILE_CONTROL}
+              />
+            </Field>
           </div>
-          {unionStatus && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-400">Preview:</span>
-              <UnionBadge status={unionStatus} verified={unionVerified} />
+          {uploadingLogo && <InlineLoader message="Uploading photo" />}
+
+          <FieldRow cols={3}>
+            <Field label="Full name" htmlFor="profile-full-name">
+              <input
+                id="profile-full-name"
+                type="text"
+                autoComplete="name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className={FIELD_CONTROL}
+              />
+            </Field>
+            <Field label="Username" htmlFor="profile-username">
+              <input
+                id="profile-username"
+                type="text"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className={FIELD_CONTROL}
+              />
+            </Field>
+            <div className="min-w-0">
+              <p className={FIELD_LABEL}>Profile number</p>
+              <p className="font-technical flex min-h-12 items-center font-semibold text-white">
+                {profileNumber}
+              </p>
             </div>
-          )}
-          <p className="text-xs text-gray-400 mt-2">
-            This is self-reported. An admin will verify it before it shows as confirmed.
-          </p>
-        </div>
+          </FieldRow>
+        </FormSection>
 
-        <div>
-          <label className="block text-sm text-gray-400 mb-2">Resume</label>
-          <p className="text-xs text-gray-500 mb-2">
-            PDF or Word, under 5MB. Uploading a new one replaces the old.
-          </p>
-          <input
-            type="file"
-            accept={RESUME_ACCEPT}
-            onChange={handleResumeUpload}
-            disabled={uploadingResume}
-            className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white disabled:opacity-50"
+        <FormSection title="Trade and experience" description="How employers and other trades find and judge you.">
+          <FieldRow cols={3}>
+            {/* Trade: a select over lib/trades.tsx, with "Other" revealing a
+                text box so nothing a user already typed is lost —
+                profiles.trade is free text and plenty of rows predate the
+                list. */}
+            <Field label="Trade" htmlFor="profile-trade">
+              <div className="space-y-2">
+                <select
+                  id="profile-trade"
+                  value={isListedTrade(trade) || trade === "" ? trade : OTHER_TRADE}
+                  onChange={(e) => {
+                    // Switching TO Other clears the field so the text box
+                    // starts empty rather than holding the trade just left.
+                    setTrade(e.target.value === OTHER_TRADE ? "" : e.target.value);
+                    setTradeIsOther(e.target.value === OTHER_TRADE);
+                  }}
+                  className={FIELD_CONTROL}
+                >
+                  <option value="">Select your trade</option>
+                  {TRADES.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                  <option value={OTHER_TRADE}>Other</option>
+                </select>
+
+                {showOtherTrade && (
+                  <input
+                    type="text"
+                    placeholder="Your trade"
+                    aria-label="Your trade"
+                    value={trade}
+                    onChange={(e) => setTrade(e.target.value)}
+                    className={FIELD_CONTROL}
+                  />
+                )}
+              </div>
+            </Field>
+
+            {/* Classification — how you are classified on the job, as opposed
+                to trade, which is what kind of work you do. Shown for everyone:
+                a C-10 who also works on the tools has one. */}
+            <Field label="Classification" htmlFor="profile-classification" error={profileErrors.classification}>
+              <select
+                id="profile-classification"
+                value={classification}
+                onChange={(e) => {
+                  setClassification(e.target.value);
+                  setProfileErrors({});
+                }}
+                className={FIELD_CONTROL}
+              >
+                <option value="">Not specified</option>
+                {ELECTRICIAN_CLASSIFICATIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            {/* Years of experience — a band, and this is the ONLY editor for
+                it: the signup field that lives in a profiles column, because it
+                is printed on other people's screens. The credentials tab skips
+                it; two controls for one value is how they disagree. */}
+            <Field label="Years of experience" htmlFor="profile-years-experience" error={profileErrors.years_experience}>
+              <select
+                id="profile-years-experience"
+                value={yearsExperience}
+                onChange={(e) => {
+                  setYearsExperience(e.target.value);
+                  setProfileErrors({});
+                }}
+                className={FIELD_CONTROL}
+              >
+                <option value="">Select a range</option>
+                {EXPERIENCE_BANDS.map((band) => (
+                  <option key={band} value={band}>
+                    {band}
+                  </option>
+                ))}
+                {/* A value outside the list stays selectable instead of
+                    rendering as an empty select that silently clears it on
+                    the next save. */}
+                {yearsExperience &&
+                  !(EXPERIENCE_BANDS as readonly string[]).includes(yearsExperience) && (
+                    <option value={yearsExperience}>{yearsExperience}</option>
+                  )}
+              </select>
+            </Field>
+          </FieldRow>
+
+          <ChoiceGroup
+            name="profile-union"
+            legend="Union status"
+            options={UNION_OPTIONS}
+            value={(unionStatus ?? "") as "" | "union" | "non_union"}
+            onChange={(next) => setUnionStatus(next)}
           />
-          {uploadingResume && <InlineLoader message="Uploading resume" />}
+          <p className="-mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+            Self-reported — an admin verifies it before it shows as confirmed.
+            {unionStatus && <UnionBadge status={unionStatus} verified={unionVerified} />}
+          </p>
+
+          <Field label="Résumé" htmlFor="profile-resume" hint="PDF or Word, under 5MB. Uploading a new one replaces the old.">
+            <input
+              id="profile-resume"
+              type="file"
+              accept={RESUME_ACCEPT}
+              onChange={handleResumeUpload}
+              disabled={uploadingResume}
+              className={FILE_CONTROL}
+            />
+          </Field>
+          {uploadingResume && <InlineLoader message="Uploading résumé" />}
           {resumePath && !uploadingResume && (
             <button
+              type="button"
               onClick={handleViewResume}
-              className="mt-3 text-accent-2-soft hover:text-white text-sm font-semibold"
+              className="-mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-accent-2-soft transition hover:text-white"
             >
-              View current resume →
+              <Icon name="document" />
+              View current résumé
             </button>
           )}
-        </div>
+        </FormSection>
 
-
-        <div className="border-t border-zinc-800 pt-6 mt-2">
-          <SectionHeading>Company Branding</SectionHeading>
-
-          <div className="mb-5">
-            {/* "Profile photo" first, because for an individual account that
-                is what this is — company_logo_path is the round image rendered
-                beside the name on the public profile, the marketplace card and
-                the application card, and there is no other image column. The
-                completion banner asks for a "profile photo"; a page whose only
-                matching label said "Company Logo" would send an electrician
-                looking for a field that, to them, does not exist. */}
-            <label className="block text-sm text-gray-400 mb-2">
-              Profile photo <span className="text-gray-500">/ company logo</span>
-            </label>
-            {companyLogoPath && (
-              <img
-                src={getBrandingPublicUrl(companyLogoPath)}
-                alt="Company logo preview"
-                className="w-20 h-20 rounded-full object-cover border border-zinc-700 mb-3"
-              />
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleLogoUpload}
-              disabled={uploadingLogo}
-              className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white disabled:opacity-50"
+        <FormSection title="About and contact" description="Where you are, how to reach you, and a few lines about your work.">
+          <Field label="Bio" htmlFor="profile-bio">
+            <textarea
+              id="profile-bio"
+              placeholder="The work you do, where, and what you are looking for"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              rows={5}
+              className={`${FIELD_CONTROL} min-h-32 resize-y leading-relaxed`}
             />
-            {uploadingLogo && <InlineLoader message="Uploading logo" />}
-          </div>
+          </Field>
 
-          <div className="mb-5">
-            <label className="block text-sm text-gray-400 mb-2">Company Banner</label>
+          <FieldRow>
+            {/* Same treatment as Trade: a select over a shared list, with
+                Other revealing a text box so nothing already stored is lost. */}
+            <LocationField
+              id="profile-location"
+              value={location}
+              onChange={setLocation}
+              className={FIELD_CONTROL}
+              labelClassName={FIELD_LABEL}
+            />
+
+            <Field label="Contact number" htmlFor="profile-contact-number">
+              <input
+                id="profile-contact-number"
+                type="tel"
+                autoComplete="tel"
+                placeholder="(555) 123-4567"
+                value={contactNumber}
+                onChange={(e) => setContactNumber(e.target.value)}
+                className={FIELD_CONTROL}
+              />
+            </Field>
+          </FieldRow>
+        </FormSection>
+
+        <FormSection title="Company" description="For contractors and employers. Leave it empty if you work for someone else.">
+          <Field label="Company banner" htmlFor="profile-banner">
             {companyBannerPath && (
+              // eslint-disable-next-line @next/next/no-img-element -- public storage URL, as everywhere else branding renders
               <img
                 src={getBrandingPublicUrl(companyBannerPath)}
                 alt="Company banner preview"
-                className="w-full h-32 rounded object-cover border border-zinc-700 mb-3"
+                className="mb-3 h-28 w-full rounded-lg border border-zinc-800 object-cover"
               />
             )}
             <input
+              id="profile-banner"
               type="file"
               accept="image/*"
               onChange={handleBannerUpload}
               disabled={uploadingBanner}
-              className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white disabled:opacity-50"
+              className={FILE_CONTROL}
             />
-            {uploadingBanner && <InlineLoader message="Uploading banner" />}
-          </div>
+          </Field>
+          {uploadingBanner && <InlineLoader message="Uploading banner" />}
 
-          <textarea
-            placeholder="Company Description"
-            value={companyDescription}
-            onChange={(e) => setCompanyDescription(e.target.value)}
-            className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 h-32 text-white mb-5"
-          />
-
-          <input
-            type="text"
-            placeholder="Company Website (e.g. yourcompany.com)"
-            value={companyWebsite}
-            onChange={(e) => setCompanyWebsite(e.target.value)}
-            className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white"
-          />
-
-          <div className="mt-5">
-            <label className="block text-sm text-gray-400 mb-2">
-              Verification Document{" "}
-              {employerVerified && <span className="text-green-400">(Verified ✓)</span>}
-            </label>
-            <input
-              type="file"
-              onChange={handleEmployerDocUpload}
-              disabled={uploadingEmployerDoc}
-              className="w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white disabled:opacity-50"
+          <Field label="Company description" htmlFor="profile-company-description">
+            <textarea
+              id="profile-company-description"
+              value={companyDescription}
+              onChange={(e) => setCompanyDescription(e.target.value)}
+              rows={4}
+              className={`${FIELD_CONTROL} min-h-28 resize-y leading-relaxed`}
             />
-            {uploadingEmployerDoc && <InlineLoader message="Uploading document" />}
-            {employerDocPath && !uploadingEmployerDoc && (
-              <button
-                onClick={handleViewEmployerDoc}
-                className="mt-3 text-accent-2-soft hover:text-white text-sm font-semibold"
-              >
-                View uploaded document: {employerDocLabel} →
-              </button>
-            )}
+          </Field>
+
+          <FieldRow>
+            <Field label="Company website" htmlFor="profile-company-website">
+              <input
+                id="profile-company-website"
+                type="text"
+                inputMode="url"
+                placeholder="yourcompany.com"
+                value={companyWebsite}
+                onChange={(e) => setCompanyWebsite(e.target.value)}
+                className={FIELD_CONTROL}
+              />
+            </Field>
+
+            <Field
+              label={
+                <>
+                  Verification document{" "}
+                  {employerVerified && <span className="text-accent">(Verified ✓)</span>}
+                </>
+              }
+              htmlFor="profile-employer-doc"
+            >
+              <input
+                id="profile-employer-doc"
+                type="file"
+                onChange={handleEmployerDocUpload}
+                disabled={uploadingEmployerDoc}
+                className={FILE_CONTROL}
+              />
+            </Field>
+          </FieldRow>
+          {uploadingEmployerDoc && <InlineLoader message="Uploading document" />}
+          {employerDocPath && !uploadingEmployerDoc && (
+            <button
+              type="button"
+              onClick={handleViewEmployerDoc}
+              className="-mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-accent-2-soft transition hover:text-white"
+            >
+              <Icon name="document" />
+              View uploaded document: {employerDocLabel}
+            </button>
+          )}
+        </FormSection>
+
+        {/* STICKY SAVE. The button used to sit at the very end of a long
+            form, so an edit near the top had to be followed by a scroll to
+            the bottom to keep it. Pinned to the bottom of the scroll area it
+            is always one tap away, and it sits above the content, not over
+            the last field. */}
+        <div className="sticky bottom-0 z-10 -mx-1 border-t border-zinc-800 bg-black/90 px-1 py-3 backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-3">
+            <p className="hidden text-sm text-gray-400 sm:block">
+              Photo, résumé and documents save as soon as they upload.
+            </p>
+            <button
+              type="button"
+              onClick={handleSave}
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-accent px-6 font-semibold text-on-accent transition hover:bg-accent-hover sm:w-auto"
+            >
+              Save profile
+            </button>
           </div>
         </div>
-
-        <button
-          onClick={handleSave}
-          className="bg-accent text-on-accent px-6 py-4 rounded font-semibold"
-        >
-          Save Profile
-        </button>
       </div>
 
-        <div className="mt-10 border-t border-zinc-800 pt-8">
-          <SectionHeading
-            actions={<ReviewSummary averageRating={averageRating} count={count} />}
-          >
-            Your Reputation
+        {/* Reviews under the form on this tab. The rating and hire counts
+            are in the rail (or below here on a phone). */}
+        <div className="mt-8">
+          <SectionHeading actions={<ReviewSummary averageRating={averageRating} count={count} />}>
+            Your reputation
           </SectionHeading>
-
-          {(hiredCount > 0 || jobsLandedCount > 0) && (
-            <div className="flex flex-wrap gap-2 mb-6">
+          {!withRail && (hiredCount > 0 || jobsLandedCount > 0) && (
+            <div className="mb-4 flex flex-wrap gap-2">
               {hiredCount > 0 && (
-                <span className="bg-zinc-800 text-gray-300 px-3 py-1 rounded-full text-sm">
+                <span className="rounded-full border border-zinc-700 px-3 py-1 text-sm text-gray-300">
                   {hiredCount} {hiredCount === 1 ? "person" : "people"} hired
                 </span>
               )}
               {jobsLandedCount > 0 && (
-                <span className="bg-zinc-800 text-gray-300 px-3 py-1 rounded-full text-sm">
+                <span className="rounded-full border border-zinc-700 px-3 py-1 text-sm text-gray-300">
                   {jobsLandedCount} {jobsLandedCount === 1 ? "job" : "jobs"} landed
                 </span>
               )}
             </div>
           )}
-
           <ReviewsList reviews={reviews} />
         </div>
       </div>
@@ -1209,8 +1259,7 @@ function ProfileEditor() {
               <div className="space-y-4">
                 {credentialFields.map((field) => {
                   const value = signupFields[field.key] ?? "";
-                  const inputClass =
-                    "w-full p-4 rounded bg-zinc-900 border border-zinc-800 text-white";
+                  const inputClass = FIELD_CONTROL;
 
                   const onChange = (next: string) => {
                     setSignupFields((prev) => ({ ...prev, [field.key]: next }));
@@ -1228,7 +1277,7 @@ function ProfileEditor() {
                     <div key={field.key}>
                       <label
                         htmlFor={`signup-${field.key}`}
-                        className="block text-xs text-gray-400 mb-1"
+                        className={FIELD_LABEL}
                       >
                         {field.label}
                         {!field.required && (
@@ -1356,6 +1405,6 @@ function ProfileEditor() {
           <ChangePasswordSection />
         </div>
       )}
-    </div>
+    </RailColumns>
   );
 }

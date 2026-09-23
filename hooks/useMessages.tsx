@@ -57,7 +57,7 @@ export function useMessages(conversationId: string | null) {
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: false }).order("id", { ascending: false })
         .range(0, PAGE_SIZE - 1);
 
       if (isMounted && data) {
@@ -90,6 +90,13 @@ export function useMessages(conversationId: string | null) {
           );
         }
       }
+
+      // The thread may have been closed, or another opened, while the fetches
+      // above were in flight. Its cleanup has already run; subscribing now
+      // would leave a channel nothing closes — and, worse, remove the channel
+      // of the thread that IS open (channelRef is shared), so switching
+      // threads quickly stopped the visible one updating live.
+      if (!isMounted) return;
 
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
@@ -166,7 +173,7 @@ export function useMessages(conversationId: string | null) {
       .select("*")
       .eq("conversation_id", conversationId)
       .lt("created_at", oldest)
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false }).order("id", { ascending: false })
       .range(0, PAGE_SIZE - 1);
 
     if (!error && data) {
@@ -225,6 +232,7 @@ export function useMessages(conversationId: string | null) {
         m.id === messageId ? { ...m, content: "", deleted_at: new Date().toISOString() } : m
       )
     );
+    toast.success("Message deleted.");
   }
 
   return {

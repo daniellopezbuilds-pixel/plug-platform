@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Card } from "@/components/ui/Card";
 import { supabase } from "@/lib/supabase";
-import { useAds } from "@/hooks/useAds";
+import { useAds, type Ad } from "@/hooks/useAds";
 import { useAdCheckout, type CapacityByPlacement } from "@/hooks/useAdCheckout";
 import {
   AD_SPEC_TEXT,
@@ -24,62 +23,50 @@ import {
   type AdPlacement,
 } from "@/lib/adPricing";
 import { PageHeading } from "@/components/layout/PageHeading";
+import { RailColumns, useRailBreakpoints } from "@/components/layout/RailColumns";
+import { RailCard } from "@/components/layout/RailCard";
+import { AdStatusPill, adStateOf } from "@/components/ads/AdStatusPill";
 import { AdSubmissionSkeleton } from "@/components/ui/Skeleton";
 import { ButtonSpinner } from "@/components/ui/ButtonSpinner";
-import { Spinner } from "@/components/ui/Spinner";
-import { SectionHeading } from "@/components/ui/SectionHeading";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { FIELD_CONTROL, FIELD_LABEL, Field, FieldRow, FormSection } from "@/components/ui/Form";
+import { Icon } from "@/components/ui/Icon";
+import { LoadMore } from "@/components/ui/LoadMore";
 import { useToast } from "@/components/ui/Toast";
 // The same list signup writes to profiles.location. Targeting a city only
 // matches profiles if both ends spell it the same way, so there is one list
 // and not two that happen to agree. See lib/locations.tsx.
 import { AD_TARGET_CITIES } from "@/lib/locations";
 
-
-const STATUS_STYLES: Record<string, string> = {
-  pending: "bg-zinc-800/60 border-zinc-700 text-gray-300",
-  approved: "bg-green-950/40 border-green-800 text-green-400",
-  rejected: "bg-rose-950/40 border-rose-900 text-rose-400",
-};
-
-const inputClass =
-  "w-full p-2.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-gray-400 focus:border-accent focus:outline-none transition";
-
-const labelClass = "block text-sm text-gray-400 mb-1";
+/**
+ * Branding deals — a brand's campaigns, and buying a new one.
+ *
+ * CAMPAIGNS FIRST. The page used to open on the new-ad form with the
+ * submissions squeezed into a side column; a brand comes back to check on
+ * its campaigns far more often than to create one. The list now leads, full
+ * width, and the form opens from a button (or on its own for a brand with no
+ * campaigns yet). Borrowed from Meta and LinkedIn Campaign Manager, where the
+ * campaign list is the home screen. NOT borrowed: their metrics columns —
+ * analytics is cut from this phase (spec section 3).
+ *
+ * THE RAIL shows what the form will produce: a live preview of the creative
+ * as the feed card renders it, and the order summary. With the form closed
+ * it shows the rate card and how review works. Under 1280 both sit inside
+ * the form, beside the fields they reflect.
+ */
 
 /**
  * A value the form computes or fixes, shown in a field position but not
- * editable — State (always California), End date (start plus the term) and
- * Total (rate x months).
- *
- * Deliberately has NO box. These previously used the same rounded/bordered/
- * dark-filled treatment as the real inputs and differed only by one shade of
- * border, so they read as inputs that would not accept typing. Removing the
- * chrome entirely is unambiguous in a way that restyling it is not.
- *
- * There is more of this than there used to be, and that is the point: the
- * total is now something the brand is told, not something it proposes.
- *
- * py-2.5 matches the inputs' padding so the value sits on the same baseline as
- * the fields beside it in a grid row.
+ * editable — State (always California), End date (start plus the term).
+ * Deliberately has NO box: a bordered, dark-filled value reads as an input
+ * that will not accept typing.
  */
-function ReadOnlyField({
-  label,
-  value,
-  hint,
-  large = false,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  large?: boolean;
-}) {
+function ReadOnlyField({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div>
-      <p className={labelClass}>{label}</p>
-      <p className={`py-2.5 font-semibold text-white ${large ? "text-xl" : ""}`}>
-        {value}
-      </p>
-      {hint && <p className="text-xs text-gray-500 -mt-1">{hint}</p>}
+    <div className="min-w-0">
+      <p className={FIELD_LABEL}>{label}</p>
+      <p className="flex min-h-12 items-center font-semibold text-white">{value}</p>
+      {hint && <p className="-mt-1 text-xs text-gray-500">{hint}</p>}
     </div>
   );
 }
@@ -119,27 +106,17 @@ export default function BrandingDealsPage() {
   const { fetchCapacity, startCheckout, resumeCheckout, redirecting } =
     useAdCheckout();
 
-  // Infinite scroll inside the submissions panel: a sentinel at the end of the
-  // list, watched against the panel itself rather than the viewport, so it
-  // triggers on the panel's own scrollbar.
-  const listRef = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const { withRail } = useRailBreakpoints();
 
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    const root = listRef.current;
-    if (!sentinel || !root || !hasMore) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) loadMore();
-      },
-      { root, rootMargin: "120px" }
-    );
-
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMore, loadMore]);
+  /**
+   * Whether the new-advertisement form is open. Closed by default once the
+   * brand has campaigns — they come back to check on those far more often
+   * than to create one — and open for a brand with none, for whom the form
+   * is the only thing to do. Null means "not decided yet": the list has not
+   * loaded, so the default cannot be chosen.
+   */
+  const [formOpen, setFormOpen] = useState<boolean | null>(null);
+  const showForm = formOpen ?? (!loading && ads.length === 0);
 
   const today = todayIso();
 
@@ -388,54 +365,134 @@ export default function BrandingDealsPage() {
 
   const busy = uploading || redirecting;
 
-  return (
-    // No per-page width cap: the dashboard layout centres the column for every
-    // page (1600px since the widening), and the form below is already a
-    // two-column grid from xl with container queries inside each column, so it
-    // uses the extra width rather than stretching one field row across it.
-    <div>
-      <PageHeading title="Branding deals" />
+  // The creative as an object URL for the preview; revoked when it changes.
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    // An external resource created in the effect, handed to state for the
+    // <img> — the synchronisation effects are for.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPreviewUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+      setPreviewUrl(null);
+    };
+  }, [file]);
 
+  const preview = (
+    <CreativePreview imageUrl={previewUrl} title={title} placement={placement} />
+  );
+
+  const orderSummary = (
+    <RailCard title="Order summary">
+      <dl className="space-y-2 px-4 py-3 text-sm">
+        <SummaryRow label="Placement" value={adPlacementLabel(placement)} />
+        <SummaryRow label="City" value={city} />
+        <SummaryRow label="Runs" value={`${startDate} → ${endDate}`} />
+        <SummaryRow
+          label="Rate"
+          value={`${formatUsd(monthlyCentsFor(placement))} × ${durationMonths} ${
+            durationMonths === 1 ? "month" : "months"
+          }`}
+        />
+        <div className="flex items-baseline justify-between border-t border-zinc-800 pt-2">
+          <dt className="text-gray-400">Total, charged once</dt>
+          <dd className="text-xl font-bold text-white">{formatUsd(totalCents)}</dd>
+        </div>
+      </dl>
+    </RailCard>
+  );
+
+  const rateCard = (
+    <RailCard title="Placements">
+      <ul className="divide-y divide-zinc-800">
+        {AD_PLACEMENTS.map((p) => (
+          <li key={p.value} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+            <span className="text-gray-300">{p.label}</span>
+            <span className="font-semibold text-white">
+              {formatUsd(monthlyCentsFor(p.value))}/mo
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="border-t border-zinc-800 px-4 py-3 text-xs text-gray-400">
+        Flat monthly rates, paid up front. Every campaign is reviewed after
+        payment and stays off the site until an admin approves it.
+      </p>
+    </RailCard>
+  );
+
+  return (
+    <RailColumns
+      withRail={withRail}
+      split={false}
+      rightLabel={showForm ? "Preview and order summary" : "Placements"}
+      right={
+        showForm ? (
+          <>
+            {preview}
+            {orderSummary}
+          </>
+        ) : (
+          rateCard
+        )
+      }
+    >
+      <PageHeading
+        title="Branding deals"
+        size="compact"
+        actions={
+          !showForm && ads.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setFormOpen(true)}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-accent px-4 text-sm font-semibold text-on-accent transition hover:bg-accent-hover"
+            >
+              <Icon name="plus" className="h-4 w-4" />
+              <span className="hidden sm:inline">New advertisement</span>
+              <span className="sm:hidden">New</span>
+            </button>
+          ) : undefined
+        }
+      />
+
+      {/* Theme colours: this was raw green. A confirmation is the accent, as
+          in a success toast. */}
       {checkoutOutcome === "success" && (
-        <p className="text-sm text-green-400 bg-green-950/40 border border-green-800 rounded-lg p-3 mb-4">
-          Payment received. Your campaign moves to{" "}
-          <span className="text-white">Pending</span> as soon as Stripe confirms
-          it — usually a few seconds — and an admin reviews it before it runs.
+        <p className="mb-4 flex items-start gap-2 rounded-lg border border-accent/40 bg-accent/10 p-3 text-sm text-gray-200">
+          <Icon name="checkCircle" className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+          <span>
+            Payment received. Your campaign moves to{" "}
+            <span className="text-white">In review</span> as soon as Stripe
+            confirms it — usually a few seconds — and an admin reviews it
+            before it runs.
+          </span>
         </p>
       )}
 
       {checkoutOutcome === "cancelled" && (
-        <p className="text-sm text-gray-300 bg-zinc-900 border border-zinc-800 rounded-lg p-3 mb-4">
-          Checkout was cancelled and nothing was charged. Your campaign is saved
-          below as <span className="text-white">Payment incomplete</span> — you
-          can finish paying for it there.
+        <p className="mb-4 rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-sm text-gray-300">
+          Checkout was cancelled and nothing was charged. Your campaign is
+          saved below as <span className="text-white">Unpaid</span> — you can
+          finish paying for it there.
         </p>
       )}
 
-      <p className="text-sm text-gray-400 bg-zinc-900 border border-zinc-800 rounded-lg p-3 mb-6">
-        Placements are sold at a flat monthly rate and paid up front. Every
-        campaign is reviewed after payment and stays off the site until an admin
-        approves it.
-      </p>
-
-      {/* Proportional rather than a fixed sidebar width, so both columns grow
-          with the page instead of the right one staying narrow. Stacks below
-          xl: at lg the content area is only ~768px, which squeezes both
-          columns rather than reading as two. */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-6 items-start">
-        <div>
-          <SectionHeading>New advertisement</SectionHeading>
-
-          <Card>
-            {/* @container: every grid below reflows against this card's width,
-                not the viewport's. See the note on the column grid above. */}
-            <div className="@container space-y-4">
-              {/* Ad title, Link URL and the file input never share a row:
-                  they hold long free text and truncate badly at half width. */}
-              <div>
-                <label htmlFor="title" className={labelClass}>
-                  Ad title
-                </label>
+      {showForm && (
+        <div className="mb-8 space-y-4">
+          <FormSection
+            step={1}
+            title="Creative"
+            description="One 4:1 image, a title, and where a tap goes."
+          >
+            <FieldRow>
+              <Field
+                label="Ad title"
+                htmlFor="title"
+                error={errors.title}
+                hint="Shown under the image and read out by screen readers."
+              >
                 <input
                   id="title"
                   type="text"
@@ -444,244 +501,208 @@ export default function BrandingDealsPage() {
                     setTitle(e.target.value);
                     clearError("title");
                   }}
-                  className={inputClass}
+                  className={FIELD_CONTROL}
                 />
-                {errors.title && (
-                  <p className="text-xs text-rose-400 mt-1">{errors.title}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="link_url" className={labelClass}>
-                  Link URL <span className="text-gray-400">— optional</span>
-                </label>
+              </Field>
+              <Field label="Link" htmlFor="link_url" optional>
                 <input
                   id="link_url"
                   type="text"
+                  inputMode="url"
                   placeholder="yourbrand.com/offer"
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
-                  className={inputClass}
+                  className={FIELD_CONTROL}
                 />
-              </div>
+              </Field>
+            </FieldRow>
 
-              <div className="grid grid-cols-1 @xs:grid-cols-2 @lg:grid-cols-3 gap-4">
-                <div>
-                  <label htmlFor="placement" className={labelClass}>
-                    Placement
-                  </label>
-                  <select
-                    id="placement"
-                    value={placement}
-                    onChange={(e) => setPlacement(e.target.value as AdPlacement)}
-                    className={inputClass}
-                  >
-                    {AD_PLACEMENTS.map((p) => {
-                      const state = capacity?.[p.value] ?? null;
-                      const full = state?.full ?? false;
-                      const unconfigured = state ? !state.configured : false;
-                      return (
-                        // Disabled rather than hidden: a brand should be able
-                        // to see that the feed exists and is taken, not wonder
-                        // why the list is shorter than the rate card. The same
-                        // goes for a placement with no price configured — a
-                        // silently shorter list looks like a product decision.
-                        <option
-                          key={p.value}
-                          value={p.value}
-                          disabled={full || unconfigured}
-                        >
-                          {p.label} — {formatUsd(monthlyCentsFor(p.value))}/mo
-                          {unconfigured
-                            ? " — unavailable"
-                            : full
-                            ? " — fully booked"
-                            : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
+            <Field
+              label="Ad image"
+              htmlFor="ad_image"
+              hint={AD_SPEC_TEXT}
+              error={errors.image}
+            >
+              {/* text-sm on the file input despite the 16px rule: that rule
+                  exists because iOS zooms when a field takes keyboard focus,
+                  and a file input opens the photo picker instead. */}
+              <input
+                id="ad_image"
+                key={fileInputKey}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+                className="block min-h-12 w-full min-w-0 rounded-lg border border-zinc-700 bg-zinc-900 p-2.5 text-sm text-gray-300 transition focus:border-accent focus:outline-none file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-zinc-700"
+              />
+            </Field>
+            {fileInfo && (
+              <p className="-mt-2 flex items-center gap-1.5 text-sm text-gray-300">
+                <Icon name="checkCircle" className="h-4 w-4 text-accent" />
+                {fileInfo}
+              </p>
+            )}
 
-                <ReadOnlyField label="State" value="California" />
+            {/* No rail under 1280, so the preview sits with the creative it
+                previews. */}
+            {!withRail && preview}
+          </FormSection>
 
-                <div>
-                  <label htmlFor="city" className={labelClass}>
-                    City
-                  </label>
-                  <select
-                    id="city"
-                    value={city}
-                    onChange={(e) => {
-                      setCity(e.target.value);
-                      clearError("city");
-                    }}
-                    className={inputClass}
-                  >
-                    {AD_TARGET_CITIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
+          <FormSection
+            step={2}
+            title="Placement and schedule"
+            description="Where it runs, for which city, and for how long."
+          >
+            <FieldRow cols={3}>
+              <Field label="Placement" htmlFor="placement">
+                <select
+                  id="placement"
+                  value={placement}
+                  onChange={(e) => setPlacement(e.target.value as AdPlacement)}
+                  className={FIELD_CONTROL}
+                >
+                  {AD_PLACEMENTS.map((p) => {
+                    const state = capacity?.[p.value] ?? null;
+                    const full = state?.full ?? false;
+                    const unconfigured = state ? !state.configured : false;
+                    return (
+                      // Disabled rather than hidden: a brand should see that
+                      // the feed exists and is taken, not wonder why the list
+                      // is shorter than the rate card.
+                      <option key={p.value} value={p.value} disabled={full || unconfigured}>
+                        {p.label} — {formatUsd(monthlyCentsFor(p.value))}/mo
+                        {unconfigured ? " — unavailable" : full ? " — fully booked" : ""}
                       </option>
-                    ))}
-                  </select>
-                  {errors.city && (
-                    <p className="text-xs text-rose-400 mt-1">{errors.city}</p>
-                  )}
-                </div>
-              </div>
+                    );
+                  })}
+                </select>
+              </Field>
 
-              <div className="grid grid-cols-1 @xs:grid-cols-2 @lg:grid-cols-3 gap-4">
-                <div>
-                  <label htmlFor="start_date" className={labelClass}>
-                    Start date
-                  </label>
-                  <input
-                    id="start_date"
-                    type="date"
-                    min={today}
-                    value={startDate}
-                    onChange={(e) => {
-                      setStartDate(e.target.value);
-                      clearError("dates");
-                    }}
-                    className={inputClass}
-                  />
-                </div>
+              <ReadOnlyField label="State" value="California" />
 
-                <div>
-                  <label htmlFor="duration" className={labelClass}>
-                    Duration
-                  </label>
-                  <select
-                    id="duration"
-                    value={durationMonths}
-                    onChange={(e) =>
-                      setDurationMonths(
-                        Number(e.target.value) as AdDurationMonths
-                      )
-                    }
-                    className={inputClass}
-                  >
-                    {AD_DURATIONS_MONTHS.map((months) => (
-                      <option key={months} value={months}>
-                        {months} {months === 1 ? "month" : "months"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <Field label="City" htmlFor="city" error={errors.city}>
+                <select
+                  id="city"
+                  value={city}
+                  onChange={(e) => {
+                    setCity(e.target.value);
+                    clearError("city");
+                  }}
+                  className={FIELD_CONTROL}
+                >
+                  {AD_TARGET_CITIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </FieldRow>
 
-                <ReadOnlyField
-                  label="End date"
-                  value={endDate}
-                  hint="Start date plus the term"
-                />
-              </div>
-              {errors.dates && (
-                <p className="text-xs text-rose-400 -mt-2">{errors.dates}</p>
-              )}
-
-              <div className="grid grid-cols-1 @xs:grid-cols-2 gap-4">
-                <ReadOnlyField
-                  label="Rate"
-                  value={`${formatUsd(monthlyCentsFor(placement))} / month`}
-                  hint={adPlacementLabel(placement)}
-                />
-                <ReadOnlyField
-                  label="Total"
-                  value={formatUsd(totalCents)}
-                  hint={`${formatUsd(monthlyCentsFor(placement))} × ${durationMonths} ${
-                    durationMonths === 1 ? "month" : "months"
-                  }, charged once`}
-                  large
-                />
-              </div>
-
-              <div>
-                <label htmlFor="ad_image" className={labelClass}>
-                  Ad image
-                </label>
-                <p className="text-xs text-gray-400 mb-1.5">{AD_SPEC_TEXT}</p>
-                {/* Not inputClass. The native button is styled through file:*
-                    so it matches the rest of the form in every browser, and
-                    min-w-0 + w-full keep a long filename inside the card
-                    instead of widening it.
-
-                    text-sm here despite the 16px rule elsewhere: that rule
-                    exists because iOS Safari zooms when a field takes keyboard
-                    focus, and a file input opens the photo picker instead.
-                    Nothing to zoom into, and the smaller text is what fits a
-                    filename at 295px. */}
+            <FieldRow cols={3}>
+              <Field label="Start date" htmlFor="start_date" error={errors.dates}>
                 <input
-                  id="ad_image"
-                  key={fileInputKey}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
-                  className="block w-full min-w-0 p-2.5 rounded-lg bg-zinc-900 border border-zinc-700 text-sm text-gray-300 focus:border-accent focus:outline-none transition file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-zinc-700"
+                  id="start_date"
+                  type="date"
+                  min={today}
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    clearError("dates");
+                  }}
+                  className={`${FIELD_CONTROL} appearance-none text-left`}
                 />
-                {errors.image && (
-                  <p className="text-xs text-rose-400 mt-1">{errors.image}</p>
-                )}
-                {fileInfo && (
-                  <p className="text-xs text-green-400 mt-1">✓ {fileInfo}</p>
-                )}
+              </Field>
+
+              <Field label="Duration" htmlFor="duration">
+                <select
+                  id="duration"
+                  value={durationMonths}
+                  onChange={(e) =>
+                    setDurationMonths(Number(e.target.value) as AdDurationMonths)
+                  }
+                  className={FIELD_CONTROL}
+                >
+                  {AD_DURATIONS_MONTHS.map((months) => (
+                    <option key={months} value={months}>
+                      {months} {months === 1 ? "month" : "months"}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <ReadOnlyField label="End date" value={endDate} hint="Start date plus the term" />
+            </FieldRow>
+          </FormSection>
+
+          <FormSection
+            step={3}
+            title="Payment"
+            description="Charged once, up front, for the whole term. Review happens after payment; a rejected campaign is refunded by hand."
+          >
+            {!withRail && orderSummary}
+
+            {capacityError && (
+              <p className="rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-sm text-gray-300">
+                {capacityError} You can still submit — availability is checked
+                again before you are charged.
+              </p>
+            )}
+
+            {errors.submit && (
+              <p
+                role="alert"
+                className="rounded-lg border border-rose-900 bg-rose-950/40 p-3 text-sm text-rose-300"
+              >
+                {errors.submit}
+              </p>
+            )}
+
+            {/* The pay button is replaced outright when the campaign cannot be
+                bought — full, or no price configured — rather than disabled
+                beside an explanation. A greyed-out "Pay $299" invites a brand
+                to keep clicking it. */}
+            {placementUnconfigured ? (
+              <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4">
+                <p className="mb-1 font-semibold text-white">
+                  {adPlacementLabel(placement)} is unavailable right now
+                </p>
+                <p className="text-sm text-gray-400">
+                  This placement cannot be purchased at the moment. Nothing has
+                  been charged and nothing has been saved — try another
+                  placement, or check back shortly.
+                </p>
               </div>
-
-              {capacityError && (
-                <p className="text-sm text-gray-300 bg-zinc-900 border border-zinc-800 rounded-lg p-3">
-                  {capacityError} You can still submit — availability is checked
-                  again before you are charged.
+            ) : placementFull ? (
+              <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4">
+                <p className="mb-1 font-semibold text-white">This placement is fully booked</p>
+                {/* Says nothing about how many campaigns a placement holds —
+                    any count implies the spot is shared, and it stays true if
+                    the cap is raised. */}
+                <p className="text-sm text-gray-400">
+                  {adPlacementLabel(placement)} is already booked between{" "}
+                  {startDate} and {endDate}. Pick another placement, a later
+                  start date, or a shorter term.
                 </p>
-              )}
-
-              {errors.submit && (
-                <p className="text-sm text-rose-400 bg-rose-950/40 border border-rose-900 rounded-lg p-3">
-                  {errors.submit}
-                </p>
-              )}
-
-              {/* The pay button is replaced outright when the campaign cannot
-                  be bought — whether because the placement is full or because
-                  it has no price configured — rather than being disabled beside
-                  an explanation. A greyed-out "Pay $299" invites a brand to
-                  keep clicking it. */}
-              {placementUnconfigured ? (
-                <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4">
-                  <p className="font-semibold text-white mb-1">
-                    {adPlacementLabel(placement)} is unavailable right now
-                  </p>
-                  <p className="text-sm text-gray-400">
-                    This placement cannot be purchased at the moment. Nothing
-                    has been charged and nothing has been saved — try another
-                    placement, or check back shortly.
-                  </p>
-                </div>
-              ) : placementFull ? (
-                <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4">
-                  <p className="font-semibold text-white mb-1">
-                    This placement is fully booked
-                  </p>
-                  {/* Deliberately says nothing about how many campaigns a
-                      placement holds. At a cap of one "its full 1 campaigns"
-                      is broken English, and any count at all implies the spot
-                      is shared. It is also cap-agnostic, so raising the cap
-                      later does not leave this sentence lying. */}
-                  <p className="text-sm text-gray-400">
-                    {adPlacementLabel(placement)} is already booked between{" "}
-                    {startDate} and {endDate}. Pick another placement, a later
-                    start date, or a shorter term.
-                  </p>
-                </div>
-              ) : (
+              </div>
+            ) : (
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+                {ads.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFormOpen(false)}
+                    disabled={busy}
+                    className="min-h-12 rounded-lg px-4 text-sm font-semibold text-gray-400 transition hover:text-white disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  // Not disabled while availability is being re-read. The
-                  // server checks capacity again before it charges anything, so
-                  // blocking the button on an in-flight advisory count would
-                  // only make the form feel slow.
+                  // Not disabled while availability is re-read: the server
+                  // checks capacity again before it charges anything.
                   disabled={busy || !userId}
-                  className="bg-accent text-on-accent px-5 py-2.5 rounded-lg font-semibold hover:bg-accent-hover transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-accent px-6 font-semibold text-on-accent transition hover:bg-accent-hover disabled:opacity-50"
                 >
                   <ButtonSpinner active={busy} />
                   {uploading
@@ -690,146 +711,169 @@ export default function BrandingDealsPage() {
                     ? "Redirecting to Stripe..."
                     : `Continue to payment — ${formatUsd(totalCents)}`}
                 </button>
-              )}
-
-              <p className="text-xs text-gray-500">
-                You are charged once, up front, for the whole term. Review
-                happens after payment; a rejected campaign is refunded by hand.
-              </p>
-            </div>
-          </Card>
+              </div>
+            )}
+          </FormSection>
         </div>
+      )}
 
-        <aside className="xl:sticky xl:top-0">
-          <SectionHeading>Your submissions</SectionHeading>
+      <section aria-labelledby="campaigns-heading">
+        <h2 id="campaigns-heading" className="mb-3 text-lg font-semibold text-white">
+          Your campaigns
+        </h2>
 
-          {loading ? (
-            <AdSubmissionSkeleton />
-          ) : ads.length === 0 ? (
-            <p className="text-gray-400">Nothing submitted yet.</p>
-          ) : (
-            // No max-height below xl: there the column is stacked under the
-            // form in normal page flow, and capping it would nest a scroll
-            // area inside the page scroll for no reason. From xl the column is
-            // sticky beside the form, and the cap is what keeps it inside the
-            // viewport — dvh rather than vh so mobile browser chrome is
-            // accounted for, and 7rem covers the heading above it plus a gap
-            // at the bottom.
-            <div
-              ref={listRef}
-              className="xl:max-h-[calc(100dvh-7rem)] overflow-y-auto scrollbar-dark pr-1 space-y-3"
-            >
-              {ads.map((ad) => {
-                // An unpaid row is a campaign whose checkout was abandoned. It
-                // is not pending review and it is not running — no admin will
-                // ever see it — so it must not wear the 'Pending' badge that
-                // its status column would otherwise give it.
-                const unpaid = ad.payment_status === "unpaid";
+        {loading ? (
+          <AdSubmissionSkeleton />
+        ) : ads.length === 0 ? (
+          <EmptyState icon="megaphone" title="No campaigns yet">
+            Fill in the form above to buy a placement. Your campaign shows up
+            here with its payment and review status.
+          </EmptyState>
+        ) : (
+          <>
+            <ul className="space-y-3">
+              {ads.map((ad) => (
+                <li key={ad.id}>
+                  <CampaignRow ad={ad} onResume={handleResume} resuming={redirecting} />
+                </li>
+              ))}
+            </ul>
+            {/* Pages against the page scroll now; the list used to scroll
+                inside its own capped side panel with its own observer. */}
+            <LoadMore
+              hasMore={hasMore}
+              loadingMore={loadingMore}
+              onLoadMore={loadMore}
+              showEndMessage={ads.length > SUBMISSIONS_PAGE_SIZE}
+            />
+          </>
+        )}
+      </section>
+    </RailColumns>
+  );
+}
 
-                return (
-                  <Card key={ad.id} className="p-4">
-                    <img
-                      src={getAdPublicUrl(ad.image_path)}
-                      alt={ad.title}
-                      // Capped so a wide column doesn't turn each row into a
-                      // banner; the 4:1 box still governs at narrower widths.
-                      className="w-full aspect-[4/1] max-h-28 rounded object-cover border border-zinc-700 mb-3"
-                    />
-
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <h3 className="font-semibold text-white truncate">
-                        {ad.title}
-                      </h3>
-                      <span
-                        className={`shrink-0 text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border ${
-                          unpaid
-                            ? "bg-amber-950/40 border-amber-900 text-amber-400"
-                            : STATUS_STYLES[ad.status] ??
-                              "bg-zinc-800 border-zinc-700 text-gray-400"
-                        }`}
-                      >
-                        {unpaid ? "Unpaid" : ad.status}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-gray-400">
-                      {adPlacementLabel(ad.placement)}
-                      {ad.city ? ` · ${ad.city}` : ""}
-                      {ad.duration_months
-                        ? ` · ${ad.duration_months} ${
-                            ad.duration_months === 1 ? "month" : "months"
-                          }`
-                        : ""}
-                    </p>
-                    {ad.start_date && (
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {ad.start_date} → {ad.end_date}
-                      </p>
-                    )}
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {ad.amount_charged != null
-                        ? `$${Number(ad.amount_charged).toLocaleString()} paid`
-                        : "—"}
-                      {!unpaid && ad.status === "pending" && " · not running yet"}
-                      {ad.status === "approved" &&
-                        (ad.is_active ? " · live" : " · approved, paused")}
-                    </p>
-
-                    {unpaid && (
-                      <div className="mt-2.5 rounded-lg border border-amber-900 bg-amber-950/30 p-2.5">
-                        <p className="text-xs font-semibold text-amber-400 mb-1">
-                          Payment incomplete
-                        </p>
-                        <p className="text-xs text-gray-300 mb-2">
-                          Nothing was charged, and this campaign is not in the
-                          review queue. It holds no placement until it is paid
-                          for.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => handleResume(ad.id)}
-                          disabled={redirecting}
-                          className="text-xs font-semibold bg-accent text-on-accent px-3 py-1.5 rounded-md hover:bg-accent-hover transition disabled:opacity-50"
-                        >
-                          Complete payment
-                        </button>
-                      </div>
-                    )}
-
-                    {ad.status === "rejected" && (
-                      <div className="mt-2.5 rounded-lg border border-rose-900 bg-rose-950/30 p-2.5">
-                        <p className="text-xs font-semibold text-rose-400 mb-1">
-                          Why this was rejected
-                        </p>
-                        <p className="text-xs text-gray-300">
-                          {ad.review_notes?.trim() ||
-                            "No reason was recorded. Contact support if you need detail."}
-                        </p>
-                      </div>
-                    )}
-                  </Card>
-                );
-              })}
-
-              {/* Watched by the observer above; scrolling it into view fetches
-                  the next page. */}
-              <div ref={sentinelRef} aria-hidden />
-
-              {loadingMore && (
-                <div className="flex items-center justify-center gap-2 py-2">
-                  <Spinner size="sm" label="" />
-                  <span className="text-xs text-gray-400">Loading more</span>
-                </div>
-              )}
-              {!hasMore && ads.length > SUBMISSIONS_PAGE_SIZE && (
-                <p className="text-xs text-gray-400 text-center py-2">
-                  That&apos;s everything.
-                </p>
-              )}
-            </div>
-          )}
-        </aside>
-      </div>
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-gray-400">{label}</dt>
+      <dd className="min-w-0 truncate text-right text-white">{value}</dd>
     </div>
+  );
+}
+
+/**
+ * The creative as it will appear — the same 4:1 box and caption as
+ * FeedAdCard — so the brand sees the crop and the caption before paying.
+ */
+function CreativePreview({
+  imageUrl,
+  title,
+  placement,
+}: {
+  imageUrl: string | null;
+  title: string;
+  placement: AdPlacement;
+}) {
+  return (
+    <section>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        Preview · {adPlacementLabel(placement)}
+      </p>
+      <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
+        <div className="relative w-full bg-black" style={{ paddingTop: "25%" }}>
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a local object URL, nothing to optimise
+            <img src={imageUrl} alt="" className="absolute inset-0 h-full w-full object-contain" />
+          ) : (
+            <span className="absolute inset-0 flex items-center justify-center gap-2 text-xs text-gray-500">
+              <Icon name="photo" />
+              Your 4:1 image
+            </span>
+          )}
+        </div>
+        <p className="truncate px-4 py-3 font-semibold text-white">
+          {title.trim() || "Your ad title"}
+        </p>
+      </div>
+      <p className="mt-1.5 text-xs uppercase tracking-wide text-gray-400">Sponsored</p>
+    </section>
+  );
+}
+
+/** One submitted campaign, with whatever it needs from the brand. */
+function CampaignRow({
+  ad,
+  onResume,
+  resuming,
+}: {
+  ad: Ad;
+  onResume: (id: string) => void;
+  resuming: boolean;
+}) {
+  const state = adStateOf(ad);
+  const meta = [
+    adPlacementLabel(ad.placement),
+    ad.city,
+    ad.duration_months
+      ? `${ad.duration_months} ${ad.duration_months === 1 ? "month" : "months"}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <article className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 sm:p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        {/* eslint-disable-next-line @next/next/no-img-element -- public storage URL, as everywhere else ads render */}
+        <img
+          src={getAdPublicUrl(ad.image_path)}
+          alt=""
+          className="aspect-[4/1] w-full shrink-0 rounded-lg border border-zinc-800 object-cover sm:w-48"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="min-w-0 truncate font-semibold text-white">{ad.title}</h3>
+            <AdStatusPill state={state} fallback={ad.status} />
+          </div>
+          <p className="mt-0.5 text-xs text-gray-400">{meta}</p>
+          <p className="mt-0.5 text-xs text-gray-500">
+            {ad.start_date ? `${ad.start_date} → ${ad.end_date}` : "Dates set on approval"}
+            {ad.amount_charged != null &&
+              ` · $${Number(ad.amount_charged).toLocaleString()} paid`}
+          </p>
+        </div>
+      </div>
+
+      {/* An unpaid row is a checkout that was abandoned: not in review, not
+          running, and no admin will ever see it. Magenta, not the amber it
+          was — amber is not in the palette. */}
+      {state === "unpaid" && (
+        <div className="mt-3 flex flex-col gap-2 rounded-lg border border-accent-2/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-gray-300">
+            <span className="font-semibold text-white">Payment incomplete.</span>{" "}
+            Nothing was charged; it holds no placement until it is paid for.
+          </p>
+          <button
+            type="button"
+            onClick={() => onResume(ad.id)}
+            disabled={resuming}
+            className="min-h-11 shrink-0 rounded-lg bg-accent px-4 text-sm font-semibold text-on-accent transition hover:bg-accent-hover disabled:opacity-50"
+          >
+            Complete payment
+          </button>
+        </div>
+      )}
+
+      {state === "rejected" && (
+        <div className="mt-3 rounded-lg border border-rose-900/70 p-3">
+          <p className="mb-0.5 text-xs font-semibold text-rose-400">Why this was rejected</p>
+          <p className="text-sm text-gray-300">
+            {ad.review_notes?.trim() ||
+              "No reason was recorded. Contact support if you need detail."}
+          </p>
+        </div>
+      )}
+    </article>
   );
 }
